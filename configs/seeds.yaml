@@ -1,0 +1,21 @@
+episodes_per_combo: 2
+episode_steps: 2
+fault_severities: [0.5, 1.0]
+seeds: [42, 43, 44]
+environments:
+  - file_ops
+  - calendar_ops
+  - risk_ops
+agents:
+  - naive
+  - retry
+  - validate_then_act
+  - monitor_gated
+  - conservative
+  - offline_llm_fixture
+faults:
+  - normal
+  - stale_observation
+  - missing_field
+  - schema_drift
+  - latency_spike

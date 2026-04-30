@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tool-agent-shift-benchmark"
+version = "0.1.0"
+description = "Synthetic benchmark for tool-using agent safety under tool, observation, memory, and constraint shift."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Tool-Agent Shift Benchmark Contributors"}]
+dependencies = ["pyyaml>=6.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,0 +1,5 @@
+{
+  "description": "Deterministic offline policy fixture. No network calls, no API keys.",
+  "clean_policy": "act using environment recommended action",
+  "shift_policy": "abstain under stale, missing, schema drift, conflicting, or constraint-shifted observations"
+}

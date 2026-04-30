@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+title: "Tool-Agent Shift Benchmark"
+message: "If you use this benchmark, please cite it. Humans do like making graphs respectable with citations."
+type: software
+authors:
+  - family-names: "Contributors"
+    given-names: "Tool-Agent Shift Benchmark"
+version: "0.1.0"
+date-released: "2026-04-29"
+license: "MIT"
+repository-code: "https://github.com/example/tool-agent-shift-benchmark"
+abstract: "A deterministic synthetic benchmark for evaluating safe and useful tool-using agent behavior under tool, observation, memory, and constraint shift."

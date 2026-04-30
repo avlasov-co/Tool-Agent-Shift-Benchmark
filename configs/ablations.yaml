@@ -1,0 +1,30 @@
+episodes_per_combo: 1
+episode_steps: 2
+fault_severities: [1.0]
+monitor_modes:
+  - no_monitor
+  - schema_only
+  - schema_plus_freshness
+  - schema_plus_freshness_plus_consistency
+  - full_composite_monitor
+environments:
+  - file_ops
+  - calendar_ops
+  - risk_ops
+agents:
+  - naive
+  - retry
+  - validate_then_act
+  - monitor_gated
+  - conservative
+  - offline_llm_fixture
+faults:
+  - normal
+  - schema_drift
+  - stale_observation
+  - latency_spike
+  - missing_field
+  - conflicting_tool_output
+  - corrupted_memory
+  - constraint_shift
+  - compound_shift
