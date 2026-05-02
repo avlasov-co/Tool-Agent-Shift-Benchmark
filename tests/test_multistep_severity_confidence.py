@@ -5,6 +5,7 @@ from pathlib import Path
 from src.run_eval import run_eval
 from src.run_seeds import run_seeds
 from src.agents.offline_llm_fixture import OfflineLLMFixtureAgent
+from src.core.context import ObservationContext
 from src.environments.file_ops import FileOpsEnvironment
 from src.faults.stale_observation import StaleObservationFault
 
@@ -48,6 +49,7 @@ def test_run_seeds_confidence_outputs(tmp_path, monkeypatch):
 def test_offline_fixture_has_no_network_dependency():
     env = FileOpsEnvironment(seed=1, scenario_index=0)
     agent = OfflineLLMFixtureAgent()
-    decision = agent.decide(env, env.tool_response())
+    response = env.tool_response()
+    decision = agent.decide(ObservationContext.from_environment(env, response.observation), response)
     assert decision.agent_name == "offline_llm_fixture"
     assert decision.metadata["network_calls"] == 0

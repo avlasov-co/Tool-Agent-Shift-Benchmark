@@ -1,5 +1,13 @@
 {
-  "description": "Deterministic offline policy fixture. No network calls, no API keys.",
-  "clean_policy": "act using environment recommended action",
-  "shift_policy": "abstain under stale, missing, schema drift, conflicting, or constraint-shifted observations"
+  "description": "Deterministic local policy fixture metadata. The OfflineLLMFixtureAgent does not call APIs and must infer risk only from policy-visible observations, not evaluator fault labels.",
+  "cases": [
+    {
+      "name": "clean_visible_observation",
+      "expected_behavior": "act_when_required_fields_schema_timestamp_and_visible_constraints_look_valid"
+    },
+    {
+      "name": "visible_shift_or_uncertainty",
+      "expected_behavior": "abstain_when_required_fields_schema_timestamp_conflicts_or_memory_hint_signal_uncertainty"
+    }
+  ]
 }

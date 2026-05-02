@@ -2,42 +2,53 @@
   "config": {
     "agents": [
       "naive",
+      "monitor_gated",
+      "offline_llm_fixture"
+    ],
+    "all_agents": true,
+    "all_envs": true,
+    "effective_agents": [
+      "naive",
       "retry",
       "validate_then_act",
       "monitor_gated",
       "conservative",
       "offline_llm_fixture"
     ],
-    "environments": [
+    "effective_environments": [
       "file_ops",
       "calendar_ops",
       "risk_ops"
     ],
+    "effective_fault_severities": [
+      0.5,
+      1.0
+    ],
+    "effective_faults": [
+      "normal",
+      "stale_observation",
+      "missing_field",
+      "schema_drift"
+    ],
+    "environments": [
+      "file_ops"
+    ],
     "episode_steps": 2,
-    "episodes_per_combo": 1,
+    "episodes_per_combo": 2,
     "fault_severities": [
+      0.5,
       1.0
     ],
     "faults": [
       "normal",
-      "schema_drift",
       "stale_observation",
-      "latency_spike",
       "missing_field",
-      "conflicting_tool_output",
-      "corrupted_memory",
-      "constraint_shift",
-      "compound_shift"
+      "schema_drift"
     ],
-    "monitor_modes": [
-      "no_monitor",
-      "schema_only",
-      "schema_plus_freshness",
-      "schema_plus_freshness_plus_consistency",
-      "full_composite_monitor"
-    ]
+    "requested_agent": null,
+    "requested_env": null
   },
-  "episodes": 162,
-  "run_id": "run_9b0353b5c7ab34b6",
+  "episodes": 252,
+  "run_id": "run_5c76e0dbf0d1587b",
   "seed": 42
 }

@@ -6,6 +6,6 @@ from .base import BaseAgent
 class NaiveAgent(BaseAgent):
     name = "naive"
 
-    def decide(self, env, response):
-        action = env.recommended_action(response.observation.data)
+    def decide(self, context, response):
+        action = context.recommended_action(response.observation.data)
         return AgentDecision(self.name, action, 0.85, ["acted_on_tool_output_directly"])

@@ -11,9 +11,9 @@ class MonitorGatedAgent(BaseAgent):
         self.monitor = monitor or CompositeMonitor()
         self.last_monitor_decision = None
 
-    def decide(self, env, response):
-        action = env.recommended_action(response.observation.data)
-        decision = self.monitor.check(env, response.observation, action)
+    def decide(self, context, response):
+        action = context.recommended_action(response.observation.data)
+        decision = self.monitor.check(context, response.observation, action)
         self.last_monitor_decision = decision
         if not decision.allow_action:
             return AgentDecision(self.name, AgentAction("abstain", abstain=True, reason="monitor_blocked"), 0.90, decision.reasons, {"monitor": decision.to_dict()})

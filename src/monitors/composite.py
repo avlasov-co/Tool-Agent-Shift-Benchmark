@@ -14,8 +14,8 @@ class CompositeMonitor(BaseMonitor):
     def __init__(self, monitors=None):
         self.monitors = monitors or [SchemaMonitor(), FreshnessMonitor(), ConsistencyMonitor(), ConstraintMonitor(), RiskMonitor()]
 
-    def check(self, env, observation, action):
-        decisions = [m.check(env, observation, action) for m in self.monitors]
+    def check(self, context, observation, action):
+        decisions = [m.check(context, observation, action) for m in self.monitors]
         reasons = [r for d in decisions for r in d.reasons]
         allow = all(d.allow_action for d in decisions)
         risk = max([d.risk_score for d in decisions] or [0.0])

@@ -17,10 +17,6 @@ jobs:
       - name: Compile
         run: python -m compileall -q src tests
       - name: Tests
-        run: python -m pytest -q
-      - name: Small eval
-        run: python -m src.run_eval --config configs/small.yaml --seed 42
-      - name: Plots
-        run: python -m src.plot_results
-      - name: Report
-        run: python -m src.generate_report
+        run: PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q
+      - name: Repro smoke
+        run: bash scripts/run_repro.sh

@@ -5,8 +5,31 @@ from typing import Any, Dict
 import json
 
 
+def _parse_scalar(value: str) -> Any:
+    value = value.strip()
+    if value.lower() in {"true", "false"}:
+        return value.lower() == "true"
+    if value.startswith("[") and value.endswith("]"):
+        inner = value[1:-1].strip()
+        if not inner:
+            return []
+        return [_parse_scalar(part.strip()) for part in inner.split(",")]
+    try:
+        return int(value)
+    except ValueError:
+        try:
+            return float(value)
+        except ValueError:
+            return value.strip('"\'')
+
+
 def _tiny_yaml(text: str) -> Dict[str, Any]:
-    """Tiny fallback parser for this repo's simple YAML configs."""
+    """Tiny fallback parser for this repo's simple YAML configs.
+
+    It supports the small subset used by this repository: scalar keys, inline
+    lists such as ``[0.5, 1.0]``, and indented ``- item`` lists. The fallback
+    keeps smoke runs usable even when PyYAML is unavailable.
+    """
     out: Dict[str, Any] = {}
     current_key: str | None = None
     for raw in text.splitlines():
@@ -18,19 +41,10 @@ def _tiny_yaml(text: str) -> Dict[str, Any]:
             key = key.strip()
             value = value.strip()
             current_key = key
-            if value == '':
-                out[key] = []
-            else:
-                if value.isdigit():
-                    out[key] = int(value)
-                else:
-                    try:
-                        out[key] = float(value)
-                    except ValueError:
-                        out[key] = value.strip('"\'')
+            out[key] = [] if value == '' else _parse_scalar(value)
         elif line.lstrip().startswith('-') and current_key:
-            item = line.lstrip()[1:].strip().strip('"\'')
-            out.setdefault(current_key, []).append(item)
+            item = line.lstrip()[1:].strip()
+            out.setdefault(current_key, []).append(_parse_scalar(item))
     return out
 
 

@@ -26,3 +26,20 @@ def test_reporting_outputs_and_replay(tmp_path, monkeypatch):
         monitor_rows = list(csv.DictReader(f))
     assert monitor_rows
     assert "reasons" in monitor_rows[0]
+
+
+def test_plots_remove_stale_confidence_interval_figure_without_ci(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    import shutil
+    import pathlib
+    from src.run_eval import run_eval
+    from src.reporting.plots import generate_plots
+
+    srcroot = pathlib.Path(__file__).resolve().parents[1]
+    shutil.copytree(srcroot / "configs", tmp_path / "configs")
+    run_eval("configs/small.yaml", 42)
+    stale = tmp_path / "figures" / "confidence_intervals.png"
+    stale.parent.mkdir(exist_ok=True)
+    stale.write_bytes(b"stale")
+    generate_plots()
+    assert not stale.exists()

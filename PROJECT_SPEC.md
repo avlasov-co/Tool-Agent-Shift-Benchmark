@@ -244,7 +244,7 @@ tool-agent-shift-benchmark
 ## Architecture flow
 
 ```text
-User Task / Scenario
+Scenario / Synthetic Task
         ↓
 Environment
         ↓
@@ -258,11 +258,11 @@ Monitor Decision
         ↓
 Action Execution
         ↓
-Outcome + Unsafe Action Check
+Ground Truth Safety Check
         ↓
-Metrics / Logging / Failure Cases
+Metrics + Logs + Failure Cases
         ↓
-Plots / Report / Final Results
+Plots + Report + Paper-Style Analysis
 ```
 
 ## Release criteria

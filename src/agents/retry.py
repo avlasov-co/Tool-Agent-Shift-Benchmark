@@ -6,12 +6,16 @@ from .base import BaseAgent
 class RetryAgent(BaseAgent):
     name = "retry"
 
-    def decide(self, env, response):
+    def decide(self, context, response):
         data = response.observation.data
-        missing = [f for f in getattr(env, "required_fields", []) if f not in data]
+        missing = [field for field in context.required_fields if field not in data]
         if missing:
-            clean = env.tool_response()
-            action = env.recommended_action(clean.observation.data)
-            return AgentDecision(self.name, action, 0.70, ["retried_after_invalid_output"], {"retry": True, "missing": missing})
-        action = env.recommended_action(data)
+            return AgentDecision(
+                self.name,
+                AgentAction("abstain", abstain=True, reason="retry_unavailable_after_faulted_observation"),
+                0.80,
+                ["missing_required_visible_fields"],
+                {"retry": False, "missing": missing, "clean_tool_bypass_prevented": True},
+            )
+        action = context.recommended_action(data)
         return AgentDecision(self.name, action, 0.75, ["no_retry_needed"], {"retry": False})

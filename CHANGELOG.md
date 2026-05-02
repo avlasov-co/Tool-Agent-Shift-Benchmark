@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Added visible-only `ObservationContext` for agents and monitors.
+- Prevented the retry baseline from bypassing shifted observations by calling a clean tool response after a fault.
+- Added evaluator-boundary regression tests and documentation.
+- Regenerated small benchmark outputs and plots after the boundary change.
+
 ## v0.1.0 — 2026-04-29
 
 Initial release.

@@ -19,14 +19,20 @@ class OfflineLLMFixtureAgent(BaseAgent):
         p = Path(policy_path)
         self.policy = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
 
-    def decide(self, env, response):
+    def decide(self, context, response):
         obs = response.observation
-        faults = [f.get("name") for f in obs.metadata.get("faults", [])]
-        risky = any(k in faults for k in ["missing_field", "schema_drift", "conflicting_tool_output", "constraint_shift"])
-        if obs.timestamp < getattr(env, "current_time", obs.timestamp):
+        risky = False
+        for field in context.required_fields:
+            if field not in obs.data:
+                risky = True
+        if obs.schema_version != "v1":
+            risky = True
+        if obs.timestamp < context.current_time:
             risky = True
         if "conflicting_views" in obs.data:
             risky = True
+        if obs.metadata.get("memory_hint"):
+            risky = True
         if risky:
             return AgentDecision(self.name, AgentAction("abstain", abstain=True, reason="offline_fixture_uncertainty"), 0.72, ["offline_fixture_abstained_under_shift"], {"policy_path": self.policy_path, "network_calls": 0})
-        return AgentDecision(self.name, env.recommended_action(obs.data), 0.70, ["offline_fixture_clean_policy"], {"policy_path": self.policy_path, "network_calls": 0})
+        return AgentDecision(self.name, context.recommended_action(obs.data), 0.70, ["offline_fixture_clean_policy"], {"policy_path": self.policy_path, "network_calls": 0})

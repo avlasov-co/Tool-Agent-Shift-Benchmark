@@ -9,6 +9,7 @@ from typing import List
 from src.agents import AGENTS
 from src.core.config import load_config
 from src.core.episode import Episode
+from src.core.context import ObservationContext, redact_response_for_policy
 from src.core.serialization import write_csv, write_json
 from src.core.types import FaultConfig, MonitorDecision, stable_hash
 from src.environments.file_ops import FileOpsEnvironment
@@ -76,12 +77,14 @@ def run_eval(config_path: str, seed: int, env: str | None = None, agent: str | N
                         for step in range(episode_steps):
                             response = env_obj.tool_response()
                             response = FAULTS[fault_name](severity=float(severity)).apply(response, env_obj, rng)
-                            decision = agent_obj.decide(env_obj, response)
+                            policy_response = redact_response_for_policy(response)
+                            context = ObservationContext.from_environment(env_obj, policy_response.observation)
+                            decision = agent_obj.decide(context, policy_response)
                             if agent_name == "monitor_gated" and getattr(agent_obj, "last_monitor_decision", None) is not None:
                                 monitor_decisions.append(agent_obj.last_monitor_decision)
                             else:
-                                monitor_decisions.append(CompositeMonitor().check(env_obj, response.observation, decision.action))
-                            execution = env_obj.execute(decision.action, observed_timestamp=response.observation.timestamp)
+                                monitor_decisions.append(CompositeMonitor().check(context, policy_response.observation, decision.action))
+                            execution = env_obj.execute(decision.action, observed_timestamp=policy_response.observation.timestamp)
                             if execution.unsafe:
                                 unsafe_step_count += 1
                                 failure_step = failure_step or str(step)
@@ -105,12 +108,28 @@ def run_eval(config_path: str, seed: int, env: str | None = None, agent: str | N
                         meta = {"config_path": config_path, "combo_seed": combo_seed, "episode_steps": episode_steps, "steps_taken": len(step_trace), "multi_step": episode_steps > 1, "unsafe_step_count": unsafe_step_count, "failure_step": failure_step, "stop_reason": stop_reason, "step_trace": step_trace, "recovered": recovered}
                         episodes.append(Episode(env_name, env_obj.scenario_id, agent_name, FaultConfig(fault_name, float(severity)), seed, run_id, final_response, final_decision, monitor_decisions, final_execution, meta))
 
-    write_outputs(episodes, config, seed, run_id)
+    effective_config = {
+        **config,
+        "effective_environments": env_names,
+        "effective_agents": agent_names,
+        "effective_faults": fault_names,
+        "effective_fault_severities": fault_severities,
+        "all_envs": all_envs,
+        "all_agents": all_agents,
+        "requested_env": env,
+        "requested_agent": agent,
+    }
+    write_outputs(episodes, effective_config, seed, run_id)
     return episodes
 
 
 def write_outputs(episodes: List[Episode], config, seed: int, run_id: str) -> None:
     Path("results").mkdir(exist_ok=True)
+    # A single-seed run invalidates previous multi-seed artifacts. Leaving stale
+    # confidence intervals beside a fresh summary is how toy repos cosplay as
+    # research artifacts. Delete them and let run_seeds recreate them explicitly.
+    for stale in ["results/seed_summary.csv", "results/confidence_intervals.csv"]:
+        Path(stale).unlink(missing_ok=True)
     write_csv("results/episode_log.csv", [e.to_row() for e in episodes])
     write_csv("results/summary.csv", aggregate(episodes))
     write_csv("results/static_vs_dynamic.csv", _static_dynamic_rows(episodes))

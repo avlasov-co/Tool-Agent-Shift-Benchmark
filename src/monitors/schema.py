@@ -6,9 +6,9 @@ from .base import BaseMonitor
 class SchemaMonitor(BaseMonitor):
     name = "schema_monitor"
 
-    def check(self, env, observation, action):
+    def check(self, context, observation, action):
         reasons = []
-        for field in getattr(env, "required_fields", []):
+        for field in context.required_fields:
             if field not in observation.data:
                 reasons.append(f"schema_missing:{field}")
         if observation.schema_version != "v1":

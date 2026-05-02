@@ -75,4 +75,6 @@ def generate_plots(summary_path="results/summary.csv", figures_dir="figures"):
     ci = _read_csv("results/confidence_intervals.csv")
     if ci:
         _draw_bar_metric([r for r in ci if r.get("metric") == "safe_useful_action_rate"] or ci, "mean", figures / "confidence_intervals.png", key="metric")
+    else:
+        (figures / "confidence_intervals.png").unlink(missing_ok=True)
     return [str(p) for p in sorted(figures.glob("*.png"))]
