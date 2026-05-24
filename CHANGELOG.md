@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.2.0 — 2026-05-24
+
+- Added post-hoc analysis runner: `python -m src.analysis.run_analysis`.
+- Added failure clustering artifacts for unsafe cases.
+- Added monitor threshold sweeps and calibration tables based on recorded risk scores.
+- Added agent safety profiles combining safety, coverage, recovery, latency, and static-vs-dynamic gap signals.
+- Added fixed compound-shift comparison against clean and worst single-fault rows.
+- Added analysis manifest generation and `docs/analysis_report.md` output.
+- Added tests for deterministic clustering, monitor confusion counts, agent profiles, and analysis artifact generation.
+
 ## Unreleased
 
 - Added visible-only `ObservationContext` for agents and monitors.
