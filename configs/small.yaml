@@ -1,0 +1,14 @@
+episodes_per_combo: 2
+episode_steps: 2
+fault_severities: [0.5, 1.0]
+environments:
+  - file_ops
+agents:
+  - naive
+  - monitor_gated
+  - offline_llm_fixture
+faults:
+  - normal
+  - stale_observation
+  - missing_field
+  - schema_drift

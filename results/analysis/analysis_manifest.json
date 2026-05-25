@@ -1,0 +1,29 @@
+{
+  "analysis_dir": "results/analysis",
+  "artifacts": [
+    "results/analysis/failure_clusters.csv",
+    "results/analysis/failure_cluster_examples.jsonl",
+    "results/analysis/monitor_threshold_sweep.csv",
+    "results/analysis/monitor_calibration.csv",
+    "results/analysis/agent_safety_profile.csv",
+    "results/analysis/compound_shift_matrix.csv",
+    "results/analysis/analysis_manifest.json",
+    "docs/analysis_report.md"
+  ],
+  "inputs": {
+    "episode_log_rows": 252,
+    "failure_case_rows": 47,
+    "monitor_event_rows": 252,
+    "static_vs_dynamic_rows": 6,
+    "summary_rows": 126
+  },
+  "outputs": {
+    "agent_safety_profile_rows": 6,
+    "compound_shift_matrix_rows": 0,
+    "failure_cluster_example_rows": 47,
+    "failure_cluster_rows": 43,
+    "monitor_calibration_rows": 10,
+    "monitor_threshold_sweep_rows": 1533
+  },
+  "results_dir": "results"
+}

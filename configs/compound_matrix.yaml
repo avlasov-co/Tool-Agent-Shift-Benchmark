@@ -1,0 +1,25 @@
+# Pairwise compound-shift experiment config.
+# This is intentionally small enough for release validation but broad enough to
+# show fault-interaction behavior across all synthetic environments.
+
+episodes_per_combo: 2
+seed: 42
+fault_severities: [0.5, 1.0]
+environments:
+  - file_ops
+  - calendar_ops
+  - risk_ops
+agents:
+  - naive
+  - retry
+  - validate_then_act
+  - monitor_gated
+  - conservative
+  - offline_llm_fixture
+fault_pairs:
+  - schema_drift+missing_field
+  - schema_drift+stale_observation
+  - missing_field+constraint_shift
+  - stale_observation+latency_spike
+  - conflicting_tool_output+corrupted_memory
+  - constraint_shift+stale_observation

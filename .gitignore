@@ -1,0 +1,24 @@
+# Python/runtime noise
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local environments
+.venv/
+venv/
+.env
+.env.*
+
+# Local editor/OS noise
+.DS_Store
+.idea/
+.vscode/
+
+# Accidental logs/temp files
+*.log
+*.tmp
+/tmp/

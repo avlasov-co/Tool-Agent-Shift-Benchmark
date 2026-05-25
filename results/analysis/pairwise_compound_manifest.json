@@ -1,0 +1,6 @@
+{
+  "config_path": "configs/compound_matrix.yaml",
+  "description": "Pairwise compound-fault matrix comparing clean, single-fault, and paired-fault behavior.",
+  "output_csv": "results/analysis/pairwise_compound_matrix.csv",
+  "rows": 216
+}
