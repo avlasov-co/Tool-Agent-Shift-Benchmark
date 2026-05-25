@@ -1,0 +1,2 @@
+7846734627b77c51ec37aa1adcbe78c6d398291fe37f10d7a27d4f6a8d9a71e1  tool-agent-shift-benchmark-v0.3.0.tar.gz
+98805c44e383c7c60465b002097d200aa9466391e28acc4191f727525f13169c  tool-agent-shift-benchmark-v0.3.0.zip
