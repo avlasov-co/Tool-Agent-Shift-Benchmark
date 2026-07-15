@@ -16,17 +16,62 @@ from src.plot_results import main as plot_results_main
 from src.reporting.failure_cases import format_replay, replay_case
 from src.reporting.html_report import render_html_report
 from src.run_eval import run_eval
+from src.core.catalog import PluginCatalog
+from src.core.config import load_config
+from src.core.orchestration import ExperimentPlanner, ExperimentSpec
+from src.core.episode import Episode
 
 
 def _run_command(args: argparse.Namespace) -> None:
     validate_config(args.config)
-    episodes = run_eval(args.config, args.seed, env=args.env, agent=args.agent, all_envs=args.all_envs, all_agents=args.all_agents)
     run_dir = None
+    existing = []
+    if args.resume:
+        if not args.run_name:
+            raise ValueError("--resume requires --run-name so the checkpoint bundle can be located")
+        run_dir = Path("runs") / args.run_name
+        episodes_path = run_dir / "results" / "episodes.jsonl"
+        if episodes_path.exists():
+            existing = [Episode.from_dict(json.loads(line)) for line in episodes_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    checkpoint = str((run_dir or Path("runs") / (args.run_name or "run-checkpoint")) / "checkpoint.json") if args.resume else None
+    episodes = run_eval(args.config, args.seed, env=args.env, agent=args.agent, all_envs=args.all_envs, all_agents=args.all_agents, workers=args.workers, existing_episodes=existing, checkpoint_path=checkpoint, scenario_indices=args.scenario_index, episode_ids=args.episode_id)
     if args.run_name:
-        run_dir = prepare_run_dir(args.run_name, overwrite=args.overwrite)
-        snapshot_outputs(run_dir, command=["tasb", "run"], extra_metadata={"config": args.config, "seed": args.seed, "episodes": len(episodes)})
+        if not (args.resume and run_dir and run_dir.exists()):
+            run_dir = prepare_run_dir(args.run_name, overwrite=args.overwrite)
+        catalog = PluginCatalog()
+        snapshot_outputs(run_dir, command=["tasb", "run"], extra_metadata={"config": args.config, "seed": args.seed, "episodes": len(episodes), "workers": args.workers, "plugin_catalog": catalog.as_dict(), "contract_version": "1"})
         print(f"run artifacts written to {run_dir}")
     print(f"wrote results for {len(episodes)} episodes")
+
+
+def _plugins_command(args: argparse.Namespace) -> None:
+    catalog = PluginCatalog()
+    if args.plugins_command == "list":
+        for descriptor in catalog.descriptors():
+            print(f"{descriptor.kind}\t{descriptor.name}\t{descriptor.version}\tcontract={descriptor.contract_version}")
+    else:
+        catalog.validate()
+        print(f"plugin catalog valid: {len(catalog.descriptors())} plugins")
+
+
+def _plan_command(args: argparse.Namespace) -> None:
+    config = load_config(args.config)
+    spec = ExperimentSpec.from_config(config, seed=args.seed)
+    planner = ExperimentPlanner(spec)
+    plan = planner.plan()
+    print(json.dumps({"run_id": planner.run_id, "config_digest": spec.digest(), "plugins": planner.catalog.as_dict(), "episodes": len(plan), "matrix": [item.__dict__ for item in plan], "seed_policy": "stable hash(run, environment, agent, shift, severity, scenario_index)", "workers": spec.workers, "artifact_paths": [f"runs/{args.run_name or planner.run_id}/run_manifest.json", "results/episodes.jsonl", "traces/policy/", "traces/evaluator/"]}, indent=2, sort_keys=True))
+
+
+def _inspect_run_command(args: argparse.Namespace) -> None:
+    run_dir = resolve_run(args.run)
+    if run_dir is None: raise FileNotFoundError("no run found")
+    manifest = run_dir / "run_manifest.json"
+    print(manifest.read_text(encoding="utf-8") if manifest.exists() else json.dumps({"run_dir": str(run_dir)}))
+
+
+def _render_architecture_command(args: argparse.Namespace) -> None:
+    subprocess.run(["bash", "scripts/render_architecture.sh"], check=True)
+    print("architecture renders written to docs/architecture.svg and docs/architecture.png")
 
 
 def _analyze_command(args: argparse.Namespace) -> None:
@@ -112,6 +157,10 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--all-agents", action="store_true")
     run.add_argument("--run-name")
     run.add_argument("--overwrite", action="store_true")
+    run.add_argument("--workers", type=int, default=1)
+    run.add_argument("--resume", action="store_true")
+    run.add_argument("--scenario-index", type=int, action="append")
+    run.add_argument("--episode-id", action="append")
     run.set_defaults(func=_run_command)
 
     analyze = sub.add_parser("analyze", help="generate post-hoc analysis")
@@ -154,6 +203,26 @@ def build_parser() -> argparse.ArgumentParser:
     clean = sub.add_parser("clean", help="clean generated outputs")
     clean.add_argument("--runs", action="store_true")
     clean.set_defaults(func=_clean_command)
+
+    plugins = sub.add_parser("plugins", help="inspect plugin catalog")
+    plugins_sub = plugins.add_subparsers(dest="plugins_command", required=True)
+    plugins_list = plugins_sub.add_parser("list")
+    plugins_list.set_defaults(func=_plugins_command)
+    plugins_validate = plugins_sub.add_parser("validate")
+    plugins_validate.set_defaults(func=_plugins_command)
+
+    plan = sub.add_parser("plan", help="resolve an experiment without running it")
+    plan.add_argument("--config", default="configs/small.yaml")
+    plan.add_argument("--seed", type=int, default=42)
+    plan.add_argument("--run-name")
+    plan.set_defaults(func=_plan_command)
+
+    inspect = sub.add_parser("inspect-run", help="show a run manifest")
+    inspect.add_argument("run")
+    inspect.set_defaults(func=_inspect_run_command)
+
+    render = sub.add_parser("render-architecture", help="render the Mermaid architecture diagram")
+    render.set_defaults(func=_render_architecture_command)
     return parser
 
 

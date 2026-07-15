@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import shutil
@@ -8,6 +9,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
+from src.core.types import stable_hash
 
 RUNS_DIR = Path("runs")
 RESULTS_DIR = Path("results")
@@ -45,6 +47,8 @@ def prepare_run_dir(run_name: str | None = None, runs_dir: str | Path = RUNS_DIR
     (run_dir / "results").mkdir(parents=True, exist_ok=True)
     (run_dir / "figures").mkdir(parents=True, exist_ok=True)
     (run_dir / "docs").mkdir(parents=True, exist_ok=True)
+    (run_dir / "reports").mkdir(parents=True, exist_ok=True)
+    (run_dir / "replay").mkdir(parents=True, exist_ok=True)
     return run_dir
 
 
@@ -80,13 +84,62 @@ def snapshot_outputs(run_dir: str | Path, command: list[str] | None = None, extr
     copied += _copy_tree_contents(RESULTS_DIR, run_path / "results")
     copied += _copy_tree_contents(FIGURES_DIR, run_path / "figures", patterns=["*.png"])
     copied += _copy_tree_contents(DOCS_DIR, run_path / "docs", patterns=["experimental_report.md", "analysis_report.md", "analysis_report.html"])
+    config_source = run_path / "results" / "config.json"
+    if config_source.exists():
+        shutil.copy2(config_source, run_path / "config.json")
+    # The run bundle is self-describing and retains structured traces in
+    # addition to the legacy CSV export.
+    (run_path / "traces" / "policy").mkdir(parents=True, exist_ok=True)
+    (run_path / "traces" / "evaluator").mkdir(parents=True, exist_ok=True)
+    legacy_trace = run_path / "results" / "multistep_traces.jsonl"
+    if legacy_trace.exists():
+        for line in legacy_trace.read_text(encoding="utf-8").splitlines():
+            if not line.strip(): continue
+            item = json.loads(line)
+            episode_id = item.get("episode_id", "episode")
+            (run_path / "traces" / "policy" / f"{episode_id}.json").write_text(json.dumps({"episode_id": episode_id, "step_trace": item.get("step_trace", [])}, sort_keys=True, indent=2), encoding="utf-8")
+    evaluator_source = run_path / "results" / "evaluator_traces.jsonl"
+    if evaluator_source.exists():
+        for line in evaluator_source.read_text(encoding="utf-8").splitlines():
+            if not line.strip(): continue
+            item = json.loads(line)
+            episode_id = item.get("episode_id", "episode")
+            (run_path / "traces" / "evaluator" / f"{episode_id}.json").write_text(json.dumps(item, sort_keys=True, indent=2), encoding="utf-8")
+    files = sorted(p for p in run_path.rglob("*") if p.is_file() and p.name != "run_manifest.json")
+    checksums = {str(p.relative_to(run_path)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
+    metadata = extra_metadata or {}
+    config_payload = {}
+    config_path = run_path / "config.json"
+    if config_path.exists():
+        try: config_payload = json.loads(config_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError: config_payload = {}
+    episode_count = config_payload.get("episodes")
+    seed_list = []
+    episode_stream = run_path / "results" / "episodes.jsonl"
+    if episode_stream.exists():
+        for line in episode_stream.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                try: seed_list.append(json.loads(line).get("seed"))
+                except json.JSONDecodeError: pass
+    finished_at = datetime.now(timezone.utc).isoformat()
     manifest = {
+        "artifact_schema_version": "1",
         "run_dir": str(run_path),
-        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "created_at_utc": finished_at,
+        "started_at_utc": metadata.get("started_at_utc", finished_at),
+        "ended_at_utc": finished_at,
         "command": command or [],
         "git_commit": get_git_commit(),
-        "artifacts": copied,
-        "metadata": extra_metadata or {},
+        "config_digest": stable_hash(config_payload.get("config", config_payload), prefix="cfg") if config_payload else "unknown",
+        "episode_count": episode_count,
+        "seed_list": sorted({seed for seed in seed_list if seed is not None}),
+        "plugin_catalog": metadata.get("plugin_catalog", []),
+        "contract_version": metadata.get("contract_version", "1"),
+        "checkpoint": {"parent": metadata.get("parent_run"), "path": str(run_path / "checkpoint.json") if (run_path / "checkpoint.json").exists() else None},
+        "artifacts": sorted(checksums),
+        "checksums": checksums,
+        "reproducibility": {"deterministic_ordering": True, "legacy_exports": True},
+        "metadata": metadata,
     }
     write_manifest(run_path, manifest)
     return manifest

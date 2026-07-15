@@ -116,3 +116,6 @@ This checks compile, tests, smoke benchmark outputs, generated reports, post-hoc
 - `figures/pairwise_compound_heatmap.png`
 - `figures/failure_cluster_topn.png`
 - optional `runs/<run-name>/run_manifest.json` when using the CLI run directory workflow.
+# Run bundle format
+
+Completed runs are self-contained under `runs/<name>/`: `run_manifest.json`, a copied `config.json`, legacy CSV exports, structured `results/episodes.jsonl`, policy/evaluator traces, figures, reports, and replay data. The manifest records schema and contract versions, config digest, plugin catalog, episode count, checkpoint information, and SHA-256 checksums for every generated file.

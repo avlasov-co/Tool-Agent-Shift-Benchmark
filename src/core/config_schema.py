@@ -10,6 +10,7 @@ from src.environments.file_ops import FileOpsEnvironment
 from src.environments.calendar_ops import CalendarOpsEnvironment
 from src.environments.risk_ops import RiskOpsEnvironment
 from src.faults import FAULTS
+from src.core.catalog import PluginCatalog
 from src.analysis.run_pairwise_compounds import parse_pair
 
 ENVS = {"file_ops": FileOpsEnvironment, "calendar_ops": CalendarOpsEnvironment, "risk_ops": RiskOpsEnvironment}
@@ -35,14 +36,27 @@ def _require_known(values: list[Any], known: set[str], name: str) -> None:
 
 def validate_config_data(data: dict[str, Any], *, pairwise: bool = False) -> list[str]:
     warnings: list[str] = []
+    if "schema_version" not in data:
+        warnings.append("legacy config without schema_version; normalized as schema version 1")
+    elif str(data["schema_version"]) not in {"1", "1.0"}:
+        raise ConfigValidationError(f"unsupported config schema_version: {data['schema_version']!r}")
     envs = _as_list(data.get("environments", []), "environments")
     agents = _as_list(data.get("agents", []), "agents")
     faults = _as_list(data.get("faults", []), "faults")
     severities = _as_list(data.get("fault_severities", [1.0]), "fault_severities")
-    _require_known(envs, set(ENVS), "environment")
-    _require_known(agents, set(AGENTS), "agent")
+    catalog = PluginCatalog()
+    _require_known(envs, set(catalog.names("environment")), "environment")
+    _require_known(agents, set(catalog.names("agent")), "agent")
     if faults:
-        _require_known(faults, set(FAULTS), "fault")
+        _require_known(faults, set(catalog.names("shift")), "fault")
+    if "shift_chains" in data:
+        chains = _as_list(data.get("shift_chains"), "shift_chains")
+        for chain in chains:
+            if not isinstance(chain, list) or not chain:
+                raise ConfigValidationError("each shift chain must be a non-empty list")
+            _require_known(chain, set(catalog.names("shift")), "shift")
+    monitor = str(data.get("monitor", "composite"))
+    _require_known([monitor], set(catalog.names("monitor")), "monitor")
     for raw in severities:
         try:
             severity = float(raw)
@@ -56,12 +70,34 @@ def validate_config_data(data: dict[str, Any], *, pairwise: bool = False) -> lis
     steps = int(data.get("episode_steps", 1))
     if steps <= 0:
         raise ConfigValidationError("episode_steps must be positive")
+    if str(data.get("failure_policy", "continue")) not in {"continue", "fail_fast"}:
+        raise ConfigValidationError("failure_policy must be 'continue' or 'fail_fast'")
+    if str(data.get("monitor_policy", "record")) not in {"record", "gate"}:
+        raise ConfigValidationError("monitor_policy must be 'record' or 'gate'")
+    if str(data.get("artifact_policy", "bundle")) not in {"bundle", "legacy", "both"}:
+        raise ConfigValidationError("artifact_policy must be 'bundle', 'legacy', or 'both'")
+    try:
+        retries = int(data.get("retry_attempts", 0))
+    except (TypeError, ValueError):
+        raise ConfigValidationError("retry_attempts must be a non-negative integer")
+    if retries < 0:
+        raise ConfigValidationError("retry_attempts must be a non-negative integer")
     if "seeds" in data:
         for seed in _as_list(data.get("seeds"), "seeds"):
             try:
                 int(seed)
             except (TypeError, ValueError):
                 raise ConfigValidationError(f"seed must be an integer: {seed!r}")
+    if "scenario_indices" in data:
+        for index in _as_list(data.get("scenario_indices"), "scenario_indices"):
+            try:
+                if int(index) < 0: raise ValueError
+            except (TypeError, ValueError):
+                raise ConfigValidationError(f"scenario index must be a non-negative integer: {index!r}")
+    if "episode_ids" in data:
+        for episode_id in _as_list(data.get("episode_ids"), "episode_ids"):
+            if not isinstance(episode_id, str) or not episode_id:
+                raise ConfigValidationError("episode_ids must contain non-empty strings")
     if pairwise or "fault_pairs" in data:
         seen: set[tuple[str, str]] = set()
         for pair in _as_list(data.get("fault_pairs", []), "fault_pairs"):

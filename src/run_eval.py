@@ -12,6 +12,7 @@ from src.core.episode import Episode
 from src.core.context import ObservationContext, redact_response_for_policy
 from src.core.serialization import write_csv, write_json
 from src.core.types import FaultConfig, MonitorDecision, stable_hash
+from src.core.orchestration import ExperimentSpec, RunCoordinator
 from src.environments.file_ops import FileOpsEnvironment
 from src.environments.calendar_ops import CalendarOpsEnvironment
 from src.environments.risk_ops import RiskOpsEnvironment
@@ -44,69 +45,24 @@ def _static_dynamic_rows(episodes: List[Episode]):
     return rows
 
 
-def run_eval(config_path: str, seed: int, env: str | None = None, agent: str | None = None, all_envs: bool = False, all_agents: bool = False) -> List[Episode]:
+def run_eval(config_path: str, seed: int, env: str | None = None, agent: str | None = None, all_envs: bool = False, all_agents: bool = False, workers: int = 1, existing_episodes: List[Episode] | None = None, checkpoint_path: str | None = None, scenario_indices=None, episode_ids=None) -> List[Episode]:
     config = load_config(config_path)
+    config.setdefault("schema_version", "1")
+    # Compatibility wrapper preserves historical CSV benchmark semantics;
+    # new ExperimentSpec consumers default to monitor gating.
+    config.setdefault("monitor_policy", "record")
     env_names = list(ENVS) if all_envs else ([env] if env else config.get("environments", ["file_ops"]))
     agent_names = list(AGENTS) if all_agents else ([agent] if agent else config.get("agents", ["naive"]))
-    fault_names = config.get("faults", ["normal"])
-    fault_severities = config.get("fault_severities", [1.0])
-    episodes_per_combo = int(config.get("episodes_per_combo", 3))
-    episode_steps = int(config.get("episode_steps", 1))
-    run_id = stable_hash({"config": config_path, "seed": seed, "envs": env_names, "agents": agent_names, "faults": fault_names, "severities": fault_severities, "steps": episode_steps}, prefix="run")
-    episodes: List[Episode] = []
-
-    for env_name in env_names:
-        for agent_name in agent_names:
-            for fault_name in fault_names:
-                for severity in fault_severities:
-                    if fault_name == "normal" and float(severity) != 1.0:
-                        continue
-                    for i in range(episodes_per_combo):
-                        combo_seed = seed + i + len(episodes) * 17
-                        rng = Random(combo_seed)
-                        env_obj = ENVS[env_name](seed=combo_seed, scenario_index=i)
-                        agent_obj = AGENTS[agent_name]()
-                        monitor_decisions: List[MonitorDecision] = []
-                        step_trace = []
-                        final_response = None
-                        final_decision = None
-                        final_execution = None
-                        stop_reason = "max_steps"
-                        unsafe_step_count = 0
-                        failure_step = ""
-                        for step in range(episode_steps):
-                            response = env_obj.tool_response()
-                            response = FAULTS[fault_name](severity=float(severity)).apply(response, env_obj, rng)
-                            policy_response = redact_response_for_policy(response)
-                            context = ObservationContext.from_environment(env_obj, policy_response.observation)
-                            decision = agent_obj.decide(context, policy_response)
-                            if agent_name == "monitor_gated" and getattr(agent_obj, "last_monitor_decision", None) is not None:
-                                monitor_decisions.append(agent_obj.last_monitor_decision)
-                            else:
-                                monitor_decisions.append(CompositeMonitor().check(context, policy_response.observation, decision.action))
-                            execution = env_obj.execute(decision.action, observed_timestamp=policy_response.observation.timestamp)
-                            if execution.unsafe:
-                                unsafe_step_count += 1
-                                failure_step = failure_step or str(step)
-                            step_trace.append({
-                                "step": step,
-                                "tool_response": response.to_dict(),
-                                "decision": decision.to_dict(),
-                                "execution": execution.to_dict(),
-                            })
-                            final_response, final_decision, final_execution = response, decision, execution
-                            if execution.unsafe:
-                                stop_reason = "unsafe_action"
-                                break
-                            if decision.action.abstain:
-                                stop_reason = "abstained"
-                                break
-                            if execution.success:
-                                stop_reason = "success"
-                                break
-                        recovered = bool(fault_name != "normal" and final_execution and not final_execution.unsafe and (final_decision.action.abstain or any(not m.allow_action for m in monitor_decisions)))
-                        meta = {"config_path": config_path, "combo_seed": combo_seed, "episode_steps": episode_steps, "steps_taken": len(step_trace), "multi_step": episode_steps > 1, "unsafe_step_count": unsafe_step_count, "failure_step": failure_step, "stop_reason": stop_reason, "step_trace": step_trace, "recovered": recovered}
-                        episodes.append(Episode(env_name, env_obj.scenario_id, agent_name, FaultConfig(fault_name, float(severity)), seed, run_id, final_response, final_decision, monitor_decisions, final_execution, meta))
+    config = {**config, "_config_path": config_path}
+    spec = ExperimentSpec.from_config(config, seed=seed, environments=env_names, agents=agent_names, workers=workers, scenario_indices=scenario_indices, episode_ids=episode_ids)
+    coordinator = RunCoordinator(spec)
+    existing_episodes = existing_episodes or []
+    episodes = coordinator.run({e.episode_id for e in existing_episodes}, checkpoint_path=checkpoint_path)
+    episodes = sorted(existing_episodes + episodes, key=lambda e: e.episode_id)
+    run_id = episodes[0].run_id if episodes else stable_hash({"config": config_path, "seed": seed}, prefix="run")
+    fault_names = spec.shifts
+    fault_severities = spec.severities
+    episode_steps = spec.episode_steps
 
     effective_config = {
         **config,
@@ -119,11 +75,11 @@ def run_eval(config_path: str, seed: int, env: str | None = None, agent: str | N
         "requested_env": env,
         "requested_agent": agent,
     }
-    write_outputs(episodes, effective_config, seed, run_id)
+    write_outputs(episodes, effective_config, seed, run_id, orchestration_errors=[e.to_dict() for e in coordinator.errors])
     return episodes
 
 
-def write_outputs(episodes: List[Episode], config, seed: int, run_id: str) -> None:
+def write_outputs(episodes: List[Episode], config, seed: int, run_id: str, orchestration_errors=None) -> None:
     Path("results").mkdir(exist_ok=True)
     # A single-seed run invalidates previous multi-seed artifacts. Leaving stale
     # confidence intervals beside a fresh summary is how toy repos cosplay as
@@ -136,6 +92,18 @@ def write_outputs(episodes: List[Episode], config, seed: int, run_id: str) -> No
     with Path("results/multistep_traces.jsonl").open("w", encoding="utf-8") as f:
         for e in episodes:
             f.write(json.dumps({"episode_id": e.episode_id, "step_trace": e.metadata.get("step_trace", [])}, sort_keys=True, default=str) + "\n")
+    with Path("results/episodes.jsonl").open("w", encoding="utf-8") as f:
+        for e in sorted(episodes, key=lambda episode: episode.episode_id):
+            f.write(json.dumps(e.to_dict(), sort_keys=True, default=str) + "\n")
+    Path("results/evaluator_traces.jsonl").write_text(
+        "".join(json.dumps({"episode_id": e.episode_id, "trace": e.metadata.get("evaluator_trace", [])}, sort_keys=True, default=str) + "\n" for e in episodes),
+        encoding="utf-8",
+    )
+    errors = orchestration_errors or []
+    Path("results/orchestration_errors.jsonl").write_text(
+        "".join(json.dumps(error, sort_keys=True, default=str) + "\n" for error in errors) or '{"orchestration_errors": []}\n',
+        encoding="utf-8",
+    )
     failure_rows = []
     for e in episodes:
         if e.execution.unsafe:
@@ -154,7 +122,7 @@ def write_outputs(episodes: List[Episode], config, seed: int, run_id: str) -> No
                 "unsafe_reasons": ";".join(fc.unsafe_reasons),
                 "observation_summary": json.dumps(_safe_summary(e.tool_response.observation.data), sort_keys=True, default=str),
                 "monitor_summary": monitor_summary,
-                "ground_truth_summary": json.dumps(_safe_summary(getattr(ENVS[e.env_name](seed=e.seed), "hidden_ground_truth")()), sort_keys=True, default=str),
+                "ground_truth_summary": json.dumps(_safe_summary((e.metadata.get("evaluator_trace") or [{}])[-1].get("hidden_ground_truth", {})), sort_keys=True, default=str),
                 "seed": fc.seed,
                 "trace_json": json.dumps(fc.trace, sort_keys=True, default=str),
             })
@@ -174,7 +142,7 @@ def write_outputs(episodes: List[Episode], config, seed: int, run_id: str) -> No
                 "metadata_json": json.dumps(m.metadata, sort_keys=True, default=str),
             })
     write_csv("results/monitor_events.csv", monitor_rows)
-    write_json("results/config.json", {"seed": seed, "run_id": run_id, "config": config, "episodes": len(episodes)})
+    write_json("results/config.json", {"seed": seed, "run_id": run_id, "config": config, "episodes": len(episodes), "orchestration_errors": orchestration_errors or []})
 
 
 def main(argv=None):

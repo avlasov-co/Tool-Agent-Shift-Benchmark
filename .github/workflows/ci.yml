@@ -20,3 +20,11 @@ jobs:
         run: PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q
       - name: Repro smoke
         run: bash scripts/run_repro.sh
+      - name: Render architecture
+        run: |
+          npx --yes @puppeteer/browsers@2.7.1 install chrome@131.0.6778.204 --path "$HOME/.cache/puppeteer"
+          svg_before=$(sha256sum docs/architecture.svg | awk '{print $1}')
+          png_before=$(sha256sum docs/architecture.png | awk '{print $1}')
+          TASB_REQUIRE_MERMAID=1 bash scripts/render_architecture.sh
+          test "$svg_before" = "$(sha256sum docs/architecture.svg | awk '{print $1}')"
+          test "$png_before" = "$(sha256sum docs/architecture.png | awk '{print $1}')"

@@ -10,6 +10,7 @@ htmlcov/
 # Local environments
 .venv/
 venv/
+.phase1-venv/
 .env
 .env.*
 
@@ -22,3 +23,7 @@ venv/
 *.log
 *.tmp
 /tmp/
+
+# Run-local generated artifacts and package metadata
+runs/
+*.egg-info/

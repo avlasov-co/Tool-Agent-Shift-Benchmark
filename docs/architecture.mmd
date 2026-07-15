@@ -1,0 +1,28 @@
+flowchart LR
+  subgraph Config["Configuration and plugin catalog"]
+    C["Experiment Config"] --> PC["Plugin Catalog\ncontracts + versions"]
+  end
+  subgraph Orchestration["Planner and scheduler"]
+    PC --> P["Experiment Plan\nCartesian matrix + stable seeds"] --> S["Episode Scheduler"]
+  end
+  subgraph Policy["Policy-visible boundary"]
+    S --> E["Scenario / Environment"] --> O["Visible Tool Observation"] --> SC["Shift Chain"] --> V["Policy Boundary"]
+    V --> A["Agent Decision"] --> M["Monitor Gate"] --> X["Action Execution"]
+  end
+  subgraph Oracle["Evaluator-only boundary"]
+    E -. "hidden ground truth" .-> EO["Evaluator Oracle"]
+    SC -. "shift provenance" .-> EO
+    X --> EV["Evaluator"]
+    EO --> EV
+  end
+  EV --> R["Episode Records"] --> AP["Artifact Pipeline"]
+  subgraph Outputs["Reports and analysis"]
+    AP --> REP["Reports"]
+    AP --> FIG["Plots"]
+    AP --> AN["Analysis"]
+    AP --> REPLAY["Replay Cases"]
+  end
+  classDef visible fill:#d9f2ff,stroke:#16739a
+  classDef hidden fill:#ffe5e5,stroke:#a33
+  class O,SC,V,A,M,X visible
+  class EO,EV hidden

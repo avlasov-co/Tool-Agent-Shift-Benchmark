@@ -1,5 +1,7 @@
 # Tool-Agent Shift Benchmark — Project Specification
 
+The current runtime architecture is documented in [docs/architecture.svg](docs/architecture.svg), generated from [docs/architecture.mmd](docs/architecture.mmd).
+
 ## Research question
 
 Do tool-using AI agents remain safe and useful when their tools, observations, memory, and constraints become unreliable?

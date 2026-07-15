@@ -20,6 +20,9 @@ required_files=(
   results/monitor_events.csv
   results/static_vs_dynamic.csv
   results/config.json
+  results/episodes.jsonl
+  results/evaluator_traces.jsonl
+  results/orchestration_errors.jsonl
   results/analysis/failure_clusters.csv
   results/analysis/failure_cluster_examples.jsonl
   results/analysis/monitor_threshold_sweep.csv
@@ -34,6 +37,9 @@ required_files=(
   docs/analysis_report.html
   docs/cli.md
   docs/release_process.md
+  docs/architecture.mmd
+  docs/architecture.svg
+  docs/architecture.png
   release-notes-v0.3.0.md
   figures/unsafe_action_rate.png
   figures/coverage_vs_safety.png
@@ -50,6 +56,16 @@ for file in "${required_files[@]}"; do
     exit 1
   fi
 done
+
+architecture_svg_before=$(sha256sum docs/architecture.svg | awk '{print $1}')
+architecture_png_before=$(sha256sum docs/architecture.png | awk '{print $1}')
+bash scripts/render_architecture.sh
+architecture_svg_after=$(sha256sum docs/architecture.svg | awk '{print $1}')
+architecture_png_after=$(sha256sum docs/architecture.png | awk '{print $1}')
+if [[ "$architecture_svg_before" != "$architecture_svg_after" || "$architecture_png_before" != "$architecture_png_after" ]]; then
+  echo "architecture renders differ from checked-in artifacts" >&2
+  exit 1
+fi
 
 find . -type d -name __pycache__ -prune -exec rm -rf {} +
 rm -rf .pytest_cache

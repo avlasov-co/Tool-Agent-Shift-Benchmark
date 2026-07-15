@@ -38,3 +38,6 @@ This means a monitor may allow an action that looks safe from visible data, whil
 ## Fault-label redaction
 
 Fault injectors may store evaluator provenance in `observation.metadata["faults"]` so reports can explain what happened after evaluation. `redact_response_for_policy()` removes those labels before agent or monitor decisions. Tests cover both the redaction function and runner-level policy inputs.
+# Runtime boundary implementation
+
+The runtime enforces the boundary through `ObservationContext`, `redact_response_for_policy`, `PolicyTraceVisible`, and `EvaluatorTrace`. Agents and monitors receive only the policy-visible response/context; hidden oracle values and shift provenance are emitted by `HiddenStateEvaluator` into evaluator traces and never enter the policy trace.

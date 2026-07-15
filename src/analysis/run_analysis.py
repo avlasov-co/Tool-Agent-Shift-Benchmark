@@ -6,6 +6,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable, Mapping
+from src.core.episode import Episode
 
 RESULTS_DIR = Path("results")
 ANALYSIS_DIR = RESULTS_DIR / "analysis"
@@ -18,6 +19,15 @@ def read_csv_rows(path: str | Path) -> list[dict[str, str]]:
         return []
     with p.open("r", newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
+
+
+def read_episode_rows(results_dir: str | Path) -> list[dict[str, Any]]:
+    """Prefer structured episode records; retain the CSV compatibility path."""
+    root = Path(results_dir)
+    structured = root / "episodes.jsonl"
+    if structured.exists():
+        return [Episode.from_dict(json.loads(line)).to_row() for line in structured.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return read_csv_rows(root / "episode_log.csv")
 
 
 def write_csv_rows(path: str | Path, rows: Iterable[Mapping[str, Any]], fieldnames: list[str] | None = None) -> None:
@@ -93,7 +103,7 @@ def severity_bucket(value: Any) -> str:
 
 def build_failure_clusters(results_dir: str | Path = RESULTS_DIR) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     results = Path(results_dir)
-    episodes = {row.get("episode_id", ""): row for row in read_csv_rows(results / "episode_log.csv") if row.get("episode_id")}
+    episodes = {row.get("episode_id", ""): row for row in read_episode_rows(results) if row.get("episode_id")}
     failure_rows = read_csv_rows(results / "failure_cases.csv")
     if failure_rows:
         source_rows = [{**episodes.get(row.get("episode_id", ""), {}), **row} for row in failure_rows]
@@ -144,7 +154,7 @@ def build_failure_clusters(results_dir: str | Path = RESULTS_DIR) -> tuple[list[
 
 def _episode_labels(results_dir: str | Path) -> dict[str, dict[str, Any]]:
     labels = {}
-    for row in read_csv_rows(Path(results_dir) / "episode_log.csv"):
+    for row in read_episode_rows(results_dir):
         episode_id = row.get("episode_id", "")
         if episode_id:
             labels[episode_id] = {
@@ -234,7 +244,7 @@ def build_agent_profiles(results_dir: str | Path = RESULTS_DIR) -> list[dict[str
     results = Path(results_dir)
     gaps = {row.get("agent_name") or row.get("agent"): row for row in read_csv_rows(results / "static_vs_dynamic.csv")}
     groups: dict[str, list[dict[str, str]]] = defaultdict(list)
-    for row in read_csv_rows(results / "episode_log.csv"):
+    for row in read_episode_rows(results):
         groups[first_present(row, ["agent", "agent_name"], "unknown")].append(row)
     profiles = []
     for agent, rows in sorted(groups.items()):
@@ -349,7 +359,7 @@ def run_analysis(results_dir: str | Path = RESULTS_DIR, analysis_dir: str | Path
         "results_dir": str(results),
         "analysis_dir": str(analysis),
         "inputs": {
-            "episode_log_rows": len(read_csv_rows(results / "episode_log.csv")),
+            "episode_log_rows": len(read_episode_rows(results)),
             "failure_case_rows": len(read_csv_rows(results / "failure_cases.csv")),
             "monitor_event_rows": len(read_csv_rows(results / "monitor_events.csv")),
             "summary_rows": len(read_csv_rows(results / "summary.csv")),

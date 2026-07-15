@@ -1,5 +1,9 @@
 # Tool-Agent Shift Benchmark
 
+## Platform architecture
+
+The runtime boundaries and policy/evaluator data flow are maintained in [docs/architecture.mmd](docs/architecture.mmd), with checked-in [SVG](docs/architecture.svg) and [PNG](docs/architecture.png) renders. Use `tasb plan --config configs/small.yaml` to inspect a resolved matrix and `tasb plugins list` to inspect installed plugins.
+
 ![CI](https://github.com/avlasov-co/tool-agent-shift-benchmark/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -41,11 +45,13 @@ Do not treat the numbers in the README as a substitute for running the benchmark
 
 ## Example outputs
 
-![Unsafe action rate](figures/unsafe_action_rate.png)
+![Unsafe action rate — lower is safer](figures/unsafe_action_rate.png)
 
-![Coverage vs safety](figures/coverage_vs_safety.png)
+![Coverage vs safety — seek the upper-right](figures/coverage_vs_safety.png)
 
-![Static vs dynamic gap](figures/static_vs_dynamic_gap.png)
+![Static vs dynamic gap — positive means dynamic behavior changed](figures/static_vs_dynamic_gap.png)
+
+The charts are annotated with titles, units, category names, and values. The generated report includes a **How to read the charts** section explaining what each metric means and whether higher or lower is better.
 
 Confidence-interval plots are generated only after the multi-seed command.
 

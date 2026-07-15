@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, List
-from .types import AgentDecision, ExecutionResult, FailureCase, FaultConfig, MonitorDecision, ToolResponse, stable_hash
+from .types import AgentAction, AgentDecision, ExecutionResult, FailureCase, FaultConfig, MonitorDecision, Observation, ToolResponse, stable_hash
 
 
 @dataclass
@@ -37,6 +37,20 @@ class Episode:
         d = asdict(self)
         d["episode_id"] = self.episode_id
         return d
+
+    @classmethod
+    def from_dict(cls, value: Dict[str, Any]) -> "Episode":
+        """Rehydrate a structured episode from a run bundle."""
+        response = value["tool_response"]
+        observation = Observation(**response["observation"])
+        tool_response = ToolResponse(**{**response, "observation": observation})
+        decision = value["decision"]
+        action = AgentAction(**decision["action"])
+        agent_decision = AgentDecision(**{**decision, "action": action})
+        monitors = [MonitorDecision(**item) for item in value.get("monitor_decisions", [])]
+        execution = ExecutionResult(**value["execution"])
+        fault = FaultConfig(**value["fault"])
+        return cls(value["env_name"], value["scenario_id"], value["agent_name"], fault, int(value["seed"]), value["run_id"], tool_response, agent_decision, monitors, execution, value.get("metadata", {}))
 
     def to_row(self) -> Dict[str, Any]:
         recovered = bool(self.metadata.get("recovered", False))

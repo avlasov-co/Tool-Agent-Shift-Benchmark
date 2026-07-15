@@ -5,6 +5,9 @@ The `tasb` command wraps the benchmark workflow into reviewer-friendly commands.
 ## Install
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
 python -m pip install -e .
 ```
 
@@ -32,5 +35,12 @@ tasb verify-release
 - `tasb validate-config`: validate benchmark or pairwise configs.
 - `tasb verify-release`: run the full release verifier.
 - `tasb clean`: remove generated outputs.
+- `tasb plugins list|validate`: inspect and validate built-in and external plugins.
+- `tasb plan`: print the resolved experiment matrix and deterministic seed policy.
+- `tasb inspect-run`: inspect a self-contained run manifest.
+- `tasb render-architecture`: regenerate the Mermaid architecture renders.
 
 Legacy `python -m src...` commands remain supported.
+# Platform commands
+
+`tasb plugins list` lists built-in and entry-point plugins; `tasb plugins validate` checks catalog metadata. `tasb plan --config <config>` resolves the Cartesian matrix and stable seed policy without executing episodes. `tasb run --config <config> --workers N` executes serially by default or with deterministic parallel scheduling. `tasb inspect-run <run>` prints the self-describing manifest, and `tasb render-architecture` regenerates the Mermaid renders.

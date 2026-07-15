@@ -1,5 +1,9 @@
 # Reviewer Guide
 
+## Platform architecture
+
+See the [architecture diagram](architecture.svg) and [Mermaid source](architecture.mmd) for the separation between policy-visible observations, shift provenance, hidden ground truth, orchestration, and generated artifacts.
+
 Start here if you are evaluating the repository.
 
 ## Read first
