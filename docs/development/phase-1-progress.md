@@ -14,7 +14,7 @@ CI/release, and source-documentation work for the Checkpoint 1 commit.
 
 ## Current checkpoint
 
-Checkpoint 1 -- auditing and splitting unreleased work.
+Checkpoint 2 -- repository instructions.
 
 ## Decisions
 
@@ -58,6 +58,12 @@ work passes 54 tests in the isolated environment; platform-focused tests pass 7.
 
 - Python 3.14 may surface dependency or typing-tool compatibility issues.
 - Python 3.10--3.13 remain to be covered by CI after the quality toolchain work.
+
+## Completed checkpoints
+
+- Checkpoint 1 committed as `421eb8a` (`Preserve and separate unreleased
+  platform work`). It preserves source work, tests, repository documentation,
+  and the audit trail while generated evidence remains in a named backup ref.
 
 ## Exact handoff required for Phase 2
 
