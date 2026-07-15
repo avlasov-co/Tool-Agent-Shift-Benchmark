@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Type
+from typing import Dict
 
 ENV_REGISTRY: Dict[str, type] = {}
 AGENT_REGISTRY: Dict[str, type] = {}

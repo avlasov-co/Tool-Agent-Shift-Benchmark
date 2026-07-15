@@ -4,22 +4,27 @@ import argparse
 import json
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 from src.analysis.run_analysis import run_analysis
 from src.analysis.run_pairwise_compounds import write_pairwise_compound_matrix
+from src.core.catalog import PluginCatalog
+from src.core.config import load_config
 from src.core.config_schema import validate_config
-from src.core.run_artifacts import prepare_run_dir, resolve_run, restore_run_to_workspace, run_results_dir, snapshot_outputs
+from src.core.episode import Episode
+from src.core.orchestration import ExperimentPlanner, ExperimentSpec
+from src.core.run_artifacts import (
+    prepare_run_dir,
+    resolve_run,
+    restore_run_to_workspace,
+    run_results_dir,
+    snapshot_outputs,
+)
 from src.generate_report import main as generate_report_main
 from src.plot_results import main as plot_results_main
 from src.reporting.failure_cases import format_replay, replay_case
 from src.reporting.html_report import render_html_report
 from src.run_eval import run_eval
-from src.core.catalog import PluginCatalog
-from src.core.config import load_config
-from src.core.orchestration import ExperimentPlanner, ExperimentSpec
-from src.core.episode import Episode
 
 
 def _run_command(args: argparse.Namespace) -> None:
@@ -32,14 +37,45 @@ def _run_command(args: argparse.Namespace) -> None:
         run_dir = Path("runs") / args.run_name
         episodes_path = run_dir / "results" / "episodes.jsonl"
         if episodes_path.exists():
-            existing = [Episode.from_dict(json.loads(line)) for line in episodes_path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    checkpoint = str((run_dir or Path("runs") / (args.run_name or "run-checkpoint")) / "checkpoint.json") if args.resume else None
-    episodes = run_eval(args.config, args.seed, env=args.env, agent=args.agent, all_envs=args.all_envs, all_agents=args.all_agents, workers=args.workers, existing_episodes=existing, checkpoint_path=checkpoint, scenario_indices=args.scenario_index, episode_ids=args.episode_id)
+            existing = [
+                Episode.from_dict(json.loads(line))
+                for line in episodes_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+    checkpoint = (
+        str((run_dir or Path("runs") / (args.run_name or "run-checkpoint")) / "checkpoint.json")
+        if args.resume
+        else None
+    )
+    episodes = run_eval(
+        args.config,
+        args.seed,
+        env=args.env,
+        agent=args.agent,
+        all_envs=args.all_envs,
+        all_agents=args.all_agents,
+        workers=args.workers,
+        existing_episodes=existing,
+        checkpoint_path=checkpoint,
+        scenario_indices=args.scenario_index,
+        episode_ids=args.episode_id,
+    )
     if args.run_name:
         if not (args.resume and run_dir and run_dir.exists()):
             run_dir = prepare_run_dir(args.run_name, overwrite=args.overwrite)
         catalog = PluginCatalog()
-        snapshot_outputs(run_dir, command=["tasb", "run"], extra_metadata={"config": args.config, "seed": args.seed, "episodes": len(episodes), "workers": args.workers, "plugin_catalog": catalog.as_dict(), "contract_version": "1"})
+        snapshot_outputs(
+            run_dir,
+            command=["tasb", "run"],
+            extra_metadata={
+                "config": args.config,
+                "seed": args.seed,
+                "episodes": len(episodes),
+                "workers": args.workers,
+                "plugin_catalog": catalog.as_dict(),
+                "contract_version": "1",
+            },
+        )
         print(f"run artifacts written to {run_dir}")
     print(f"wrote results for {len(episodes)} episodes")
 
@@ -59,12 +95,33 @@ def _plan_command(args: argparse.Namespace) -> None:
     spec = ExperimentSpec.from_config(config, seed=args.seed)
     planner = ExperimentPlanner(spec)
     plan = planner.plan()
-    print(json.dumps({"run_id": planner.run_id, "config_digest": spec.digest(), "plugins": planner.catalog.as_dict(), "episodes": len(plan), "matrix": [item.__dict__ for item in plan], "seed_policy": "stable hash(run, environment, agent, shift, severity, scenario_index)", "workers": spec.workers, "artifact_paths": [f"runs/{args.run_name or planner.run_id}/run_manifest.json", "results/episodes.jsonl", "traces/policy/", "traces/evaluator/"]}, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "run_id": planner.run_id,
+                "config_digest": spec.digest(),
+                "plugins": planner.catalog.as_dict(),
+                "episodes": len(plan),
+                "matrix": [item.__dict__ for item in plan],
+                "seed_policy": "stable hash(run, environment, agent, shift, severity, scenario_index)",
+                "workers": spec.workers,
+                "artifact_paths": [
+                    f"runs/{args.run_name or planner.run_id}/run_manifest.json",
+                    "results/episodes.jsonl",
+                    "traces/policy/",
+                    "traces/evaluator/",
+                ],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
 
 
 def _inspect_run_command(args: argparse.Namespace) -> None:
     run_dir = resolve_run(args.run)
-    if run_dir is None: raise FileNotFoundError("no run found")
+    if run_dir is None:
+        raise FileNotFoundError("no run found")
     manifest = run_dir / "run_manifest.json"
     print(manifest.read_text(encoding="utf-8") if manifest.exists() else json.dumps({"run_dir": str(run_dir)}))
 
@@ -84,7 +141,11 @@ def _analyze_command(args: argparse.Namespace) -> None:
         if docs_src.exists():
             (run_dir / "docs").mkdir(parents=True, exist_ok=True)
             shutil.copy2(docs_src, run_dir / "docs" / "analysis_report.md")
-        snapshot_outputs(run_dir, command=["tasb", "analyze"], extra_metadata={"analysis_outputs": manifest.get("outputs", {})})
+        snapshot_outputs(
+            run_dir,
+            command=["tasb", "analyze"],
+            extra_metadata={"analysis_outputs": manifest.get("outputs", {})},
+        )
     print(json.dumps(manifest["outputs"], indent=2, sort_keys=True))
 
 
@@ -94,7 +155,11 @@ def _pairwise_command(args: argparse.Namespace) -> None:
     manifest = write_pairwise_compound_matrix(args.config, output_dir)
     run_dir = resolve_run(args.run)
     if run_dir:
-        snapshot_outputs(run_dir, command=["tasb", "pairwise"], extra_metadata={"pairwise_rows": manifest.get("rows", 0)})
+        snapshot_outputs(
+            run_dir,
+            command=["tasb", "pairwise"],
+            extra_metadata={"pairwise_rows": manifest.get("rows", 0)},
+        )
     print(json.dumps(manifest, indent=2, sort_keys=True))
 
 
@@ -116,7 +181,11 @@ def _report_command(args: argparse.Namespace) -> None:
         render_html_report("results", output)
     run_dir = resolve_run(args.run)
     if run_dir:
-        snapshot_outputs(run_dir, command=["tasb", "report"], extra_metadata={"html": bool(args.html)})
+        snapshot_outputs(
+            run_dir,
+            command=["tasb", "report"],
+            extra_metadata={"html": bool(args.html)},
+        )
     print("report generation complete")
 
 

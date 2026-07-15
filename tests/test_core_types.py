@@ -1,8 +1,15 @@
 import json
+
 import pytest
-from src.core.types import AgentAction, AgentDecision, FaultConfig, Observation, ToolResponse, FailureCase, stable_hash
 from src.core.episode import Episode
-from src.core.types import ExecutionResult
+from src.core.types import (
+    AgentAction,
+    AgentDecision,
+    ExecutionResult,
+    FaultConfig,
+    Observation,
+    ToolResponse,
+)
 
 
 def test_objects_serialize_and_required_fields():

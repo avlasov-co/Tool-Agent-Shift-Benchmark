@@ -4,14 +4,22 @@ The contracts deliberately use the repository's small dataclasses.  This keeps
 first-party plugins backwards compatible while making the policy/evaluator
 boundary explicit for third-party plugins.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol, Sequence
 from random import Random
+from typing import Any, Protocol
 
 from src.core.context import ObservationContext
-from src.core.types import AgentAction, AgentDecision, ExecutionResult, Observation, ToolResponse, MonitorDecision
+from src.core.types import (
+    AgentAction,
+    AgentDecision,
+    ExecutionResult,
+    MonitorDecision,
+    Observation,
+    ToolResponse,
+)
 
 CONTRACT_VERSION = "1"
 
@@ -55,6 +63,7 @@ class ShiftResult:
 @dataclass(frozen=True)
 class PolicyTraceVisible:
     """Serializable trace containing only data available to policy code."""
+
     episode_id: str
     steps: tuple[dict[str, Any], ...] = ()
 
@@ -62,6 +71,7 @@ class PolicyTraceVisible:
 @dataclass(frozen=True)
 class EvaluatorTrace:
     """Serializable diagnostic trace kept outside the policy trace."""
+
     episode_id: str
     steps: tuple[dict[str, Any], ...] = ()
 
@@ -71,6 +81,7 @@ class EvaluatorTrace:
 
 class EnvironmentPlugin(Protocol):
     name: str
+
     def __init__(self, seed: int = 0, scenario_index: int = 0): ...
     def tool_response(self) -> ToolResponse: ...
     def execute(self, action: AgentAction, observed_timestamp: int | None = None) -> ExecutionResult: ...
@@ -79,21 +90,29 @@ class EnvironmentPlugin(Protocol):
 
 class AgentPlugin(Protocol):
     name: str
+
     def decide(self, context: ObservationContext, response: ToolResponse) -> AgentDecision: ...
 
 
 class ShiftPlugin(Protocol):
     name: str
+
     def apply(self, response: ToolResponse, env: object, rng: Random) -> ToolResponse: ...
 
 
 class MonitorPlugin(Protocol):
     name: str
+
     def check(self, context: ObservationContext, observation: Observation, action: AgentAction) -> MonitorDecision: ...
 
 
 class Evaluator(Protocol):
-    def score(self, environment: EnvironmentPlugin, action: AgentAction, execution: ExecutionResult) -> dict[str, Any]: ...
+    def score(
+        self,
+        environment: EnvironmentPlugin,
+        action: AgentAction,
+        execution: ExecutionResult,
+    ) -> dict[str, Any]: ...
 
 
 @dataclass(frozen=True)

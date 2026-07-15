@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import argparse
+
 from src.run_eval import run_eval
 
 
@@ -10,6 +12,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     episodes = run_eval(args.config, args.seed, all_envs=True, all_agents=True)
     print(f"sweep complete: {len(episodes)} episodes")
+
 
 if __name__ == "__main__":
     main()

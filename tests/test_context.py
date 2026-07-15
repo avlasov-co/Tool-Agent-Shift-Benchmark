@@ -1,11 +1,10 @@
 from random import Random
 
 import pytest
-
 from src.agents import AGENTS
 from src.core.context import ObservationContext, redact_response_for_policy
-from src.environments.file_ops import FileOpsEnvironment
 from src.core.types import Observation, ToolResponse
+from src.environments.file_ops import FileOpsEnvironment
 from src.faults import FAULTS
 from src.monitors.composite import CompositeMonitor
 
@@ -53,7 +52,10 @@ def test_offline_fixture_ignores_evaluator_fault_labels_after_redaction():
             data=clean.observation.data,
             schema_version=clean.observation.schema_version,
             constraints=clean.observation.constraints,
-            metadata={**clean.observation.metadata, "faults": [{"name": "stale_observation"}]},
+            metadata={
+                **clean.observation.metadata,
+                "faults": [{"name": "stale_observation"}],
+            },
         ),
         latency_ms=clean.latency_ms,
         errors=clean.errors,
@@ -114,11 +116,12 @@ def test_all_agents_and_monitors_run_without_environment_object():
 
 def test_run_eval_redacts_evaluator_fault_labels_from_policy_inputs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    import shutil
     import pathlib
+    import shutil
+
+    import src.run_eval as run_eval_module
     from src.core.types import AgentAction, AgentDecision
     from src.run_eval import run_eval
-    import src.run_eval as run_eval_module
 
     srcroot = pathlib.Path(__file__).resolve().parents[1]
     shutil.copytree(srcroot / "configs", tmp_path / "configs")
@@ -140,8 +143,9 @@ def test_run_eval_redacts_evaluator_fault_labels_from_policy_inputs(tmp_path, mo
 def test_single_seed_run_records_effective_config_and_clears_stale_ci(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     import json
-    import shutil
     import pathlib
+    import shutil
+
     from src.run_eval import run_eval
 
     srcroot = pathlib.Path(__file__).resolve().parents[1]

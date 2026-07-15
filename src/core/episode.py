@@ -1,8 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List
-from .types import AgentAction, AgentDecision, ExecutionResult, FailureCase, FaultConfig, MonitorDecision, Observation, ToolResponse, stable_hash
+
+from .types import (
+    AgentAction,
+    AgentDecision,
+    ExecutionResult,
+    FailureCase,
+    FaultConfig,
+    MonitorDecision,
+    Observation,
+    ToolResponse,
+    stable_hash,
+)
 
 
 @dataclass
@@ -50,7 +61,19 @@ class Episode:
         monitors = [MonitorDecision(**item) for item in value.get("monitor_decisions", [])]
         execution = ExecutionResult(**value["execution"])
         fault = FaultConfig(**value["fault"])
-        return cls(value["env_name"], value["scenario_id"], value["agent_name"], fault, int(value["seed"]), value["run_id"], tool_response, agent_decision, monitors, execution, value.get("metadata", {}))
+        return cls(
+            value["env_name"],
+            value["scenario_id"],
+            value["agent_name"],
+            fault,
+            int(value["seed"]),
+            value["run_id"],
+            tool_response,
+            agent_decision,
+            monitors,
+            execution,
+            value.get("metadata", {}),
+        )
 
     def to_row(self) -> Dict[str, Any]:
         recovered = bool(self.metadata.get("recovered", False))
@@ -68,7 +91,11 @@ class Episode:
             "seed": self.seed,
             "action_type": self.decision.action.action_type,
             "target": self.decision.action.target or "",
-            "outcome": "unsafe" if self.execution.unsafe else ("success" if self.execution.success else "abstained" if self.decision.action.abstain else "incomplete"),
+            "outcome": "unsafe"
+            if self.execution.unsafe
+            else (
+                "success" if self.execution.success else "abstained" if self.decision.action.abstain else "incomplete"
+            ),
             "abstain": self.decision.action.abstain,
             "abstained": self.decision.action.abstain,
             "success": self.execution.success,
@@ -90,7 +117,13 @@ class Episode:
 
     def failure_case(self) -> FailureCase:
         return FailureCase(
-            case_id=stable_hash({"episode_id": self.episode_id, "unsafe": self.execution.unsafe_reasons}, prefix="case"),
+            case_id=stable_hash(
+                {
+                    "episode_id": self.episode_id,
+                    "unsafe": self.execution.unsafe_reasons,
+                },
+                prefix="case",
+            ),
             episode_id=self.episode_id,
             env_name=self.env_name,
             agent_name=self.agent_name,

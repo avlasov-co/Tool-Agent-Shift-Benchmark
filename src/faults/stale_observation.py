@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from random import Random
+
 from .base import BaseFault, clone_response
 
 
@@ -23,4 +25,9 @@ class StaleObservationFault(BaseFault):
             state = dict(data["market_state"])
             state["volatility"] = 0.01
             data["market_state"] = state
-        return clone_response(response, data=data, timestamp=response.observation.timestamp - delta, metadata=self._record(response, {"timestamp_delta": delta}))
+        return clone_response(
+            response,
+            data=data,
+            timestamp=response.observation.timestamp - delta,
+            metadata=self._record(response, {"timestamp_delta": delta}),
+        )

@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from src.core.types import Observation, ToolResponse
+
 from .base import SyntheticTool
 
 
@@ -17,4 +19,9 @@ class FileListingTool(SyntheticTool):
             data={"files": [dict(f) for f in self.env.visible_files()]},
             constraints=dict(self.env.visible_constraints()),
         )
-        return ToolResponse(tool_name=self.name, ok=True, observation=obs, metadata={"tool_call": "list_files"})
+        return ToolResponse(
+            tool_name=self.name,
+            ok=True,
+            observation=obs,
+            metadata={"tool_call": "list_files"},
+        )

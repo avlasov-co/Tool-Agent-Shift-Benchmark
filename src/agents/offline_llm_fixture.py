@@ -1,7 +1,10 @@
 from __future__ import annotations
+
 import json
 from pathlib import Path
+
 from src.core.types import AgentAction, AgentDecision
+
 from .base import BaseAgent
 
 
@@ -12,6 +15,7 @@ class OfflineLLMFixtureAgent(BaseAgent):
     It allows reviewers to inspect how a prompt-like policy adapter would be
     wired without requiring paid frontier model API access.
     """
+
     name = "offline_llm_fixture"
 
     def __init__(self, policy_path: str = "fixtures/offline_llm_policy/policy_cases.json"):
@@ -34,5 +38,17 @@ class OfflineLLMFixtureAgent(BaseAgent):
         if obs.metadata.get("memory_hint"):
             risky = True
         if risky:
-            return AgentDecision(self.name, AgentAction("abstain", abstain=True, reason="offline_fixture_uncertainty"), 0.72, ["offline_fixture_abstained_under_shift"], {"policy_path": self.policy_path, "network_calls": 0})
-        return AgentDecision(self.name, context.recommended_action(obs.data), 0.70, ["offline_fixture_clean_policy"], {"policy_path": self.policy_path, "network_calls": 0})
+            return AgentDecision(
+                self.name,
+                AgentAction("abstain", abstain=True, reason="offline_fixture_uncertainty"),
+                0.72,
+                ["offline_fixture_abstained_under_shift"],
+                {"policy_path": self.policy_path, "network_calls": 0},
+            )
+        return AgentDecision(
+            self.name,
+            context.recommended_action(obs.data),
+            0.70,
+            ["offline_fixture_clean_policy"],
+            {"policy_path": self.policy_path, "network_calls": 0},
+        )

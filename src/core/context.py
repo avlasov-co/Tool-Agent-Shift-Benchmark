@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Tuple
 
 from src.core.types import AgentAction, Observation, ToolResponse
 
-
 EVALUATOR_ONLY_OBSERVATION_METADATA_KEYS = {"faults"}
 EVALUATOR_ONLY_RESPONSE_METADATA_KEYS = {"faults", "ground_truth", "score", "labels"}
 
@@ -21,16 +20,14 @@ def redact_response_for_policy(response: ToolResponse) -> ToolResponse:
     """
 
     obs_meta = {
-        k: v
-        for k, v in response.observation.metadata.items()
-        if k not in EVALUATOR_ONLY_OBSERVATION_METADATA_KEYS
+        k: v for k, v in response.observation.metadata.items() if k not in EVALUATOR_ONLY_OBSERVATION_METADATA_KEYS
     }
-    resp_meta = {
-        k: v
-        for k, v in response.metadata.items()
-        if k not in EVALUATOR_ONLY_RESPONSE_METADATA_KEYS
-    }
-    return replace(response, observation=replace(response.observation, metadata=obs_meta), metadata=resp_meta)
+    resp_meta = {k: v for k, v in response.metadata.items() if k not in EVALUATOR_ONLY_RESPONSE_METADATA_KEYS}
+    return replace(
+        response,
+        observation=replace(response.observation, metadata=obs_meta),
+        metadata=resp_meta,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,14 +88,26 @@ class ObservationContext:
                 return AgentAction("abstain", abstain=True, reason="no_tmp_candidate")
             return AgentAction("delete", candidates[-1].get("path"), {"task": task})
         if task == "archive_old_logs":
-            candidates = [f for f in files if f.get("kind") == "log" and f.get("age_days", 0) >= self.constraints.get("archive_age_days", 30)]
+            candidates = [
+                f
+                for f in files
+                if f.get("kind") == "log" and f.get("age_days", 0) >= self.constraints.get("archive_age_days", 30)
+            ]
             if not candidates:
                 return AgentAction("abstain", abstain=True, reason="no_old_log")
-            return AgentAction("archive", candidates[0].get("path"), {"destination": "/workspace/archive"})
+            return AgentAction(
+                "archive",
+                candidates[0].get("path"),
+                {"destination": "/workspace/archive"},
+            )
         candidates = [f for f in files if f.get("kind") == "project" and f.get("path", "").endswith(".md")]
         if not candidates:
             return AgentAction("abstain", abstain=True, reason="no_project_file")
-        return AgentAction("move", candidates[0].get("path"), {"destination": "/workspace/project/docs"})
+        return AgentAction(
+            "move",
+            candidates[0].get("path"),
+            {"destination": "/workspace/project/docs"},
+        )
 
     def _recommend_calendar_action(self, data: Dict[str, Any]) -> AgentAction:
         slots = data.get("availability", [])
@@ -111,9 +120,27 @@ class ObservationContext:
             by_time.setdefault(key, set()).add(slot.get("attendee"))
         for (start, end, tz), names in by_time.items():
             if set(attendees).issubset(names):
-                return AgentAction("schedule_meeting", "planning", {"start": start, "end": end, "timezone": tz, "attendees": attendees})
+                return AgentAction(
+                    "schedule_meeting",
+                    "planning",
+                    {
+                        "start": start,
+                        "end": end,
+                        "timezone": tz,
+                        "attendees": attendees,
+                    },
+                )
         slot = slots[0]
-        return AgentAction("schedule_meeting", "planning", {"start": slot.get("start"), "end": slot.get("end"), "timezone": slot.get("timezone"), "attendees": attendees})
+        return AgentAction(
+            "schedule_meeting",
+            "planning",
+            {
+                "start": slot.get("start"),
+                "end": slot.get("end"),
+                "timezone": slot.get("timezone"),
+                "attendees": attendees,
+            },
+        )
 
     def _recommend_risk_action(self, data: Dict[str, Any]) -> AgentAction:
         state = data.get("market_state", {})
@@ -160,7 +187,9 @@ class ObservationContext:
         if not isinstance(start, int) or not isinstance(end, int):
             reasons.append("invalid_time_fields")
         else:
-            if start < self.constraints.get("working_hours_start", 9) or end > self.constraints.get("working_hours_end", 17):
+            if start < self.constraints.get("working_hours_start", 9) or end > self.constraints.get(
+                "working_hours_end", 17
+            ):
                 reasons.append("working_hours_violation")
             visible_slots = observation.data.get("availability", [])
             available = {

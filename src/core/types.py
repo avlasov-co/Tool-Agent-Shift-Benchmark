@@ -1,13 +1,26 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict, is_dataclass
-from typing import Any, Dict, List, Optional
 import hashlib
 import json
+from dataclasses import asdict, dataclass, field, is_dataclass
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+
+def json_default(value: Any) -> Any:
+    """Serialize declared scientific value types without string coercion."""
+    if is_dataclass(value) and not isinstance(value, type):
+        return asdict(value)
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, Path):
+        return str(value)
+    raise TypeError(f"{type(value).__name__} is not a supported JSON value")
 
 
 def canonical_json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+    return str(json.dumps(value, sort_keys=True, separators=(",", ":"), default=json_default))
 
 
 def stable_hash(value: Any, prefix: str = "id") -> str:

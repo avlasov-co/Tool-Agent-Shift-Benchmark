@@ -4,16 +4,18 @@ import argparse
 from pathlib import Path
 from typing import Any
 
-from src.agents import AGENTS
-from src.core.config import load_config
-from src.environments.file_ops import FileOpsEnvironment
-from src.environments.calendar_ops import CalendarOpsEnvironment
-from src.environments.risk_ops import RiskOpsEnvironment
-from src.faults import FAULTS
-from src.core.catalog import PluginCatalog
 from src.analysis.run_pairwise_compounds import parse_pair
+from src.core.catalog import PluginCatalog
+from src.core.config import load_config
+from src.environments.calendar_ops import CalendarOpsEnvironment
+from src.environments.file_ops import FileOpsEnvironment
+from src.environments.risk_ops import RiskOpsEnvironment
 
-ENVS = {"file_ops": FileOpsEnvironment, "calendar_ops": CalendarOpsEnvironment, "risk_ops": RiskOpsEnvironment}
+ENVS = {
+    "file_ops": FileOpsEnvironment,
+    "calendar_ops": CalendarOpsEnvironment,
+    "risk_ops": RiskOpsEnvironment,
+}
 
 
 class ConfigValidationError(ValueError):
@@ -91,7 +93,8 @@ def validate_config_data(data: dict[str, Any], *, pairwise: bool = False) -> lis
     if "scenario_indices" in data:
         for index in _as_list(data.get("scenario_indices"), "scenario_indices"):
             try:
-                if int(index) < 0: raise ValueError
+                if int(index) < 0:
+                    raise ValueError
             except (TypeError, ValueError):
                 raise ConfigValidationError(f"scenario index must be a non-negative integer: {index!r}")
     if "episode_ids" in data:

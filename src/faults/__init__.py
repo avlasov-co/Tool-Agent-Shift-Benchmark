@@ -1,12 +1,12 @@
 from .base import NoFault
-from .schema_drift import SchemaDriftFault
-from .stale_observation import StaleObservationFault
+from .compound import CompoundShiftFault
+from .conflicting_output import ConflictingOutputFault
+from .constraint_shift import ConstraintShiftFault
+from .corrupted_memory import CorruptedMemoryFault
 from .latency_spike import LatencySpikeFault
 from .missing_field import MissingFieldFault
-from .conflicting_output import ConflictingOutputFault
-from .corrupted_memory import CorruptedMemoryFault
-from .constraint_shift import ConstraintShiftFault
-from .compound import CompoundShiftFault
+from .schema_drift import SchemaDriftFault
+from .stale_observation import StaleObservationFault
 
 FAULTS = {
     "normal": NoFault,

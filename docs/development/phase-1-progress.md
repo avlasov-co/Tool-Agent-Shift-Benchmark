@@ -14,7 +14,7 @@ CI/release, and source-documentation work for the Checkpoint 1 commit.
 
 ## Current checkpoint
 
-Checkpoint 3 -- non-destructive audit command.
+Phase 1 complete -- final validation and handoff recorded.
 
 ## Decisions
 
@@ -46,6 +46,13 @@ Checkpoint 3 -- non-destructive audit command.
   `results/episodes.jsonl` evidence; build, wheel inspection, isolated install,
   CLI smoke, configuration, deterministic planning, unit tests, and coverage
   passed in the temporary audit run.
+- Quality-toolchain validation: Ruff lint and format check pass across `src/`
+  and `tests/`; strict mypy passes for core contracts and orchestration; 59
+  tests pass; final branch coverage is 73.68% against a 73% floor. `make audit`
+  passes Git cleanliness, junk detection, compilation, tests, coverage,
+  configuration, deterministic planning, package build, wheel inspection,
+  isolated installation, CLI smoke, and metadata checks. It reports only the
+  absent checked-in `results/episodes.jsonl` evidence.
 
 ## Test results
 
@@ -55,8 +62,8 @@ work passes 54 tests in the isolated environment; platform-focused tests pass 7.
 
 ## Failures and resolutions
 
-- Baseline command portability is incomplete. Phase 4 will standardize commands
-  on `python3` while retaining an overridable interpreter variable.
+- Stable Make commands now use an overridable `PYTHON` variable, defaulting to
+  `python3`; use the isolated environment interpreter in this workspace.
 - Test dependencies will be installed in an isolated temporary environment for
   validation; the repository's existing `.venv` is left untouched.
 
@@ -73,6 +80,14 @@ work passes 54 tests in the isolated environment; platform-focused tests pass 7.
 - Checkpoint 2 committed as `1eddee2` (`Add repository execution
   instructions`). `AGENTS.md` and `PLANS.md` now encode the verified repository
   boundaries, commands, generated-file policy, and planning structure.
+- Checkpoint 3 committed as `6180301` (`Add non-destructive repository audit`).
+  The audit aggregates checked results, logs, strict/non-strict exit behavior,
+  timeouts, subprocess failures, skipped checks, JSON reports, package checks,
+  isolated installation, and CLI smoke without invoking cleanup or generation.
+- Checkpoint 4 configures Ruff, formatting, focused strict mypy, branch
+  coverage, pre-commit, stable Make commands, explicit scientific JSON
+  serialization, and non-destructive release verification. The final checkpoint
+  commit is the current `HEAD`.
 
 ## Exact handoff required for Phase 2
 
@@ -80,3 +95,7 @@ Phase 2 should start from the final Phase 1 commit with a clean source tree,
 review `docs/development/phase-1-progress.md`, retain the named backup refs for
 unreleased generated evidence, run `make audit`, and decide whether any preserved
 benchmark output is reproducible enough for an evidence-only release commit.
+Before treating the current source as releasable, reproduce the structured-output
+run in a named run bundle and make an explicit provenance decision for
+`results/episodes.jsonl` and any associated figures/reports; do not copy them
+from the backup merely to satisfy the audit.

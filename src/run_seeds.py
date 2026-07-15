@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 from pathlib import Path
+
 from src.core.config import load_config
 from src.core.serialization import write_csv
 from src.metrics.confidence import confidence_intervals
@@ -38,7 +39,10 @@ def main(argv=None):
     parser.add_argument("--all-agents", action="store_true")
     args = parser.parse_args(argv)
     seed_rows, ci_rows = run_seeds(args.config, all_envs=args.all_envs, all_agents=args.all_agents)
-    print(f"multi-seed episodes: {sum(int(float(r.get('episodes', 0))) for r in seed_rows)}; seed rows: {len(seed_rows)}; ci rows: {len(ci_rows)}")
+    print(
+        f"multi-seed episodes: {sum(int(float(r.get('episodes', 0))) for r in seed_rows)}; "
+        f"seed rows: {len(seed_rows)}; ci rows: {len(ci_rows)}"
+    )
 
 
 if __name__ == "__main__":

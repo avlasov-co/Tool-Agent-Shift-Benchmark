@@ -1,14 +1,17 @@
 import csv
 from pathlib import Path
-from src.run_eval import run_eval
+
+from src.reporting.failure_cases import replay_case
 from src.reporting.plots import generate_plots
 from src.reporting.report import generate_markdown_report
-from src.reporting.failure_cases import replay_case
+from src.run_eval import run_eval
 
 
 def test_reporting_outputs_and_replay(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    import shutil, pathlib
+    import pathlib
+    import shutil
+
     srcroot = pathlib.Path(__file__).resolve().parents[1]
     shutil.copytree(srcroot / "configs", tmp_path / "configs")
     run_eval("configs/small.yaml", 42)
@@ -30,10 +33,11 @@ def test_reporting_outputs_and_replay(tmp_path, monkeypatch):
 
 def test_plots_remove_stale_confidence_interval_figure_without_ci(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    import shutil
     import pathlib
-    from src.run_eval import run_eval
+    import shutil
+
     from src.reporting.plots import generate_plots
+    from src.run_eval import run_eval
 
     srcroot = pathlib.Path(__file__).resolve().parents[1]
     shutil.copytree(srcroot / "configs", tmp_path / "configs")

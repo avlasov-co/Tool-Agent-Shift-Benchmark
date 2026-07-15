@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from src.core.types import AgentDecision
+
 from .base import BaseAgent
 
 

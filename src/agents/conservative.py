@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from src.core.types import AgentAction, AgentDecision
+
 from .base import BaseAgent
 
 
@@ -21,5 +23,10 @@ class ConservativeAbstentionAgent(BaseAgent):
         candidate = context.recommended_action(obs.data)
         ok, reasons = context.validate_action(candidate, obs)
         if uncertainty or not ok:
-            return AgentDecision(self.name, AgentAction("abstain", abstain=True, reason="conservative_uncertainty"), 0.98, uncertainty + reasons)
+            return AgentDecision(
+                self.name,
+                AgentAction("abstain", abstain=True, reason="conservative_uncertainty"),
+                0.98,
+                uncertainty + reasons,
+            )
         return AgentDecision(self.name, candidate, 0.65, ["low_uncertainty"])

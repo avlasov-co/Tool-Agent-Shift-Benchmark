@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from src.core.types import MonitorDecision
+
 from .base import BaseMonitor
 
 

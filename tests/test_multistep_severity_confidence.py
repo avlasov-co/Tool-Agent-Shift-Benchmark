@@ -2,17 +2,18 @@ import csv
 import json
 from pathlib import Path
 
-from src.run_eval import run_eval
-from src.run_seeds import run_seeds
 from src.agents.offline_llm_fixture import OfflineLLMFixtureAgent
 from src.core.context import ObservationContext
 from src.environments.file_ops import FileOpsEnvironment
 from src.faults.stale_observation import StaleObservationFault
+from src.run_eval import run_eval
+from src.run_seeds import run_seeds
 
 
 def test_multistep_and_severity_outputs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     import shutil
+
     repo = Path(__file__).resolve().parents[1]
     shutil.copytree(repo / "configs", tmp_path / "configs")
     episodes = run_eval("configs/small.yaml", seed=7, all_envs=False, all_agents=False)
@@ -37,6 +38,7 @@ def test_fault_severity_changes_latency_or_staleness():
 def test_run_seeds_confidence_outputs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     import shutil
+
     repo = Path(__file__).resolve().parents[1]
     shutil.copytree(repo / "configs", tmp_path / "configs")
     seed_rows, ci_rows = run_seeds("configs/seeds.yaml", all_envs=False, all_agents=False)

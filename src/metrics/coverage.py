@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from typing import Iterable
+
 from src.core.episode import Episode
 
 

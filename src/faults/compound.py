@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 from dataclasses import replace
 from random import Random
+
 from .base import BaseFault
-from .stale_observation import StaleObservationFault
-from .missing_field import MissingFieldFault
-from .latency_spike import LatencySpikeFault
 from .conflicting_output import ConflictingOutputFault
+from .latency_spike import LatencySpikeFault
+from .missing_field import MissingFieldFault
+from .stale_observation import StaleObservationFault
 
 
 class CompoundShiftFault(BaseFault):
@@ -26,5 +28,11 @@ class CompoundShiftFault(BaseFault):
             out = part.apply(out, env, rng)
         obs = out.observation
         meta = dict(obs.metadata)
-        meta.setdefault("faults", []).append({"name": self.name, "severity": self.severity, "metadata": {"parts": [p.name for p in self.parts]}})
+        meta.setdefault("faults", []).append(
+            {
+                "name": self.name,
+                "severity": self.severity,
+                "metadata": {"parts": [p.name for p in self.parts]},
+            }
+        )
         return replace(out, observation=replace(obs, metadata=meta))

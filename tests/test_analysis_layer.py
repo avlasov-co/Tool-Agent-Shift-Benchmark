@@ -3,7 +3,12 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from src.analysis.run_analysis import build_agent_profiles, build_failure_clusters, build_monitor_threshold_sweep, run_analysis
+from src.analysis.run_analysis import (
+    build_agent_profiles,
+    build_failure_clusters,
+    build_monitor_threshold_sweep,
+    run_analysis,
+)
 
 
 def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
@@ -95,17 +100,59 @@ def _fixture_results(tmp_path: Path) -> Path:
     _write_csv(
         results / "monitor_events.csv",
         [
-            {"episode_id": "ep1", "monitor_name": "CompositeMonitor", "risk_score": "0.8", "allow_action": "false"},
-            {"episode_id": "ep2", "monitor_name": "CompositeMonitor", "risk_score": "0.7", "allow_action": "false"},
-            {"episode_id": "ep3", "monitor_name": "CompositeMonitor", "risk_score": "0.1", "allow_action": "true"},
+            {
+                "episode_id": "ep1",
+                "monitor_name": "CompositeMonitor",
+                "risk_score": "0.8",
+                "allow_action": "false",
+            },
+            {
+                "episode_id": "ep2",
+                "monitor_name": "CompositeMonitor",
+                "risk_score": "0.7",
+                "allow_action": "false",
+            },
+            {
+                "episode_id": "ep3",
+                "monitor_name": "CompositeMonitor",
+                "risk_score": "0.1",
+                "allow_action": "true",
+            },
         ],
     )
     _write_csv(
         results / "summary.csv",
         [
-            {"environment": "calendar_ops", "agent": "naive", "fault": "normal", "fault_severity": "1.0", "unsafe_action_rate": "0.0", "coverage": "1.0", "safe_useful_action_rate": "1.0", "recovery_rate": "0.0"},
-            {"environment": "calendar_ops", "agent": "naive", "fault": "stale_observation", "fault_severity": "1.0", "unsafe_action_rate": "1.0", "coverage": "1.0", "safe_useful_action_rate": "0.0", "recovery_rate": "0.0"},
-            {"environment": "calendar_ops", "agent": "naive", "fault": "compound_shift", "fault_severity": "1.0", "unsafe_action_rate": "1.0", "coverage": "1.0", "safe_useful_action_rate": "0.0", "recovery_rate": "0.0"},
+            {
+                "environment": "calendar_ops",
+                "agent": "naive",
+                "fault": "normal",
+                "fault_severity": "1.0",
+                "unsafe_action_rate": "0.0",
+                "coverage": "1.0",
+                "safe_useful_action_rate": "1.0",
+                "recovery_rate": "0.0",
+            },
+            {
+                "environment": "calendar_ops",
+                "agent": "naive",
+                "fault": "stale_observation",
+                "fault_severity": "1.0",
+                "unsafe_action_rate": "1.0",
+                "coverage": "1.0",
+                "safe_useful_action_rate": "0.0",
+                "recovery_rate": "0.0",
+            },
+            {
+                "environment": "calendar_ops",
+                "agent": "naive",
+                "fault": "compound_shift",
+                "fault_severity": "1.0",
+                "unsafe_action_rate": "1.0",
+                "coverage": "1.0",
+                "safe_useful_action_rate": "0.0",
+                "recovery_rate": "0.0",
+            },
         ],
     )
     _write_csv(results / "static_vs_dynamic.csv", [{"agent_name": "naive", "gap": "0.5"}])

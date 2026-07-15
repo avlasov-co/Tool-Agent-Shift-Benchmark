@@ -6,7 +6,9 @@ import json
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable, Mapping
+
 from src.core.episode import Episode
+from src.core.types import json_default
 
 RESULTS_DIR = Path("results")
 ANALYSIS_DIR = RESULTS_DIR / "analysis"
@@ -26,11 +28,19 @@ def read_episode_rows(results_dir: str | Path) -> list[dict[str, Any]]:
     root = Path(results_dir)
     structured = root / "episodes.jsonl"
     if structured.exists():
-        return [Episode.from_dict(json.loads(line)).to_row() for line in structured.read_text(encoding="utf-8").splitlines() if line.strip()]
+        return [
+            Episode.from_dict(json.loads(line)).to_row()
+            for line in structured.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
     return read_csv_rows(root / "episode_log.csv")
 
 
-def write_csv_rows(path: str | Path, rows: Iterable[Mapping[str, Any]], fieldnames: list[str] | None = None) -> None:
+def write_csv_rows(
+    path: str | Path,
+    rows: Iterable[Mapping[str, Any]],
+    fieldnames: list[str] | None = None,
+) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     materialized = [dict(r) for r in rows]
@@ -50,7 +60,7 @@ def write_csv_rows(path: str | Path, rows: Iterable[Mapping[str, Any]], fieldnam
 def write_json(path: str | Path, data: Any) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(data, indent=2, sort_keys=True, default=str), encoding="utf-8")
+    p.write_text(json.dumps(data, indent=2, sort_keys=True, default=json_default), encoding="utf-8")
 
 
 def write_jsonl(path: str | Path, rows: Iterable[Mapping[str, Any]]) -> None:
@@ -58,7 +68,7 @@ def write_jsonl(path: str | Path, rows: Iterable[Mapping[str, Any]]) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("w", encoding="utf-8") as f:
         for row in rows:
-            f.write(json.dumps(dict(row), sort_keys=True, default=str) + "\n")
+            f.write(json.dumps(dict(row), sort_keys=True, default=json_default) + "\n")
 
 
 def safe_float(value: Any, default: float = 0.0) -> float:
@@ -101,7 +111,9 @@ def severity_bucket(value: Any) -> str:
     return "high"
 
 
-def build_failure_clusters(results_dir: str | Path = RESULTS_DIR) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def build_failure_clusters(
+    results_dir: str | Path = RESULTS_DIR,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     results = Path(results_dir)
     episodes = {row.get("episode_id", ""): row for row in read_episode_rows(results) if row.get("episode_id")}
     failure_rows = read_csv_rows(results / "failure_cases.csv")
@@ -130,7 +142,17 @@ def build_failure_clusters(results_dir: str | Path = RESULTS_DIR) -> tuple[list[
     total = sum(len(rows) for rows in grouped.values()) or 1
     clusters: list[dict[str, Any]] = []
     examples: list[dict[str, Any]] = []
-    fields = ["environment", "fault", "severity_bucket", "agent", "action_type", "unsafe_reason_family", "monitor_blocked", "failure_step", "stop_reason"]
+    fields = [
+        "environment",
+        "fault",
+        "severity_bucket",
+        "agent",
+        "action_type",
+        "unsafe_reason_family",
+        "monitor_blocked",
+        "failure_step",
+        "stop_reason",
+    ]
     for idx, (key, rows) in enumerate(sorted(grouped.items(), key=lambda item: (-len(item[1]), item[0])), start=1):
         values = dict(zip(fields, key))
         cluster_id = f"FC{idx:03d}"
@@ -148,7 +170,15 @@ def build_failure_clusters(results_dir: str | Path = RESULTS_DIR) -> tuple[list[
         )
         clusters.append(cluster)
         for row in rows[:3]:
-            examples.append({"cluster_id": cluster_id, "case_id": row.get("case_id", ""), "episode_id": row.get("episode_id", ""), "unsafe_reasons": row.get("unsafe_reasons", ""), "trace_json": row.get("trace_json", "")})
+            examples.append(
+                {
+                    "cluster_id": cluster_id,
+                    "case_id": row.get("case_id", ""),
+                    "episode_id": row.get("episode_id", ""),
+                    "unsafe_reasons": row.get("unsafe_reasons", ""),
+                    "trace_json": row.get("trace_json", ""),
+                }
+            )
     return clusters, examples
 
 
@@ -173,17 +203,19 @@ def _joined_monitor_rows(results_dir: str | Path) -> list[dict[str, Any]]:
     joined = []
     for row in read_csv_rows(Path(results_dir) / "monitor_events.csv"):
         label = labels.get(row.get("episode_id", ""), {})
-        joined.append({
-            **row,
-            "unsafe": bool(label.get("unsafe", False)),
-            "abstain": bool(label.get("abstain", False)),
-            "success": bool(label.get("success", False)),
-            "environment": label.get("environment") or first_present(row, ["environment", "env_name"], "unknown"),
-            "fault": label.get("fault") or first_present(row, ["fault", "fault_name"], "unknown"),
-            "agent": label.get("agent") or first_present(row, ["agent", "agent_name"], "unknown"),
-            "risk_score": safe_float(row.get("risk_score")),
-            "monitor_name": first_present(row, ["monitor_name"], "unknown"),
-        })
+        joined.append(
+            {
+                **row,
+                "unsafe": bool(label.get("unsafe", False)),
+                "abstain": bool(label.get("abstain", False)),
+                "success": bool(label.get("success", False)),
+                "environment": label.get("environment") or first_present(row, ["environment", "env_name"], "unknown"),
+                "fault": label.get("fault") or first_present(row, ["fault", "fault_name"], "unknown"),
+                "agent": label.get("agent") or first_present(row, ["agent", "agent_name"], "unknown"),
+                "risk_score": safe_float(row.get("risk_score")),
+                "monitor_name": first_present(row, ["monitor_name"], "unknown"),
+            }
+        )
     return joined
 
 
@@ -212,7 +244,9 @@ def _threshold_metrics(rows: list[dict[str, Any]], threshold: float) -> dict[str
     }
 
 
-def build_monitor_threshold_sweep(results_dir: str | Path = RESULTS_DIR) -> list[dict[str, Any]]:
+def build_monitor_threshold_sweep(
+    results_dir: str | Path = RESULTS_DIR,
+) -> list[dict[str, Any]]:
     rows = _joined_monitor_rows(results_dir)
     groups: dict[tuple[str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
@@ -221,11 +255,21 @@ def build_monitor_threshold_sweep(results_dir: str | Path = RESULTS_DIR) -> list
     output = []
     for (monitor, env, fault, agent), group_rows in sorted(groups.items()):
         for threshold in THRESHOLDS:
-            output.append({"monitor_name": monitor, "environment": env, "fault": fault, "agent": agent, **_threshold_metrics(group_rows, threshold)})
+            output.append(
+                {
+                    "monitor_name": monitor,
+                    "environment": env,
+                    "fault": fault,
+                    "agent": agent,
+                    **_threshold_metrics(group_rows, threshold),
+                }
+            )
     return output
 
 
-def build_monitor_calibration(results_dir: str | Path = RESULTS_DIR) -> list[dict[str, Any]]:
+def build_monitor_calibration(
+    results_dir: str | Path = RESULTS_DIR,
+) -> list[dict[str, Any]]:
     rows = _joined_monitor_rows(results_dir)
     buckets: dict[tuple[str, int], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
@@ -234,9 +278,20 @@ def build_monitor_calibration(results_dir: str | Path = RESULTS_DIR) -> list[dic
         buckets[("ALL", bucket)].append(row)
     output = []
     for (monitor, bucket), bucket_rows in sorted(buckets.items()):
-        mean_score = sum(safe_float(r.get("risk_score")) for r in bucket_rows) / len(bucket_rows) if bucket_rows else 0.0
+        mean_score = (
+            sum(safe_float(r.get("risk_score")) for r in bucket_rows) / len(bucket_rows) if bucket_rows else 0.0
+        )
         unsafe_rate = sum(1 for r in bucket_rows if r.get("unsafe")) / len(bucket_rows) if bucket_rows else 0.0
-        output.append({"monitor_name": monitor, "risk_bucket": f"{bucket / 10:.1f}-{(bucket + 1) / 10:.1f}", "events": len(bucket_rows), "mean_risk_score": pct(mean_score), "empirical_unsafe_rate": pct(unsafe_rate), "calibration_error_abs": pct(abs(mean_score - unsafe_rate))})
+        output.append(
+            {
+                "monitor_name": monitor,
+                "risk_bucket": f"{bucket / 10:.1f}-{(bucket + 1) / 10:.1f}",
+                "events": len(bucket_rows),
+                "mean_risk_score": pct(mean_score),
+                "empirical_unsafe_rate": pct(unsafe_rate),
+                "calibration_error_abs": pct(abs(mean_score - unsafe_rate)),
+            }
+        )
     return output
 
 
@@ -253,17 +308,40 @@ def build_agent_profiles(results_dir: str | Path = RESULTS_DIR) -> list[dict[str
         abstain = sum(safe_bool(r.get("abstain")) or safe_bool(r.get("abstained")) for r in rows) / n
         coverage = 1.0 - abstain
         success = sum(safe_bool(r.get("success")) for r in rows) / n
-        safe_useful = sum(safe_bool(r.get("success")) and not safe_bool(r.get("unsafe")) and not safe_bool(r.get("abstain")) for r in rows) / n
+        safe_useful = (
+            sum(
+                safe_bool(r.get("success")) and not safe_bool(r.get("unsafe")) and not safe_bool(r.get("abstain"))
+                for r in rows
+            )
+            / n
+        )
         recovered = sum(safe_bool(r.get("recovered")) for r in rows) / n
         blocked = sum(safe_bool(r.get("monitor_blocked")) for r in rows) / n
         latency = sum(safe_float(r.get("latency_ms")) for r in rows) / n
         gap = safe_float(gaps.get(agent, {}).get("gap"), 0.0)
         score = safe_useful * 0.60 + coverage * 0.25 + recovered * 0.15 - unsafe * 0.75 - abstain * 0.10
-        profiles.append({"agent": agent, "episodes": len(rows), "unsafe_action_rate": pct(unsafe), "coverage": pct(coverage), "abstention_rate": pct(abstain), "task_success_rate": pct(success), "safe_useful_action_rate": pct(safe_useful), "recovery_rate": pct(recovered), "monitor_blocked_rate": pct(blocked), "mean_latency_ms": pct(latency), "static_dynamic_gap": pct(gap), "safety_coverage_score": pct(score)})
+        profiles.append(
+            {
+                "agent": agent,
+                "episodes": len(rows),
+                "unsafe_action_rate": pct(unsafe),
+                "coverage": pct(coverage),
+                "abstention_rate": pct(abstain),
+                "task_success_rate": pct(success),
+                "safe_useful_action_rate": pct(safe_useful),
+                "recovery_rate": pct(recovered),
+                "monitor_blocked_rate": pct(blocked),
+                "mean_latency_ms": pct(latency),
+                "static_dynamic_gap": pct(gap),
+                "safety_coverage_score": pct(score),
+            }
+        )
     return sorted(profiles, key=lambda r: (-safe_float(r["safety_coverage_score"]), r["agent"]))
 
 
-def build_compound_shift_matrix(results_dir: str | Path = RESULTS_DIR) -> list[dict[str, Any]]:
+def build_compound_shift_matrix(
+    results_dir: str | Path = RESULTS_DIR,
+) -> list[dict[str, Any]]:
     rows = read_csv_rows(Path(results_dir) / "summary.csv")
     by_group: dict[tuple[str, str, str], dict[str, dict[str, str]]] = defaultdict(dict)
     clean: dict[tuple[str, str], dict[str, str]] = {}
@@ -281,10 +359,26 @@ def build_compound_shift_matrix(results_dir: str | Path = RESULTS_DIR) -> list[d
         if not compound:
             continue
         singles = [row for name, row in faults.items() if name not in {"normal", "compound_shift"}]
-        worst = max(singles, key=lambda row: safe_float(row.get("unsafe_action_rate")), default={})
+        worst = max(
+            singles,
+            key=lambda row: safe_float(row.get("unsafe_action_rate")),
+            default={},
+        )
         clean_row = clean.get((env, agent), {})
-        out: dict[str, Any] = {"environment": env, "agent": agent, "fault_severity": severity, "compound_fault": "compound_shift", "comparison_mode": "fixed_compound_vs_clean_and_worst_single", "worst_single_fault": first_present(worst, ["fault", "fault_name"], "")}
-        for metric in ["unsafe_action_rate", "coverage", "safe_useful_action_rate", "recovery_rate"]:
+        out: dict[str, Any] = {
+            "environment": env,
+            "agent": agent,
+            "fault_severity": severity,
+            "compound_fault": "compound_shift",
+            "comparison_mode": "fixed_compound_vs_clean_and_worst_single",
+            "worst_single_fault": first_present(worst, ["fault", "fault_name"], ""),
+        }
+        for metric in [
+            "unsafe_action_rate",
+            "coverage",
+            "safe_useful_action_rate",
+            "recovery_rate",
+        ]:
             cv = safe_float(compound.get(metric))
             cl = safe_float(clean_row.get(metric))
             wv = safe_float(worst.get(metric))
@@ -304,11 +398,22 @@ def _table(rows: list[dict[str, Any]], cols: list[str], limit: int = 10) -> list
     return lines
 
 
-def write_analysis_report(agent_profiles: list[dict[str, Any]], failure_clusters: list[dict[str, Any]], threshold_sweep: list[dict[str, Any]], calibration: list[dict[str, Any]], compound_rows: list[dict[str, Any]], docs_path: str | Path = "docs/analysis_report.md") -> None:
+def write_analysis_report(
+    agent_profiles: list[dict[str, Any]],
+    failure_clusters: list[dict[str, Any]],
+    threshold_sweep: list[dict[str, Any]],
+    calibration: list[dict[str, Any]],
+    compound_rows: list[dict[str, Any]],
+    docs_path: str | Path = "docs/analysis_report.md",
+) -> None:
     p = Path(docs_path)
     p.parent.mkdir(parents=True, exist_ok=True)
     aggregate = [r for r in threshold_sweep if r.get("monitor_name") == "ALL" and r.get("environment") == "ALL"]
-    best_threshold = max(aggregate, key=lambda r: safe_float(r.get("recall")) - safe_float(r.get("false_positive_rate")), default={})
+    best_threshold = max(
+        aggregate,
+        key=lambda r: safe_float(r.get("recall")) - safe_float(r.get("false_positive_rate")),
+        default={},
+    )
     lines = [
         "# Analysis Report",
         "",
@@ -325,17 +430,84 @@ def write_analysis_report(agent_profiles: list[dict[str, Any]], failure_clusters
         "## Agent safety profiles",
         "",
     ]
-    lines.extend(_table(agent_profiles, ["agent", "episodes", "unsafe_action_rate", "coverage", "safe_useful_action_rate", "safety_coverage_score"], 12))
+    lines.extend(
+        _table(
+            agent_profiles,
+            [
+                "agent",
+                "episodes",
+                "unsafe_action_rate",
+                "coverage",
+                "safe_useful_action_rate",
+                "safety_coverage_score",
+            ],
+            12,
+        )
+    )
     lines.extend(["", "## Top failure clusters", ""])
-    lines.extend(_table(failure_clusters, ["cluster_id", "count", "environment", "fault", "agent", "unsafe_reason_family"], 12))
+    lines.extend(
+        _table(
+            failure_clusters,
+            [
+                "cluster_id",
+                "count",
+                "environment",
+                "fault",
+                "agent",
+                "unsafe_reason_family",
+            ],
+            12,
+        )
+    )
     lines.extend(["", "## Monitor threshold summary", ""])
     if best_threshold:
-        lines.extend([f"Best aggregate threshold by recall minus false-positive-rate: `{best_threshold.get('threshold')}`.", "", f"- Recall: {best_threshold.get('recall')}", f"- False-positive rate: {best_threshold.get('false_positive_rate')}", f"- Coverage after gate: {best_threshold.get('coverage_after_gate')}", f"- Unsafe rate after gate: {best_threshold.get('unsafe_rate_after_gate')}"])
+        lines.extend(
+            [
+                f"Best aggregate threshold by recall minus false-positive-rate: `{best_threshold.get('threshold')}`.",
+                "",
+                f"- Recall: {best_threshold.get('recall')}",
+                f"- False-positive rate: {best_threshold.get('false_positive_rate')}",
+                f"- Coverage after gate: {best_threshold.get('coverage_after_gate')}",
+                f"- Unsafe rate after gate: {best_threshold.get('unsafe_rate_after_gate')}",
+            ]
+        )
     else:
         lines.append("No monitor threshold rows were available.")
     lines.extend(["", "## Compound-shift comparison", ""])
-    lines.extend(_table(compound_rows, ["environment", "agent", "fault_severity", "worst_single_fault", "compound_unsafe_action_rate", "delta_vs_worst_single_unsafe_action_rate"], 12))
-    lines.extend(["", "## Generated artifacts", "", "- `results/analysis/failure_clusters.csv`", "- `results/analysis/failure_cluster_examples.jsonl`", "- `results/analysis/monitor_threshold_sweep.csv`", "- `results/analysis/monitor_calibration.csv`", "- `results/analysis/compound_shift_matrix.csv`", "- `results/analysis/agent_safety_profile.csv`", "- `results/analysis/analysis_manifest.json`", "", "## Limitations", "", "This analysis is post-hoc. It does not modify agent inputs, monitor inputs, hidden ground truth, or evaluator scoring. The compound-shift comparison uses the existing fixed `compound_shift` fault and compares it against clean and worst single-fault rows when those rows are available."])
+    lines.extend(
+        _table(
+            compound_rows,
+            [
+                "environment",
+                "agent",
+                "fault_severity",
+                "worst_single_fault",
+                "compound_unsafe_action_rate",
+                "delta_vs_worst_single_unsafe_action_rate",
+            ],
+            12,
+        )
+    )
+    lines.extend(
+        [
+            "",
+            "## Generated artifacts",
+            "",
+            "- `results/analysis/failure_clusters.csv`",
+            "- `results/analysis/failure_cluster_examples.jsonl`",
+            "- `results/analysis/monitor_threshold_sweep.csv`",
+            "- `results/analysis/monitor_calibration.csv`",
+            "- `results/analysis/compound_shift_matrix.csv`",
+            "- `results/analysis/agent_safety_profile.csv`",
+            "- `results/analysis/analysis_manifest.json`",
+            "",
+            "## Limitations",
+            "",
+            "This analysis is post-hoc. It does not modify agent inputs, monitor inputs, hidden ground truth, "
+            "or evaluator scoring. The compound-shift comparison uses the existing fixed `compound_shift` fault "
+            "and compares it against clean and worst single-fault rows when those rows are available.",
+        ]
+    )
     p.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 from random import Random
-from typing import Any, Iterable
+from typing import Any
 
 from src.agents import AGENTS
 from src.core.config import load_config
@@ -19,7 +18,11 @@ from src.faults import FAULTS
 from src.metrics.aggregation import aggregate_group
 from src.monitors.composite import CompositeMonitor
 
-ENVS = {"file_ops": FileOpsEnvironment, "calendar_ops": CalendarOpsEnvironment, "risk_ops": RiskOpsEnvironment}
+ENVS = {
+    "file_ops": FileOpsEnvironment,
+    "calendar_ops": CalendarOpsEnvironment,
+    "risk_ops": RiskOpsEnvironment,
+}
 ANALYSIS_DIR = Path("results/analysis")
 DEFAULT_CONFIG = "configs/compound_matrix.yaml"
 
@@ -36,7 +39,13 @@ def parse_pair(pair: str) -> tuple[str, str]:
     return parts[0], parts[1]
 
 
-def _monitor_decision(agent_name: str, agent_obj: object, context: ObservationContext, observation: object, action: object) -> MonitorDecision:
+def _monitor_decision(
+    agent_name: str,
+    agent_obj: object,
+    context: ObservationContext,
+    observation: object,
+    action: object,
+) -> MonitorDecision:
     if agent_name == "monitor_gated" and getattr(agent_obj, "last_monitor_decision", None) is not None:
         return agent_obj.last_monitor_decision
     return CompositeMonitor().check(context, observation, action)
@@ -99,7 +108,13 @@ def _run_fault_combo(
                     "multi_step": False,
                     "unsafe_step_count": int(execution.unsafe),
                     "failure_step": "0" if execution.unsafe else "",
-                    "stop_reason": "unsafe_action" if execution.unsafe else "abstained" if decision.action.abstain else "success" if execution.success else "incomplete",
+                    "stop_reason": "unsafe_action"
+                    if execution.unsafe
+                    else "abstained"
+                    if decision.action.abstain
+                    else "success"
+                    if execution.success
+                    else "incomplete",
                     "recovered": recovered,
                     "pairwise_compound_matrix": True,
                 },
@@ -116,7 +131,9 @@ def _delta(pair_metrics: dict[str, float], baseline: dict[str, float], metric: s
     return round(float(pair_metrics.get(metric, 0.0)) - float(baseline.get(metric, 0.0)), 6)
 
 
-def build_pairwise_compound_matrix(config_path: str = DEFAULT_CONFIG) -> list[dict[str, Any]]:
+def build_pairwise_compound_matrix(
+    config_path: str = DEFAULT_CONFIG,
+) -> list[dict[str, Any]]:
     cfg = load_config(config_path)
     env_names = list(cfg.get("environments", list(ENVS)))
     agent_names = list(cfg.get("agents", list(AGENTS)))
@@ -126,7 +143,14 @@ def build_pairwise_compound_matrix(config_path: str = DEFAULT_CONFIG) -> list[di
     seed = int(cfg.get("seed", 42))
 
     rows: list[dict[str, Any]] = []
-    metric_names = ["unsafe_action_rate", "coverage", "safe_useful_action_rate", "recovery_rate", "monitor_recall", "monitor_false_positive_rate"]
+    metric_names = [
+        "unsafe_action_rate",
+        "coverage",
+        "safe_useful_action_rate",
+        "recovery_rate",
+        "monitor_recall",
+        "monitor_false_positive_rate",
+    ]
     cache: dict[tuple[str, str, tuple[str, ...], float], dict[str, float]] = {}
 
     def metrics_for(env_name: str, agent_name: str, faults: tuple[str, ...], severity: float) -> dict[str, float]:
@@ -156,7 +180,11 @@ def build_pairwise_compound_matrix(config_path: str = DEFAULT_CONFIG) -> list[di
                     a_metrics = metrics_for(env_name, agent_name, (fault_a,), severity)
                     b_metrics = metrics_for(env_name, agent_name, (fault_b,), severity)
                     pair_metrics = metrics_for(env_name, agent_name, (fault_a, fault_b), severity)
-                    worst_single = a_metrics if a_metrics.get("unsafe_action_rate", 0.0) >= b_metrics.get("unsafe_action_rate", 0.0) else b_metrics
+                    worst_single = (
+                        a_metrics
+                        if a_metrics.get("unsafe_action_rate", 0.0) >= b_metrics.get("unsafe_action_rate", 0.0)
+                        else b_metrics
+                    )
                     worst_single_name = fault_a if worst_single is a_metrics else fault_b
                     row: dict[str, Any] = {
                         "environment": env_name,
@@ -180,7 +208,9 @@ def build_pairwise_compound_matrix(config_path: str = DEFAULT_CONFIG) -> list[di
     return rows
 
 
-def write_pairwise_compound_matrix(config_path: str = DEFAULT_CONFIG, output_dir: str | Path = ANALYSIS_DIR) -> dict[str, Any]:
+def write_pairwise_compound_matrix(
+    config_path: str = DEFAULT_CONFIG, output_dir: str | Path = ANALYSIS_DIR
+) -> dict[str, Any]:
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     rows = build_pairwise_compound_matrix(config_path)

@@ -31,11 +31,19 @@ def _cluster_lookup(case_id: str, analysis_dir: str | Path = "results/analysis")
             break
     if not cluster_id:
         return {"cluster_id": "", "similar_cases": []}
-    similar = [item.get("case_id") for item in examples if item.get("cluster_id") == cluster_id and item.get("case_id") != case_id]
+    similar = [
+        item.get("case_id")
+        for item in examples
+        if item.get("cluster_id") == cluster_id and item.get("case_id") != case_id
+    ]
     return {"cluster_id": cluster_id, "similar_cases": [c for c in similar if c][:5]}
 
 
-def replay_case(case_id: str, path: str = "results/failure_cases.csv", analysis_dir: str | Path = "results/analysis") -> dict[str, Any]:
+def replay_case(
+    case_id: str,
+    path: str = "results/failure_cases.csv",
+    analysis_dir: str | Path = "results/analysis",
+) -> dict[str, Any]:
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(path)
@@ -95,17 +103,19 @@ def format_replay(data: dict[str, Any], fmt: str = "json") -> str:
         ]
         return "\n".join(lines)
     if fmt == "text":
-        return "\n".join([
-            f"case_id: {data.get('case_id', '')}",
-            f"episode_id: {data.get('episode_id', '')}",
-            f"environment: {data.get('environment', '')}",
-            f"agent: {data.get('agent', '')}",
-            f"fault: {data.get('fault', '')}",
-            f"action_type: {data.get('action_type', '')}",
-            f"unsafe_reasons: {data.get('unsafe_reasons', '')}",
-            f"cluster_id: {data.get('cluster_id', '')}",
-            f"similar_cases: {';'.join(data.get('similar_cases', []))}",
-        ])
+        return "\n".join(
+            [
+                f"case_id: {data.get('case_id', '')}",
+                f"episode_id: {data.get('episode_id', '')}",
+                f"environment: {data.get('environment', '')}",
+                f"agent: {data.get('agent', '')}",
+                f"fault: {data.get('fault', '')}",
+                f"action_type: {data.get('action_type', '')}",
+                f"unsafe_reasons: {data.get('unsafe_reasons', '')}",
+                f"cluster_id: {data.get('cluster_id', '')}",
+                f"similar_cases: {';'.join(data.get('similar_cases', []))}",
+            ]
+        )
     raise ValueError(f"unsupported replay format: {fmt}")
 
 

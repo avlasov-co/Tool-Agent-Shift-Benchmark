@@ -3,24 +3,24 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from random import Random
 from typing import List
 
 from src.agents import AGENTS
 from src.core.config import load_config
 from src.core.episode import Episode
-from src.core.context import ObservationContext, redact_response_for_policy
-from src.core.serialization import write_csv, write_json
-from src.core.types import FaultConfig, MonitorDecision, stable_hash
 from src.core.orchestration import ExperimentSpec, RunCoordinator
-from src.environments.file_ops import FileOpsEnvironment
+from src.core.serialization import write_csv, write_json
+from src.core.types import json_default, stable_hash
 from src.environments.calendar_ops import CalendarOpsEnvironment
+from src.environments.file_ops import FileOpsEnvironment
 from src.environments.risk_ops import RiskOpsEnvironment
-from src.faults import FAULTS
 from src.metrics.aggregation import aggregate
-from src.monitors.composite import CompositeMonitor
 
-ENVS = {"file_ops": FileOpsEnvironment, "calendar_ops": CalendarOpsEnvironment, "risk_ops": RiskOpsEnvironment}
+ENVS = {
+    "file_ops": FileOpsEnvironment,
+    "calendar_ops": CalendarOpsEnvironment,
+    "risk_ops": RiskOpsEnvironment,
+}
 
 
 def _safe_summary(value):
@@ -40,12 +40,38 @@ def _static_dynamic_rows(episodes: List[Episode]):
         clean = [e for e in eps if e.fault.name == "normal"]
         shifted = [e for e in eps if e.fault.name != "normal"]
         static = sum(e.execution.success and not e.execution.unsafe for e in clean) / len(clean) if clean else 0.0
-        dynamic = sum(e.execution.success and not e.execution.unsafe and not e.decision.action.abstain for e in shifted) / len(shifted) if shifted else 0.0
-        rows.append({"agent_name": agent, "static_score": static, "dynamic_score": dynamic, "gap": static - dynamic, "clean_episodes": len(clean), "shifted_episodes": len(shifted)})
+        dynamic = (
+            sum(e.execution.success and not e.execution.unsafe and not e.decision.action.abstain for e in shifted)
+            / len(shifted)
+            if shifted
+            else 0.0
+        )
+        rows.append(
+            {
+                "agent_name": agent,
+                "static_score": static,
+                "dynamic_score": dynamic,
+                "gap": static - dynamic,
+                "clean_episodes": len(clean),
+                "shifted_episodes": len(shifted),
+            }
+        )
     return rows
 
 
-def run_eval(config_path: str, seed: int, env: str | None = None, agent: str | None = None, all_envs: bool = False, all_agents: bool = False, workers: int = 1, existing_episodes: List[Episode] | None = None, checkpoint_path: str | None = None, scenario_indices=None, episode_ids=None) -> List[Episode]:
+def run_eval(
+    config_path: str,
+    seed: int,
+    env: str | None = None,
+    agent: str | None = None,
+    all_envs: bool = False,
+    all_agents: bool = False,
+    workers: int = 1,
+    existing_episodes: List[Episode] | None = None,
+    checkpoint_path: str | None = None,
+    scenario_indices=None,
+    episode_ids=None,
+) -> List[Episode]:
     config = load_config(config_path)
     config.setdefault("schema_version", "1")
     # Compatibility wrapper preserves historical CSV benchmark semantics;
@@ -54,7 +80,15 @@ def run_eval(config_path: str, seed: int, env: str | None = None, agent: str | N
     env_names = list(ENVS) if all_envs else ([env] if env else config.get("environments", ["file_ops"]))
     agent_names = list(AGENTS) if all_agents else ([agent] if agent else config.get("agents", ["naive"]))
     config = {**config, "_config_path": config_path}
-    spec = ExperimentSpec.from_config(config, seed=seed, environments=env_names, agents=agent_names, workers=workers, scenario_indices=scenario_indices, episode_ids=episode_ids)
+    spec = ExperimentSpec.from_config(
+        config,
+        seed=seed,
+        environments=env_names,
+        agents=agent_names,
+        workers=workers,
+        scenario_indices=scenario_indices,
+        episode_ids=episode_ids,
+    )
     coordinator = RunCoordinator(spec)
     existing_episodes = existing_episodes or []
     episodes = coordinator.run({e.episode_id for e in existing_episodes}, checkpoint_path=checkpoint_path)
@@ -62,7 +96,6 @@ def run_eval(config_path: str, seed: int, env: str | None = None, agent: str | N
     run_id = episodes[0].run_id if episodes else stable_hash({"config": config_path, "seed": seed}, prefix="run")
     fault_names = spec.shifts
     fault_severities = spec.severities
-    episode_steps = spec.episode_steps
 
     effective_config = {
         **config,
@@ -75,7 +108,13 @@ def run_eval(config_path: str, seed: int, env: str | None = None, agent: str | N
         "requested_env": env,
         "requested_agent": agent,
     }
-    write_outputs(episodes, effective_config, seed, run_id, orchestration_errors=[e.to_dict() for e in coordinator.errors])
+    write_outputs(
+        episodes,
+        effective_config,
+        seed,
+        run_id,
+        orchestration_errors=[e.to_dict() for e in coordinator.errors],
+    )
     return episodes
 
 
@@ -91,17 +130,39 @@ def write_outputs(episodes: List[Episode], config, seed: int, run_id: str, orche
     write_csv("results/static_vs_dynamic.csv", _static_dynamic_rows(episodes))
     with Path("results/multistep_traces.jsonl").open("w", encoding="utf-8") as f:
         for e in episodes:
-            f.write(json.dumps({"episode_id": e.episode_id, "step_trace": e.metadata.get("step_trace", [])}, sort_keys=True, default=str) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "episode_id": e.episode_id,
+                        "step_trace": e.metadata.get("step_trace", []),
+                    },
+                    sort_keys=True,
+                    default=json_default,
+                )
+                + "\n"
+            )
     with Path("results/episodes.jsonl").open("w", encoding="utf-8") as f:
         for e in sorted(episodes, key=lambda episode: episode.episode_id):
-            f.write(json.dumps(e.to_dict(), sort_keys=True, default=str) + "\n")
+            f.write(json.dumps(e.to_dict(), sort_keys=True, default=json_default) + "\n")
     Path("results/evaluator_traces.jsonl").write_text(
-        "".join(json.dumps({"episode_id": e.episode_id, "trace": e.metadata.get("evaluator_trace", [])}, sort_keys=True, default=str) + "\n" for e in episodes),
+        "".join(
+            json.dumps(
+                {
+                    "episode_id": e.episode_id,
+                    "trace": e.metadata.get("evaluator_trace", []),
+                },
+                sort_keys=True,
+                default=json_default,
+            )
+            + "\n"
+            for e in episodes
+        ),
         encoding="utf-8",
     )
     errors = orchestration_errors or []
     Path("results/orchestration_errors.jsonl").write_text(
-        "".join(json.dumps(error, sort_keys=True, default=str) + "\n" for error in errors) or '{"orchestration_errors": []}\n',
+        "".join(json.dumps(error, sort_keys=True, default=json_default) + "\n" for error in errors)
+        or '{"orchestration_errors": []}\n',
         encoding="utf-8",
     )
     failure_rows = []
@@ -109,40 +170,81 @@ def write_outputs(episodes: List[Episode], config, seed: int, run_id: str, orche
         if e.execution.unsafe:
             fc = e.failure_case()
             monitor_summary = ";".join(r for m in e.monitor_decisions for r in m.reasons)
-            failure_rows.append({
-                "case_id": fc.case_id,
-                "episode_id": fc.episode_id,
-                "env_name": fc.env_name,
-                "environment": fc.env_name,
-                "agent_name": fc.agent_name,
-                "agent": fc.agent_name,
-                "fault_name": fc.fault_name,
-                "fault": fc.fault_name,
-                "action_type": e.decision.action.action_type,
-                "unsafe_reasons": ";".join(fc.unsafe_reasons),
-                "observation_summary": json.dumps(_safe_summary(e.tool_response.observation.data), sort_keys=True, default=str),
-                "monitor_summary": monitor_summary,
-                "ground_truth_summary": json.dumps(_safe_summary((e.metadata.get("evaluator_trace") or [{}])[-1].get("hidden_ground_truth", {})), sort_keys=True, default=str),
-                "seed": fc.seed,
-                "trace_json": json.dumps(fc.trace, sort_keys=True, default=str),
-            })
-    write_csv("results/failure_cases.csv", failure_rows, ["case_id", "episode_id", "env_name", "environment", "agent_name", "agent", "fault_name", "fault", "action_type", "unsafe_reasons", "observation_summary", "monitor_summary", "ground_truth_summary", "seed", "trace_json"])
+            failure_rows.append(
+                {
+                    "case_id": fc.case_id,
+                    "episode_id": fc.episode_id,
+                    "env_name": fc.env_name,
+                    "environment": fc.env_name,
+                    "agent_name": fc.agent_name,
+                    "agent": fc.agent_name,
+                    "fault_name": fc.fault_name,
+                    "fault": fc.fault_name,
+                    "action_type": e.decision.action.action_type,
+                    "unsafe_reasons": ";".join(fc.unsafe_reasons),
+                    "observation_summary": json.dumps(
+                        _safe_summary(e.tool_response.observation.data),
+                        sort_keys=True,
+                        default=json_default,
+                    ),
+                    "monitor_summary": monitor_summary,
+                    "ground_truth_summary": json.dumps(
+                        _safe_summary((e.metadata.get("evaluator_trace") or [{}])[-1].get("hidden_ground_truth", {})),
+                        sort_keys=True,
+                        default=json_default,
+                    ),
+                    "seed": fc.seed,
+                    "trace_json": json.dumps(fc.trace, sort_keys=True, default=json_default),
+                }
+            )
+    write_csv(
+        "results/failure_cases.csv",
+        failure_rows,
+        [
+            "case_id",
+            "episode_id",
+            "env_name",
+            "environment",
+            "agent_name",
+            "agent",
+            "fault_name",
+            "fault",
+            "action_type",
+            "unsafe_reasons",
+            "observation_summary",
+            "monitor_summary",
+            "ground_truth_summary",
+            "seed",
+            "trace_json",
+        ],
+    )
     monitor_rows = []
     for e in episodes:
         for m in e.monitor_decisions:
-            monitor_rows.append({
-                "episode_id": e.episode_id,
-                "env_name": e.env_name,
-                "agent_name": e.agent_name,
-                "fault_name": e.fault.name,
-                "monitor_name": m.monitor_name,
-                "allow_action": m.allow_action,
-                "risk_score": m.risk_score,
-                "reasons": ";".join(m.reasons),
-                "metadata_json": json.dumps(m.metadata, sort_keys=True, default=str),
-            })
+            monitor_rows.append(
+                {
+                    "episode_id": e.episode_id,
+                    "env_name": e.env_name,
+                    "agent_name": e.agent_name,
+                    "fault_name": e.fault.name,
+                    "monitor_name": m.monitor_name,
+                    "allow_action": m.allow_action,
+                    "risk_score": m.risk_score,
+                    "reasons": ";".join(m.reasons),
+                    "metadata_json": json.dumps(m.metadata, sort_keys=True, default=json_default),
+                }
+            )
     write_csv("results/monitor_events.csv", monitor_rows)
-    write_json("results/config.json", {"seed": seed, "run_id": run_id, "config": config, "episodes": len(episodes), "orchestration_errors": orchestration_errors or []})
+    write_json(
+        "results/config.json",
+        {
+            "seed": seed,
+            "run_id": run_id,
+            "config": config,
+            "episodes": len(episodes),
+            "orchestration_errors": orchestration_errors or [],
+        },
+    )
 
 
 def main(argv=None):
@@ -154,7 +256,14 @@ def main(argv=None):
     parser.add_argument("--all-envs", action="store_true")
     parser.add_argument("--all-agents", action="store_true")
     args = parser.parse_args(argv)
-    episodes = run_eval(args.config, args.seed, env=args.env, agent=args.agent, all_envs=args.all_envs, all_agents=args.all_agents)
+    episodes = run_eval(
+        args.config,
+        args.seed,
+        env=args.env,
+        agent=args.agent,
+        all_envs=args.all_envs,
+        all_agents=args.all_agents,
+    )
     print(f"wrote results for {len(episodes)} episodes")
 
 

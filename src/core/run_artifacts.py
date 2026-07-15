@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import json
 import hashlib
-import os
+import json
 import re
 import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
-from src.core.types import stable_hash
+
+from src.core.types import json_default, stable_hash
 
 RUNS_DIR = Path("runs")
 RESULTS_DIR = Path("results")
@@ -32,11 +32,15 @@ def get_git_commit(default: str = "unknown") -> str:
     try:
         result = subprocess.run(["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True)
         return result.stdout.strip() or default
-    except Exception:
+    except (OSError, subprocess.CalledProcessError):
         return default
 
 
-def prepare_run_dir(run_name: str | None = None, runs_dir: str | Path = RUNS_DIR, overwrite: bool = False) -> Path:
+def prepare_run_dir(
+    run_name: str | None = None,
+    runs_dir: str | Path = RUNS_DIR,
+    overwrite: bool = False,
+) -> Path:
     root = Path(runs_dir)
     root.mkdir(parents=True, exist_ok=True)
     run_dir = root / timestamped_run_name(run_name)
@@ -78,12 +82,24 @@ def _copy_tree_contents(src: Path, dst: Path, patterns: Iterable[str] | None = N
     return copied
 
 
-def snapshot_outputs(run_dir: str | Path, command: list[str] | None = None, extra_metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+def snapshot_outputs(
+    run_dir: str | Path,
+    command: list[str] | None = None,
+    extra_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     run_path = Path(run_dir)
     copied: list[str] = []
     copied += _copy_tree_contents(RESULTS_DIR, run_path / "results")
     copied += _copy_tree_contents(FIGURES_DIR, run_path / "figures", patterns=["*.png"])
-    copied += _copy_tree_contents(DOCS_DIR, run_path / "docs", patterns=["experimental_report.md", "analysis_report.md", "analysis_report.html"])
+    copied += _copy_tree_contents(
+        DOCS_DIR,
+        run_path / "docs",
+        patterns=[
+            "experimental_report.md",
+            "analysis_report.md",
+            "analysis_report.html",
+        ],
+    )
     config_source = run_path / "results" / "config.json"
     if config_source.exists():
         shutil.copy2(config_source, run_path / "config.json")
@@ -94,33 +110,51 @@ def snapshot_outputs(run_dir: str | Path, command: list[str] | None = None, extr
     legacy_trace = run_path / "results" / "multistep_traces.jsonl"
     if legacy_trace.exists():
         for line in legacy_trace.read_text(encoding="utf-8").splitlines():
-            if not line.strip(): continue
+            if not line.strip():
+                continue
             item = json.loads(line)
             episode_id = item.get("episode_id", "episode")
-            (run_path / "traces" / "policy" / f"{episode_id}.json").write_text(json.dumps({"episode_id": episode_id, "step_trace": item.get("step_trace", [])}, sort_keys=True, indent=2), encoding="utf-8")
+            (run_path / "traces" / "policy" / f"{episode_id}.json").write_text(
+                json.dumps(
+                    {
+                        "episode_id": episode_id,
+                        "step_trace": item.get("step_trace", []),
+                    },
+                    sort_keys=True,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
     evaluator_source = run_path / "results" / "evaluator_traces.jsonl"
     if evaluator_source.exists():
         for line in evaluator_source.read_text(encoding="utf-8").splitlines():
-            if not line.strip(): continue
+            if not line.strip():
+                continue
             item = json.loads(line)
             episode_id = item.get("episode_id", "episode")
-            (run_path / "traces" / "evaluator" / f"{episode_id}.json").write_text(json.dumps(item, sort_keys=True, indent=2), encoding="utf-8")
+            (run_path / "traces" / "evaluator" / f"{episode_id}.json").write_text(
+                json.dumps(item, sort_keys=True, indent=2), encoding="utf-8"
+            )
     files = sorted(p for p in run_path.rglob("*") if p.is_file() and p.name != "run_manifest.json")
     checksums = {str(p.relative_to(run_path)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
     metadata = extra_metadata or {}
     config_payload = {}
     config_path = run_path / "config.json"
     if config_path.exists():
-        try: config_payload = json.loads(config_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError: config_payload = {}
+        try:
+            config_payload = json.loads(config_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            config_payload = {}
     episode_count = config_payload.get("episodes")
     seed_list = []
     episode_stream = run_path / "results" / "episodes.jsonl"
     if episode_stream.exists():
         for line in episode_stream.read_text(encoding="utf-8").splitlines():
             if line.strip():
-                try: seed_list.append(json.loads(line).get("seed"))
-                except json.JSONDecodeError: pass
+                try:
+                    seed_list.append(json.loads(line).get("seed"))
+                except json.JSONDecodeError:
+                    pass
     finished_at = datetime.now(timezone.utc).isoformat()
     manifest = {
         "artifact_schema_version": "1",
@@ -130,12 +164,17 @@ def snapshot_outputs(run_dir: str | Path, command: list[str] | None = None, extr
         "ended_at_utc": finished_at,
         "command": command or [],
         "git_commit": get_git_commit(),
-        "config_digest": stable_hash(config_payload.get("config", config_payload), prefix="cfg") if config_payload else "unknown",
+        "config_digest": stable_hash(config_payload.get("config", config_payload), prefix="cfg")
+        if config_payload
+        else "unknown",
         "episode_count": episode_count,
         "seed_list": sorted({seed for seed in seed_list if seed is not None}),
         "plugin_catalog": metadata.get("plugin_catalog", []),
         "contract_version": metadata.get("contract_version", "1"),
-        "checkpoint": {"parent": metadata.get("parent_run"), "path": str(run_path / "checkpoint.json") if (run_path / "checkpoint.json").exists() else None},
+        "checkpoint": {
+            "parent": metadata.get("parent_run"),
+            "path": str(run_path / "checkpoint.json") if (run_path / "checkpoint.json").exists() else None,
+        },
         "artifacts": sorted(checksums),
         "checksums": checksums,
         "reproducibility": {"deterministic_ordering": True, "legacy_exports": True},
@@ -148,7 +187,7 @@ def snapshot_outputs(run_dir: str | Path, command: list[str] | None = None, extr
 def write_manifest(run_dir: str | Path, manifest: dict[str, Any]) -> None:
     path = Path(run_dir) / "run_manifest.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(manifest, indent=2, sort_keys=True, default=str), encoding="utf-8")
+    path.write_text(json.dumps(manifest, indent=2, sort_keys=True, default=json_default), encoding="utf-8")
 
 
 def latest_run(runs_dir: str | Path = RUNS_DIR) -> Path | None:

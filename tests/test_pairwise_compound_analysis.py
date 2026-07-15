@@ -3,7 +3,11 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from src.analysis.run_pairwise_compounds import build_pairwise_compound_matrix, parse_pair, write_pairwise_compound_matrix
+from src.analysis.run_pairwise_compounds import (
+    build_pairwise_compound_matrix,
+    parse_pair,
+    write_pairwise_compound_matrix,
+)
 
 
 def test_parse_pair_rejects_invalid_faults() -> None:

@@ -8,9 +8,18 @@ Use this checklist before publishing an archive or GitHub release.
 bash scripts/verify_release.sh
 ```
 
-The verifier runs compile checks, tests, config validation, a smoke benchmark, analysis, pairwise compounds, plots, Markdown report generation, HTML report generation, artifact checks, and version metadata checks.
+The verifier runs compilation, tests, linting, formatting, typed core-contract
+checks, branch coverage, package build, installed-wheel CLI smoke, configuration
+validation, deterministic planning, artifact consistency, and release-metadata
+checks. It writes all temporary files to an isolated audit directory.
 
-CI installs Chrome 131.0.6778.204 and uses the pinned Mermaid CLI 11.12.0 to regenerate `docs/architecture.svg` and `docs/architecture.png`; the build fails if either checked-in render differs from the source render.
+It never cleans, regenerates, or overwrites root `results/`, `figures/`, or
+reports. If checked-in experiment evidence is missing or inconsistent, the audit
+fails honestly; reproduce and review the experiment separately rather than
+regenerating output merely to turn a check green.
+
+CI may render architecture assets in an isolated verification context; review
+any resulting evidence change as a deliberate generated-artifact update.
 
 ## Metadata checks
 

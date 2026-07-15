@@ -5,18 +5,24 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
+from src.core.types import json_default
+
 
 def write_json(path: str | Path, data: Any) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(data, indent=2, sort_keys=True, default=str), encoding="utf-8")
+    p.write_text(json.dumps(data, indent=2, sort_keys=True, default=json_default), encoding="utf-8")
 
 
 def read_json(path: str | Path) -> Any:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def write_csv(path: str | Path, rows: Iterable[Dict[str, Any]], fieldnames: List[str] | None = None) -> None:
+def write_csv(
+    path: str | Path,
+    rows: Iterable[Dict[str, Any]],
+    fieldnames: List[str] | None = None,
+) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     rows = list(rows)

@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from src.core.types import MonitorDecision
+
 from .base import BaseMonitor
 
 
@@ -12,4 +14,10 @@ class FreshnessMonitor(BaseMonitor):
     def check(self, context, observation, action):
         age = context.current_time - observation.timestamp
         reasons = [f"stale_observation:age={age}"] if age > self.max_age else []
-        return MonitorDecision(self.name, not reasons, 0.8 if reasons else 0.0, reasons, {"age": age, "max_age": self.max_age})
+        return MonitorDecision(
+            self.name,
+            not reasons,
+            0.8 if reasons else 0.0,
+            reasons,
+            {"age": age, "max_age": self.max_age},
+        )
