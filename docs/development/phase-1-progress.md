@@ -14,7 +14,7 @@ CI/release, and source-documentation work for the Checkpoint 1 commit.
 
 ## Current checkpoint
 
-Checkpoint 2 -- repository instructions.
+Checkpoint 3 -- non-destructive audit command.
 
 ## Decisions
 
@@ -40,6 +40,12 @@ Checkpoint 2 -- repository instructions.
   `backup/phase-1-generated-evidence` to isolate generated evidence.
 - Isolated-environment compilation and pytest: **54 passed**; focused platform
   tests: **7 passed**; `git diff --check`: passed.
+- Audit runner tests: **5 passed**. A non-strict audit records all required
+  checks and writes its JSON/log output under its caller-selected directory.
+  It correctly reports the dirty in-progress tree and missing checked-in
+  `results/episodes.jsonl` evidence; build, wheel inspection, isolated install,
+  CLI smoke, configuration, deterministic planning, unit tests, and coverage
+  passed in the temporary audit run.
 
 ## Test results
 
@@ -64,6 +70,9 @@ work passes 54 tests in the isolated environment; platform-focused tests pass 7.
 - Checkpoint 1 committed as `421eb8a` (`Preserve and separate unreleased
   platform work`). It preserves source work, tests, repository documentation,
   and the audit trail while generated evidence remains in a named backup ref.
+- Checkpoint 2 committed as `1eddee2` (`Add repository execution
+  instructions`). `AGENTS.md` and `PLANS.md` now encode the verified repository
+  boundaries, commands, generated-file policy, and planning structure.
 
 ## Exact handoff required for Phase 2
 

@@ -1,4 +1,4 @@
-.PHONY: setup test small full plots report repro clean seeds sweep architecture
+.PHONY: setup test small full plots report repro clean seeds sweep architecture audit
 
 setup:
 	python -m pip install -r requirements.txt
@@ -27,6 +27,9 @@ report:
 
 architecture:
 	bash scripts/render_architecture.sh
+
+audit:
+	python3 -m src.audit
 
 repro:
 	bash scripts/run_repro.sh
