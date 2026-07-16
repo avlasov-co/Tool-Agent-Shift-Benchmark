@@ -511,6 +511,12 @@ def run_analysis(results_dir: str | Path = RESULTS_DIR, analysis_dir: str | Path
     calibration = build_monitor_calibration(results)
     profiles = build_agent_profiles(results)
     compound_rows = build_compound_shift_matrix(results)
+    config_metadata: dict[str, Any] = {}
+    config_path = results / "config.json"
+    if config_path.exists():
+        loaded_config = canonical_loads(config_path.read_text(encoding="utf-8"))
+        if isinstance(loaded_config, dict):
+            config_metadata = loaded_config
     write_csv_rows(analysis / "failure_clusters.csv", clusters)
     write_jsonl(analysis / "failure_cluster_examples.jsonl", examples)
     write_csv_rows(analysis / "monitor_threshold_sweep.csv", threshold_sweep)
@@ -536,6 +542,10 @@ def run_analysis(results_dir: str | Path = RESULTS_DIR, analysis_dir: str | Path
             "agent_safety_profile_rows": len(profiles),
             "compound_shift_matrix_rows": len(compound_rows),
         },
+        "competence_gate": config_metadata.get(
+            "competence_gate",
+            {"passed": False, "failed_gates": ["competence_metadata_missing"]},
+        ),
         "artifacts": [
             str(analysis / "failure_clusters.csv"),
             str(analysis / "failure_cluster_examples.jsonl"),

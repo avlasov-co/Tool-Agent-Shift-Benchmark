@@ -13,3 +13,10 @@ AGENTS = {
     "conservative": ConservativeAbstentionAgent,
     "offline_llm_fixture": OfflineLLMFixtureAgent,
 }
+
+DIAGNOSTIC_AGENTS = ("naive", "offline_llm_fixture")
+REFERENCE_AGENTS = ("validate_then_act", "monitor_gated", "conservative", "retry")
+AGENT_ROLES = {
+    **{name: "diagnostic" for name in DIAGNOSTIC_AGENTS},
+    **{name: "reference" for name in REFERENCE_AGENTS},
+}

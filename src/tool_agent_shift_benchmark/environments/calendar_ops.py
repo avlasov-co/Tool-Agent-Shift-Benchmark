@@ -32,7 +32,10 @@ class CalendarOpsEnvironment(SyntheticEnvironment):
         self.target_end = self.target_start + self.event_duration
         self.meetings = []
         for attendee in self.attendees:
-            conflict_start = rng.choice([hour for hour in range(work_start, work_end) if hour != self.target_start])
+            conflict_candidates = [
+                hour for hour in range(work_start, work_end) if hour + 1 <= self.target_start or hour >= self.target_end
+            ]
+            conflict_start = rng.choice(conflict_candidates)
             self.meetings.append(
                 {
                     "attendee": attendee,

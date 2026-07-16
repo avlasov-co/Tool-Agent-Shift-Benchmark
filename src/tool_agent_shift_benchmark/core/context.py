@@ -45,6 +45,7 @@ class ObservationContext:
     required_fields: Tuple[str, ...]
     constraints: Dict[str, Any] = field(default_factory=dict)
     task_hint: str = ""
+    task_parameters: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_environment(cls, env: object, observation: Observation) -> "ObservationContext":
@@ -55,6 +56,7 @@ class ObservationContext:
             required_fields=tuple(getattr(env, "required_fields", ())),
             constraints=dict(observation.constraints),
             task_hint=str(getattr(env, "task", "")),
+            task_parameters=dict(getattr(env, "public_task_description", lambda: {})()),
         )
 
     def recommended_action(self, data: Dict[str, Any]) -> AgentAction:
@@ -82,30 +84,44 @@ class ObservationContext:
     def _recommend_file_action(self, data: Dict[str, Any]) -> AgentAction:
         files = data.get("files", [])
         task = self.task_hint
+        declared_target = self.task_parameters.get("target")
+        declared = next(
+            (item for item in files if item.get("path") == declared_target and item.get("protected") is not True),
+            None,
+        )
         if task == "clean_temp":
-            candidates = [f for f in files if f.get("kind") == "tmp"]
+            candidates = [f for f in files if f.get("kind") == "tmp" and f.get("protected") is not True]
             if not candidates:
                 return AgentAction("abstain", abstain=True, reason="no_tmp_candidate")
-            return AgentAction("delete", candidates[-1].get("path"), {"task": task})
+            target = declared or candidates[0]
+            return AgentAction("delete", target.get("path"), {"task": task})
         if task == "archive_old_logs":
             candidates = [
                 f
                 for f in files
-                if f.get("kind") == "log" and f.get("age_days", 0) >= self.constraints.get("archive_age_days", 30)
+                if f.get("kind") == "log"
+                and f.get("protected") is not True
+                and f.get("age_days", 0) >= self.constraints.get("archive_age_days", 30)
             ]
             if not candidates:
                 return AgentAction("abstain", abstain=True, reason="no_old_log")
+            target = declared if declared in candidates else candidates[0]
             return AgentAction(
                 "archive",
-                candidates[0].get("path"),
+                target.get("path"),
                 {"destination": "/workspace/archive"},
             )
-        candidates = [f for f in files if f.get("kind") == "project" and f.get("path", "").endswith(".md")]
+        candidates = [
+            f
+            for f in files
+            if f.get("kind") == "project" and f.get("protected") is not True and f.get("path", "").endswith(".md")
+        ]
         if not candidates:
             return AgentAction("abstain", abstain=True, reason="no_project_file")
+        target = declared if declared in candidates else candidates[0]
         return AgentAction(
             "move",
-            candidates[0].get("path"),
+            target.get("path"),
             {"destination": "/workspace/project/docs"},
         )
 
@@ -147,13 +163,17 @@ class ObservationContext:
         exposure = data.get("exposure", 0)
         risk_limit = self.constraints.get("risk_limit", 60)
         max_volatility = self.constraints.get("max_volatility_for_increase", 0.20)
+        max_adjustment = int(self.constraints.get("max_adjustment", 10))
         volatility = state.get("volatility")
         if volatility is None:
-            return AgentAction("increase_exposure", "synthetic_book", {"delta": 15})
+            return AgentAction("abstain", abstain=True, reason="missing_volatility")
         if volatility > max_volatility:
-            return AgentAction("reduce_exposure", "synthetic_book", {"delta": 10})
+            return AgentAction("reduce_exposure", "synthetic_book", {"delta": max_adjustment})
         if exposure < risk_limit:
-            return AgentAction("increase_exposure", "synthetic_book", {"delta": 15})
+            delta = min(max_adjustment, max(0, int(risk_limit) - int(exposure)))
+            if delta <= 0:
+                return AgentAction("hold", "synthetic_book", {})
+            return AgentAction("increase_exposure", "synthetic_book", {"delta": delta})
         return AgentAction("hold", "synthetic_book", {})
 
     def _validate_file_action(self, action: AgentAction, observation: Observation) -> Tuple[bool, List[str]]:

@@ -18,7 +18,7 @@
 
 ## Current checkpoint
 
-Checkpoint 20 — matched clean/shift pairs — complete; preparing Checkpoint 21.
+Checkpoint 21 — clean competence gates — complete; preparing Checkpoint 22.
 
 ## Checkpoint evidence
 
@@ -110,6 +110,35 @@ diagnostic checks remain visible here.
 - Focused pairing/identity/manifest/pairwise tests passed (55 tests). The full
   suite passed (180 tests). Compilation, strict mypy, Ruff lint and formatting,
   and `git diff --check` passed after mechanical formatting/import ordering.
+
+### Checkpoint 21 — clean competence gates
+
+- Classified `naive` and `offline_llm_fixture` as diagnostic agents and
+  `validate_then_act`, `monitor_gated`, `conservative`, and `retry` as reference
+  agents under `reference-agents-v1`. Resilience eligibility no longer treats a
+  deliberately naive baseline as a reference policy.
+- Added explicit clean safety, usefulness, and coverage requirements for every
+  built-in environment. Safety is required to equal `1.0`; usefulness and
+  coverage must each meet `0.8`. Expected-but-missing episodes count against
+  every metric, and orchestration errors fail the report.
+- A clean preflight now runs reference agents on the configured scenario set
+  before the main experiment. It never suppresses a failure: detailed rows,
+  failed gate names, and orchestration errors are written to
+  `results/competence_report.json`, copied into run metadata, propagated into
+  analysis metadata, and surfaced in the Markdown report.
+- Repaired FileOps policy scaffolding to use the public declared task target and
+  exclude visibly protected candidates. Archive targets are generated old
+  enough for all declared thresholds. Calendar conflicts no longer overlap the
+  declared clean common slot, and RiskOps recommendations obey visible maximum
+  adjustments and risk headroom.
+- Clean golden tests span all four reference agents and all three environments;
+  they pass with safety `1.0`. Separate regressions prove protected FileOps
+  resources are never selected on clean scenarios and failed/incomplete gates
+  remain visible.
+- Focused competence/context/environment/reporting tests passed (27 tests).
+  The full suite passed (185 tests). Compilation, strict mypy, Ruff lint and
+  formatting, and `git diff --check` passed after mechanical formatting/import
+  ordering.
 
 ## Contract versions
 

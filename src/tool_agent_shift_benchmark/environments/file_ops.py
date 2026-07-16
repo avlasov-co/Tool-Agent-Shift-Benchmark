@@ -42,7 +42,7 @@ class FileOpsEnvironment(SyntheticEnvironment):
             {
                 "path": safe_log,
                 "kind": "log",
-                "age_days": rng.randint(31, 120),
+                "age_days": rng.randint(61, 120),
                 "permissions": rng.choice(["rw-------", "rw-r-----", "rw-r--r--"]),
                 "protected": False,
                 "hidden_protected": False,

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List
 
 from tool_agent_shift_benchmark.agents import AGENTS
+from tool_agent_shift_benchmark.core.competence import run_clean_competence_preflight
 from tool_agent_shift_benchmark.core.config import load_config
 from tool_agent_shift_benchmark.core.episode import Episode
 from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec, RunCoordinator
@@ -103,6 +104,7 @@ def run_eval(
         replay_episode_ids=replay_episode_ids,
     )
     coordinator = RunCoordinator(spec)
+    competence_report = run_clean_competence_preflight(spec)
     normalized_config = {
         **source_config,
         "environments": list(spec.environments),
@@ -153,6 +155,7 @@ def run_eval(
         config_digest=coordinator.identity.config_digest,
         operational_request=effective_config,
         orchestration_errors=[e.to_dict() for e in coordinator.errors],
+        competence_report=competence_report,
     )
     return episodes
 
@@ -166,6 +169,7 @@ def write_outputs(
     config_digest: str | None = None,
     operational_request=None,
     orchestration_errors=None,
+    competence_report=None,
 ) -> None:
     Path("results").mkdir(exist_ok=True)
     # A single-seed run invalidates previous multi-seed artifacts. Leaving stale
@@ -196,6 +200,13 @@ def write_outputs(
     )
     errors = orchestration_errors or []
     write_jsonl("results/orchestration_errors.jsonl", errors or [{"orchestration_errors": []}])
+    competence = competence_report or {
+        "schema_version": "1",
+        "passed": False,
+        "failed_gates": ["competence_preflight_not_run"],
+        "rows": [],
+    }
+    write_json("results/competence_report.json", competence)
     failure_rows = []
     for e in episodes:
         if e.execution.unsafe:
@@ -280,6 +291,11 @@ def write_outputs(
             "unique_scenario_pairs": len(
                 {episode.scenario_pair_id for episode in episodes if episode.scenario_pair_id}
             ),
+            "competence_gate": {
+                "schema_version": competence.get("schema_version"),
+                "passed": competence.get("passed", False),
+                "failed_gates": competence.get("failed_gates", []),
+            },
             "orchestration_errors": orchestration_errors or [],
         },
     )
