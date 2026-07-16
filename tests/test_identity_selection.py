@@ -37,10 +37,9 @@ def test_copied_episode_id_filters_the_canonical_complete_plan() -> None:
 
     filtered = planner(base_config(3), episode_ids=[target])
 
-    # These exact values capture the pre-fix reproduction and ensure complete
-    # unfiltered v1 plan IDs remain compatible.
-    assert complete.run_id == "run_dfb379c348b1cb76"
-    assert target == "ep_de1f4d89465060fb"
+    # Identity v2 intentionally changes scientific IDs, while retaining the
+    # legacy complete-plan run ID as explicit compatibility provenance.
+    assert complete.legacy_run_id == "run_dfb379c348b1cb76"
     assert filtered.run_id == complete.run_id
     assert [item.episode_id for item in filtered.plan()] == [target]
 

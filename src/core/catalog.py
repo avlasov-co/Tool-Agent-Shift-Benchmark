@@ -37,7 +37,7 @@ class PluginCatalog:
         if include_external:
             self._load_entry_points()
 
-    def _add(self, kind: str, name: str, factory: Any, version: str = "builtin") -> None:
+    def _add(self, kind: str, name: str, factory: Any, version: str = "1.0.0") -> None:
         if name in self._items[kind]:
             raise ValueError(f"duplicate {kind} plugin identifier: {name}")
         descriptor = PluginDescriptor(kind, name, version=version)

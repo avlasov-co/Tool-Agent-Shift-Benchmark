@@ -84,7 +84,11 @@ def run_eval(
     config.setdefault("monitor_policy", "record")
     env_names = list(ENVS) if all_envs else ([env] if env else config.get("environments", ["file_ops"]))
     agent_names = list(AGENTS) if all_agents else ([agent] if agent else config.get("agents", ["naive"]))
-    config = {**config, "_config_path": config_path}
+    config = {
+        **config,
+        "_config_path": config_path,
+        "_working_directory": str(Path.cwd()),
+    }
     spec = ExperimentSpec.from_config(
         config,
         seed=seed,
@@ -106,6 +110,8 @@ def run_eval(
     run_id = episodes[0].run_id if episodes else coordinator.run_id
     if run_id is None:
         raise RuntimeError("planner did not provide a run ID")
+    if coordinator.identity is None:
+        raise RuntimeError("planner did not provide an identity document")
     fault_names = spec.shifts
     fault_severities = spec.severities
 
@@ -125,12 +131,22 @@ def run_eval(
         effective_config,
         seed,
         run_id,
+        identity=coordinator.identity.to_dict(),
+        config_digest=coordinator.identity.config_digest,
         orchestration_errors=[e.to_dict() for e in coordinator.errors],
     )
     return episodes
 
 
-def write_outputs(episodes: List[Episode], config, seed: int, run_id: str, orchestration_errors=None) -> None:
+def write_outputs(
+    episodes: List[Episode],
+    config,
+    seed: int,
+    run_id: str,
+    identity=None,
+    config_digest: str | None = None,
+    orchestration_errors=None,
+) -> None:
     Path("results").mkdir(exist_ok=True)
     # A single-seed run invalidates previous multi-seed artifacts. Leaving stale
     # confidence intervals beside a fresh summary is how toy repos cosplay as
@@ -252,6 +268,8 @@ def write_outputs(episodes: List[Episode], config, seed: int, run_id: str, orche
         {
             "seed": seed,
             "run_id": run_id,
+            "config_digest": config_digest,
+            "identity": identity,
             "config": config,
             "episodes": len(episodes),
             "orchestration_errors": orchestration_errors or [],

@@ -114,7 +114,8 @@ def _plan_command(args: argparse.Namespace) -> None:
         json.dumps(
             {
                 "run_id": planner.run_id,
-                "config_digest": spec.digest(),
+                "config_digest": planner.config_digest,
+                "identity": planner.identity.to_dict(),
                 "plugins": planner.catalog.as_dict(),
                 "episodes": len(plan),
                 "matrix": [item.__dict__ for item in plan],

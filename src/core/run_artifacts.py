@@ -156,6 +156,7 @@ def snapshot_outputs(
                 except json.JSONDecodeError:
                     pass
     finished_at = datetime.now(timezone.utc).isoformat()
+    identity_payload = config_payload.get("identity", {})
     manifest = {
         "artifact_schema_version": "1",
         "run_dir": str(run_path),
@@ -164,9 +165,13 @@ def snapshot_outputs(
         "ended_at_utc": finished_at,
         "command": command or [],
         "git_commit": get_git_commit(),
-        "config_digest": stable_hash(config_payload.get("config", config_payload), prefix="cfg")
-        if config_payload
-        else "unknown",
+        "run_id": config_payload.get("run_id", metadata.get("run_id", "unknown")),
+        "identity_schema_version": identity_payload.get("schema_version", "1"),
+        "normalized_semantic_identity": identity_payload.get("semantic"),
+        "operational_settings": identity_payload.get("operational"),
+        "legacy_run_id": identity_payload.get("legacy_run_id"),
+        "config_digest": config_payload.get("config_digest")
+        or (stable_hash(config_payload.get("config", config_payload), prefix="cfg") if config_payload else "unknown"),
         "episode_count": episode_count,
         "seed_list": sorted({seed for seed in seed_list if seed is not None}),
         "plugin_catalog": metadata.get("plugin_catalog", []),

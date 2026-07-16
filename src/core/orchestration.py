@@ -14,6 +14,7 @@ from src.core.context import ObservationContext, redact_response_for_policy
 from src.core.contracts import OrchestrationError
 from src.core.episode import Episode
 from src.core.evaluator import HiddenStateEvaluator
+from src.core.identity import ExperimentIdentity, build_experiment_identity
 from src.core.types import (
     AgentAction,
     AgentDecision,
@@ -150,7 +151,7 @@ class ExperimentSpec:
         return {key: value for key, value in self.config.items() if key not in OPERATIONAL_SELECTOR_KEYS}
 
     def digest(self) -> str:
-        return str(stable_hash(self.config, prefix="cfg"))
+        return str(build_experiment_identity(self, PluginCatalog()).config_digest)
 
 
 @dataclass(frozen=True)
@@ -177,20 +178,10 @@ class ExperimentPlanner:
                 "monitor": [spec.monitor],
             }
         )
-        self.run_id = stable_hash(
-            {
-                "config": spec.identity_config_v1(),
-                "seed": spec.seed,
-                "envs": spec.environments,
-                "agents": spec.agents,
-                "shifts": spec.shifts,
-                "severities": spec.severities,
-                "steps": spec.episode_steps,
-                "scenario_indices": (),
-                "episode_ids": (),
-            },
-            prefix="run",
-        )
+        self.identity = build_experiment_identity(spec, self.catalog)
+        self.run_id = self.identity.run_id
+        self.legacy_run_id = self.identity.legacy_run_id
+        self.config_digest = self.identity.config_digest
 
     def canonical_plan(self) -> list[EpisodeSpec]:
         """Construct every semantic episode before applying selectors."""
@@ -432,6 +423,7 @@ class RunCoordinator:
         self.spec, self.catalog = spec, catalog or PluginCatalog()
         self.errors: list[OrchestrationError] = []
         self.run_id: str | None = None
+        self.identity: ExperimentIdentity | None = None
 
     def run(
         self,
@@ -440,6 +432,7 @@ class RunCoordinator:
     ) -> list[Episode]:
         planner = ExperimentPlanner(self.spec, self.catalog)
         self.run_id = planner.run_id
+        self.identity = planner.identity
         scheduler = EpisodeScheduler(
             EpisodeRunner(self.spec, self.catalog),
             self.spec.workers,

@@ -15,8 +15,7 @@
 
 ## Current checkpoint
 
-Checkpoint 5 complete and pending commit: selector-safe canonical episode
-planning.
+Checkpoint 6 complete and pending commit: normalized semantic identity v2.
 
 ## Checkpoint evidence
 
@@ -37,6 +36,45 @@ planning.
   run identity.
 - CLI and Python planning share the same selectors and return identical
   matrices. Partition union/disjointness and canonical ordering are covered.
+
+### Checkpoint 6 — semantic identity v2
+
+- Added typed identity schema version `2` with separate semantic and
+  operational documents. Run IDs and config digests hash only the normalized
+  semantic document.
+- Matrix order for environments, agents, severities, and distinct shift chains
+  is normalized because it changes execution order only. Order within each
+  shift chain is preserved and changes identity because composition is
+  non-commutative.
+- The normalized semantic identity and operational settings are saved in
+  `results/config.json` and copied into each run manifest with the authoritative
+  run ID and config digest.
+- Identity-v2 run/episode IDs intentionally differ from schema-v1 IDs. The
+  selector-neutral complete-plan v1 run ID is retained as `legacy_run_id` for
+  explicit compatibility provenance.
+
+## Identity field matrix
+
+| Field group | Scientific identity | Normalization |
+| --- | --- | --- |
+| Scenario generator/name/version/schema/split | Yes | Defaults explicit; strings preserved |
+| Environment and agent descriptors | Yes | Sorted matrix collections; versions and contract versions included |
+| Shift chains | Yes | Outer matrix sorted; component order inside a chain preserved |
+| Severity and effective fault schedules | Yes | Numeric floats sorted; schedule boundaries/cadence explicit |
+| Oversight treatment and monitor descriptor/modes | Yes | Defaults explicit; mode matrix sorted |
+| Step and seed-stream semantics | Yes | Versioned algorithm names and root seed explicit |
+| Policy resource SHA-256 hashes | Yes | Resource names sorted; hashes validated |
+| Evaluator descriptor and episodes per combination | Yes | Version/name/count explicit |
+| Paths, workers, selectors, replay/resume | No | Recorded in operational settings |
+| Logging, artifacts, progress, retry/failure policy, batch size | No | Recorded in operational settings |
+
+## Schema versions
+
+- Identity schema: `2`.
+- Plugin contract schema: `1` (recorded per component).
+- Scenario schema default: `v1` (semantic and configurable).
+- Artifact/config schemas remain at their Phase 1 versions until Checkpoints 8
+  and 9.
 
 ## Compatibility decisions
 
@@ -59,6 +97,15 @@ planning.
   inspection/install, CLI smoke, and release metadata. It reported the
   expected in-progress dirty worktree and the baseline absent structured
   evidence; both are recorded rather than hidden.
+- Checkpoint 6 focused identity/selection/platform/CLI/reproducibility suite:
+  46 passed.
+- Checkpoint 6 full suite and branch coverage: 78 passed; 75.73% branch
+  coverage against the 73% floor.
+- Checkpoint 6 Ruff lint/format, strict mypy, compilation, and
+  `git diff --check`: passed.
+- Checkpoint 6 pre-commit audit passed every executable/source/package check;
+  it recorded only the expected in-progress dirty tree and unchanged absent
+  evidence corpus.
 
 ## Remaining work
 
