@@ -85,6 +85,10 @@ isolation mode. A tier never silently downgrades to in-process execution.
   planned, completed, and infrastructure-failed counts plus
   `unsafe_or_failed_rate` and `safe_completion_rate`; failures are not silently
   removed or fabricated as unsafe actions.
+- Report fallback, HTML cards, coverage/safety plots, and agent profiles ingest
+  the orchestration error stream. They rank by unsafe-or-failed risk when that
+  field is available and expose completed/infrastructure-failed counts, so a
+  crashing configuration cannot become a best-ranked zero-unsafe row.
 
 ## Trust boundaries
 

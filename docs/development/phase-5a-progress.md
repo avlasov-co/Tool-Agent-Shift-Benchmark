@@ -218,16 +218,17 @@ commit identifiers will be recorded here before every checkpoint commit.
   are not fabricated as unsafe actions and cannot disappear or make task
   success/safe completion look better. Run config records planned, completed,
   and failed counts separately.
-- Added ten isolation/integration tests covering a successful visible-context callback and
+- Added twelve isolation/integration cases covering a successful visible-context callback and
   child PID, an infinite loop, excessive Python output, hard exit, raw malformed
   protocol output, denied `/etc/passwd` read with allowed private-workspace
   write, parent credential/environment stripping, denied Python socket access,
-  all-failed aggregate denominator retention, and a restricted custom
+  separate startup and per-call hangs, all-failed aggregate denominator
+  retention, report/profile fallback retention, and a restricted custom
   environment whose scenario and remote public policy adapter complete an
   ordinary episode. All terminal failures complete within the explicit bound
   and retain their planned identity.
-- The focused isolation suite and the full 535-test compiled suite pass. Branch
-  coverage passes at 78.37% over 8,428 statements and 2,610 branches. The worker
+- The focused isolation suite and the final full 537-test compiled suite pass.
+  Branch coverage passes at 78.53% over 8,453 statements and 2,618 branches. The worker
   process is intentionally launched with a sanitized environment, so the parent
   coverage process does not inject instrumentation into it; adversarial worker
   behavior is nevertheless exercised end to end. Ruff lint, format-check,
@@ -235,8 +236,78 @@ commit identifiers will be recorded here before every checkpoint commit.
 
 ## Terminal validation
 
-Pending final audit, branch coverage, clean-wheel smoke, artifact verification,
-and security review.
+### Commands and results
+
+- `make lint`, `make format-check`, `make typecheck`, byte compilation,
+  `make test`, and `git diff --check` pass on the final code. The suite contains
+  537 cases.
+- `make coverage` passes at 78.53% branch coverage over 8,453 statements and
+  2,618 branches. Isolated worker lines are not instrumented because its launch
+  environment intentionally strips parent coverage configuration; the worker
+  is exercised through end-to-end transport and adversarial cases.
+- The final non-destructive `make audit` report records 18 passed checks:
+  cleanliness, junk scan, compilation, all tests, branch coverage, config
+  validation, deterministic planning, package build, wheel inspection, fresh
+  venv/install, six installed CLI smokes (`--help`, both config-validation
+  forms, migration/readback, and plan), and release metadata consistency.
+- Audit artifact consistency reports one baseline evidence failure: checked-in
+  root `results/episodes.jsonl` is absent. Root results/figures were not
+  regenerated or rewritten because repository policy treats them as user-owned
+  release evidence. All other audit checks completed; none were skipped.
+- A second artifact smoke used the final freshly installed wheel in a private
+  temporary directory. `tasb run` produced seven planned/completed episodes,
+  `tasb analyze` and Markdown/HTML report generation succeeded, all 43 manifest
+  checksums matched, summary denominator columns were present, every catalog
+  descriptor recorded trust/isolation, and every episode recorded
+  `plugin-isolation-manifest-v1`. The base-wheel smoke does not include the
+  optional `analysis` plotting extra, so plot generation was not claimed.
+
+### Final security review
+
+- Hidden-state search and call-site inspection found `hidden_ground_truth` only
+  in the environment/evaluator contract and trusted evaluator implementation;
+  agent, monitor, policy adapter, shift context, policy trace, callback, and
+  subprocess argument surfaces do not carry the environment or evaluator.
+- Recursive freeze constructors and adversarial alias/nested/list/shared-state
+  tests cover every policy-visible record family. Canonical serialization
+  creates fresh JSON shapes instead of exposing mutable aliases.
+- No runtime call to `EntryPoint.load` remains. Static discovery, listing,
+  whole-catalog validation, selection, and descriptor serialization are
+  non-executing. Built-in/local paths validate in-process; restricted
+  programmatic and entry-point paths invoke the identical v2 validator only
+  after import inside the child. The legacy registry cannot supply an unknown
+  registry and applies the v2 descriptor/factory validator.
+- The isolation launcher constructs an explicit environment allowlist rather
+  than copying `os.environ`; credential probes pass. Private cwd, Python audit
+  policy, output caps, resource-limit reporting, timeouts, protocol validation,
+  and termination paths were inspected against the infinite/startup hang,
+  output, crash, malformed stream, filesystem, environment, and network cases.
+- The review found one post-checkpoint reporting gap: missing-summary fallback
+  and agent profiles originally reconstructed only completed episodes. Commit
+  `dd15415` adds orchestration-error reads, planned/completed/failed profile
+  counts, unsafe-or-failed ranking/cards/plots, and an all-failed report/profile
+  regression case. Failures now remain visible through run summaries,
+  fallback reports, HTML cards, plots, and agent profiles without being labeled
+  unsafe actions.
+- No unaddressed high-confidence boundary bypass was found. Remaining limits
+  are explicit: Python controls are not kernel isolation; native/FFI/direct
+  syscall escape is possible; import roots may expose shared installed-package
+  files; non-POSIX teardown may cover only the direct worker; isolated
+  evaluator/live-environment and undeclared reporter values fail closed; and
+  package authenticity/signing is outside descriptor validation.
+
+### Commits
+
+| Boundary | Commit |
+| --- | --- |
+| Phase plan/threat model | `e0cab3a` |
+| Checkpoint 36 — contract v2 | `1a2fe14` |
+| Checkpoint 37 — environment adapters | `077c0b9` |
+| Checkpoint 38 — shift context | `68e5f4d` |
+| Checkpoint 39 — deep immutability | `944aeb9` |
+| Checkpoint 40 — lazy discovery | `c662613` |
+| Checkpoint 41 — bounded isolation | `5a38843` |
+| Final analysis-denominator review fix | `dd15415` |
 
 ## Phase 5B handoff
 
