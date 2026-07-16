@@ -18,7 +18,7 @@
 
 ## Current checkpoint
 
-Checkpoint 22 — genuine multi-step environments — complete; preparing Checkpoint 23.
+Checkpoint 23 — fault schedules — complete; preparing Checkpoint 24.
 
 ## Checkpoint evidence
 
@@ -173,6 +173,43 @@ diagnostic checks remain visible here.
   lint/format, and `git diff --check` passed after mechanical formatting and
   import ordering.
 
+### Checkpoint 23 — fault schedules
+
+- Added typed immutable `FaultSchedule` records under contract
+  `fault-schedule-v2`. Schedules bind one ordered fault chain to configured
+  severity, onset, optional duration, persistent or transient behavior,
+  optional intermittent recurrence, and a deterministic per-active-step
+  severity profile. Each canonical schedule has a stable schedule ID.
+- Configuration schema v2 now accepts the richer schedule representation and
+  deterministically maps legacy `start_step`/`end_step`/`cadence` schedules to
+  finite transient windows. It validates timing, recurrence, profiles, known
+  fault components, severity range, and exact treatment-matrix coverage while
+  permitting multiple schedules for one treatment so windows can overlap.
+- Planning attaches all matching schedules to each treatment episode, includes
+  their full definitions in episode hashes, and records their IDs in planned
+  identity. The automatically matched clean condition receives an explicit
+  persistent zero-effect `normal` schedule.
+- Scientific identity advanced to schema `4`. Semantic identity now records
+  schedule contract and ID, versioned fault descriptors, configured severity,
+  onset, duration, persistence, recurrence, and per-step profile. Stored
+  identity-v2 and identity-v3 episodes remain readable; identity-v4 readback
+  verifies the serialized schedule IDs.
+- The runner starts each call from the clean environment tool channel, then
+  evaluates every schedule for the current lifecycle step and composes all
+  active faults before redaction and policy exposure. Fault randomness derives
+  from the fault stream, schedule ID, step, and component position.
+- Exact active/inactive and scheduled-severity provenance is retained in the
+  evaluator trace for every step. Schedule provenance and ordinary fault labels
+  are stripped from the policy response and therefore cannot enter agents,
+  monitors, or policy traces.
+- Tests cover persistent, finite transient, intermittent, and late-onset
+  activation; variable severity profiles; invalid timing and matrix coverage;
+  overlapping windows; inactive → active → recovered boundaries; application
+  on every persistent step; policy redaction; and run/episode identity changes.
+  Focused schedule/config/identity tests passed (67 tests); the full suite
+  passed (195 tests). Compilation, strict mypy, Ruff lint/format, and
+  `git diff --check` passed after mechanical formatting and import ordering.
+
 ## Contract versions
 
 - Starting identity schema: `2`.
@@ -181,6 +218,10 @@ diagnostic checks remain visible here.
 - Starting plugin contract: `1`.
 - Starting canonical serialization schema: `1`.
 - Starting scenario semantic label: `v1` (not a complete manifest schema).
+- Current identity and planned-identity schema: `4`.
+- Current fault-schedule contract: `fault-schedule-v2`.
+- Current scenario-manifest contract: `scenario-manifest-v2`.
+- Current step-lifecycle contract: `environment-state-machine-v2`.
 
 ## Remaining risks
 

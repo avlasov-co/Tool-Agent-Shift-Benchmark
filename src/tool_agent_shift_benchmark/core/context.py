@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 
 from tool_agent_shift_benchmark.core.types import AgentAction, Observation, ToolResponse
 
-EVALUATOR_ONLY_OBSERVATION_METADATA_KEYS = {"faults"}
+EVALUATOR_ONLY_OBSERVATION_METADATA_KEYS = {"faults", "fault_schedule_provenance"}
 EVALUATOR_ONLY_RESPONSE_METADATA_KEYS = {"faults", "ground_truth", "score", "labels"}
 
 

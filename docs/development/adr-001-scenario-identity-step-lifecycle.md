@@ -58,8 +58,10 @@ response.
 
 ## Consequences
 
-- Scientific identity advances to v3 and stored identity-v2 records remain
-  legacy provenance rather than matched experimental units.
+- Scientific identity advances to v3 for matched scenario/lifecycle semantics
+  and to v4 when exact fault schedules become semantic inputs. Stored
+  identity-v2 and identity-v3 records remain legacy provenance rather than
+  scheduled experimental units.
 - Generator changes cannot silently change replay meaning because manifests are
   authoritative after planning and their hashes are verified.
 - Parallelism and filtering operate on already materialized scenario/treatment

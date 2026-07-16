@@ -1,4 +1,4 @@
-"""Typed, normalized scientific identity schema version 3."""
+"""Typed, normalized scientific identity schema version 4."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from tool_agent_shift_benchmark.core.catalog import PluginCatalog
     from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec
 
-IDENTITY_SCHEMA_VERSION = "3"
+IDENTITY_SCHEMA_VERSION = "4"
 SCENARIO_GENERATOR_NAME = "deterministic_synthetic_scenarios"
 SCENARIO_GENERATOR_VERSION = "2.0.0"
 EVALUATOR_NAME = "hidden_state_evaluator"
@@ -36,11 +36,41 @@ class ResourceIdentity:
 
 @dataclass(frozen=True)
 class FaultScheduleIdentity:
+    contract: str
+    schedule_id: str
     components: tuple[ComponentIdentity, ...]
-    severity: float
-    start_step: int
-    end_step: int
-    cadence: str
+    configured_severity: float
+    onset_step: int
+    duration: int | None
+    persistence: str
+    recurrence: int | None
+    per_step_severity: tuple[float, ...]
+
+    @property
+    def severity(self) -> float:
+        """Compatibility alias for identity-v3 consumers."""
+
+        return self.configured_severity
+
+    @property
+    def start_step(self) -> int:
+        """Compatibility alias for identity-v3 consumers."""
+
+        return self.onset_step
+
+    @property
+    def end_step(self) -> int | None:
+        """Return the final step for non-recurring finite schedules."""
+
+        if self.duration is None or self.recurrence is not None:
+            return None
+        return self.onset_step + self.duration - 1
+
+    @property
+    def cadence(self) -> str:
+        """Compatibility alias for identity-v3 consumers."""
+
+        return "each_step" if self.recurrence is None else f"every_{self.recurrence}_steps"
 
 
 @dataclass(frozen=True)
@@ -134,6 +164,7 @@ class PlannedEpisodeIdentity:
     scenario_pair_id: str
     scenario_manifest_hash: str
     seed_streams: EpisodeSeedStreams
+    fault_schedule_ids: tuple[str, ...]
     episode_id: str
     environment: ComponentIdentity
     agent: ComponentIdentity
@@ -220,11 +251,41 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
         )
     )
     severities = tuple(sorted(float(severity) for severity in spec.severities))
+    from tool_agent_shift_benchmark.core.fault_schedule import FAULT_SCHEDULE_CONTRACT, FaultSchedule
+
+    configured_schedules = spec.fault_schedules
+    if not configured_schedules:
+        configured_schedules = tuple(
+            FaultSchedule(
+                tuple(component.name for component in chain),
+                severity,
+                0,
+                None,
+                "persistent",
+                None,
+                (0.0 if tuple(component.name for component in chain) == ("normal",) else severity,),
+            )
+            for chain in shift_chains
+            for severity in severities
+            if not (len(chain) == 1 and chain[0].name == "normal" and severity != 1.0)
+        )
+    if not any(schedule.components == ("normal",) for schedule in configured_schedules):
+        configured_schedules = configured_schedules + (
+            FaultSchedule(("normal",), 1.0, 0, None, "persistent", None, (0.0,)),
+        )
     schedules = tuple(
-        FaultScheduleIdentity(chain, severity, 0, spec.episode_steps - 1, "each_step")
-        for chain in shift_chains
-        for severity in severities
-        if not (len(chain) == 1 and chain[0].name == "normal" and severity != 1.0)
+        FaultScheduleIdentity(
+            contract=FAULT_SCHEDULE_CONTRACT,
+            schedule_id=schedule.schedule_id,
+            components=tuple(_component(catalog, "shift", name) for name in schedule.components),
+            configured_severity=schedule.configured_severity,
+            onset_step=schedule.onset_step,
+            duration=schedule.duration,
+            persistence=schedule.persistence,
+            recurrence=schedule.recurrence,
+            per_step_severity=schedule.per_step_severity,
+        )
+        for schedule in sorted(configured_schedules, key=lambda item: item.schedule_id)
     )
     config = spec.config
     semantic = SemanticIdentity(

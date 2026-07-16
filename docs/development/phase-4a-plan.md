@@ -102,10 +102,11 @@ checkpoint.
 - Configuration remains schema v2, extended with typed schedule and competence
   settings. Old schema-v2 schedules migrate deterministically from
   `start_step/end_step/cadence` to the richer schedule representation.
-- Identity advances from v2 to v3 because scenario content, pair identity,
-  six seed streams, schedule semantics, and lifecycle meaning become scientific
-  inputs. Stored identity-v2 episodes remain readable as legacy provenance but
-  are not silently relabeled as matched v3 units.
+- Identity advances from v2 to v3 when scenario content, pair identity, six
+  seed streams, and lifecycle meaning become scientific inputs, then to v4
+  when exact fault schedules become semantic inputs. Stored identity-v2 and
+  identity-v3 episodes remain readable as legacy provenance but are not
+  silently relabeled as scheduled v4 units.
 - Scenario manifests start at schema v2 because historical `v1` was a semantic
   label, not a complete reconstructible manifest contract. Explicit migration
   rules are recorded in code and documentation.

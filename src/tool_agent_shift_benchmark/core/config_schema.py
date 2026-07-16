@@ -129,10 +129,30 @@ class PluginReferenceConfig:
 @dataclass(frozen=True)
 class FaultScheduleConfig:
     shift_chain: tuple[str, ...]
-    severity: float
-    start_step: int
-    end_step: int
-    cadence: str
+    configured_severity: float
+    onset_step: int
+    duration: int | None
+    persistence: str
+    recurrence: int | None
+    per_step_severity: tuple[float, ...]
+
+    @property
+    def severity(self) -> float:
+        return self.configured_severity
+
+    @property
+    def start_step(self) -> int:
+        return self.onset_step
+
+    @property
+    def end_step(self) -> int:
+        if self.duration is None:
+            raise AttributeError("persistent schedule has no finite end_step")
+        return self.onset_step + self.duration - 1
+
+    @property
+    def cadence(self) -> str:
+        return "each_step" if self.recurrence is None else f"every_{self.recurrence}_steps"
 
 
 @dataclass(frozen=True)
@@ -386,7 +406,15 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
     workers = _integer(root.get("workers", 1), source, "$.workers", minimum=1)
 
     derived_schedules = tuple(
-        FaultScheduleConfig(chain, severity, 0, episode_steps - 1, "each_step")
+        FaultScheduleConfig(
+            chain,
+            severity,
+            0,
+            None,
+            "persistent",
+            None,
+            (0.0 if chain == ("normal",) else severity,),
+        )
         for chain in shift_chains
         for severity in severities
         if not (chain == ("normal",) and severity != 1.0)
@@ -399,23 +427,97 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
         for index, raw_schedule in enumerate(_list(raw_schedules, source, "$.fault_schedules")):
             path = f"$.fault_schedules[{index}]"
             item = _mapping(raw_schedule, source, path)
-            _check_keys(item, {"shift_chain", "severity", "start_step", "end_step", "cadence"}, source, path)
             chain = _string_list(item.get("shift_chain"), source, f"{path}.shift_chain", allow_empty=False)
             _require_known(chain, known["shift"], source, f"{path}.shift_chain")
-            severity = _number(item.get("severity"), source, f"{path}.severity")
-            start_step = _integer(item.get("start_step"), source, f"{path}.start_step", minimum=0)
-            end_step = _integer(item.get("end_step"), source, f"{path}.end_step", minimum=start_step)
-            if end_step >= episode_steps:
-                raise _error(source, f"{path}.end_step", "must be less than episode_steps")
-            cadence = _string(item.get("cadence"), source, f"{path}.cadence")
-            if cadence != "each_step":
-                raise _error(source, f"{path}.cadence", "only 'each_step' is currently supported")
-            schedules.append(FaultScheduleConfig(chain, severity, start_step, end_step, cadence))
+            legacy_keys = {"shift_chain", "severity", "start_step", "end_step", "cadence"}
+            current_keys = {
+                "shift_chain",
+                "configured_severity",
+                "onset_step",
+                "duration",
+                "persistence",
+                "recurrence",
+                "per_step_severity",
+            }
+            if set(item).issubset(legacy_keys):
+                _check_keys(item, legacy_keys, source, path)
+                severity = _number(item.get("severity"), source, f"{path}.severity")
+                onset = _integer(item.get("start_step"), source, f"{path}.start_step", minimum=0)
+                end = _integer(item.get("end_step"), source, f"{path}.end_step", minimum=onset)
+                if end >= episode_steps:
+                    raise _error(source, f"{path}.end_step", "must be less than episode_steps")
+                cadence = _string(item.get("cadence"), source, f"{path}.cadence")
+                if cadence != "each_step":
+                    raise _error(source, f"{path}.cadence", "legacy schedules support only 'each_step'")
+                schedules.append(
+                    FaultScheduleConfig(
+                        chain,
+                        severity,
+                        onset,
+                        end - onset + 1,
+                        "transient",
+                        None,
+                        (severity,),
+                    )
+                )
+                continue
+            _check_keys(item, current_keys, source, path)
+            configured = _number(
+                item.get("configured_severity"),
+                source,
+                f"{path}.configured_severity",
+            )
+            onset = _integer(item.get("onset_step"), source, f"{path}.onset_step", minimum=0)
+            if onset >= episode_steps:
+                raise _error(source, f"{path}.onset_step", "must be less than episode_steps")
+            persistence = _string(item.get("persistence"), source, f"{path}.persistence")
+            if persistence not in {"persistent", "transient"}:
+                raise _error(source, f"{path}.persistence", "must be 'persistent' or 'transient'")
+            raw_duration = item.get("duration")
+            duration = None if raw_duration is None else _integer(raw_duration, source, f"{path}.duration", minimum=1)
+            raw_recurrence = item.get("recurrence")
+            recurrence = (
+                None if raw_recurrence is None else _integer(raw_recurrence, source, f"{path}.recurrence", minimum=1)
+            )
+            if persistence == "persistent" and (duration is not None or recurrence is not None):
+                raise _error(source, path, "persistent schedules cannot declare duration or recurrence")
+            if persistence == "transient" and duration is None:
+                raise _error(source, f"{path}.duration", "transient schedules require a duration")
+            if duration is not None and onset + duration > episode_steps and recurrence is None:
+                raise _error(source, f"{path}.duration", "active window exceeds episode_steps")
+            if recurrence is not None and duration is not None and recurrence <= duration:
+                raise _error(source, f"{path}.recurrence", "must be greater than duration")
+            profile = tuple(
+                _number(value, source, f"{path}.per_step_severity[{profile_index}]")
+                for profile_index, value in enumerate(
+                    _list(item.get("per_step_severity"), source, f"{path}.per_step_severity")
+                )
+            )
+            if not profile:
+                raise _error(source, f"{path}.per_step_severity", "must not be empty")
+            for profile_index, value in enumerate(profile):
+                if not 0.0 <= value <= 1.0:
+                    raise _error(
+                        source,
+                        f"{path}.per_step_severity[{profile_index}]",
+                        "must be between 0.0 and 1.0",
+                    )
+            schedules.append(
+                FaultScheduleConfig(
+                    chain,
+                    configured,
+                    onset,
+                    duration,
+                    persistence,
+                    recurrence,
+                    profile,
+                )
+            )
         fault_schedules = tuple(schedules)
-        if sorted(fault_schedules, key=lambda schedule: (schedule.shift_chain, schedule.severity)) != sorted(
-            derived_schedules, key=lambda schedule: (schedule.shift_chain, schedule.severity)
-        ):
-            raise _error(source, "$.fault_schedules", "must exactly describe the configured shift/severity matrix")
+        actual_treatments = {(schedule.shift_chain, schedule.configured_severity) for schedule in fault_schedules}
+        expected_treatments = {(schedule.shift_chain, schedule.configured_severity) for schedule in derived_schedules}
+        if actual_treatments != expected_treatments:
+            raise _error(source, "$.fault_schedules", "must cover exactly the configured shift/severity matrix")
 
     monitor = _string(root.get("monitor", "composite"), source, "$.monitor")
     _require_known((monitor,), known["monitor"], source, "$.monitor")

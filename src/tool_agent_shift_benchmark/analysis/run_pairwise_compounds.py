@@ -9,6 +9,7 @@ from tool_agent_shift_benchmark.agents import AGENTS
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
 from tool_agent_shift_benchmark.core.config import load_config
 from tool_agent_shift_benchmark.core.episode import Episode
+from tool_agent_shift_benchmark.core.fault_schedule import FaultSchedule
 from tool_agent_shift_benchmark.core.identity import (
     EVALUATOR_NAME,
     EVALUATOR_VERSION,
@@ -94,6 +95,15 @@ def _plan_fault_combo(
     seed: int,
 ) -> list[PairwiseEpisodeSpec]:
     combo_name = "+".join(fault_names) if fault_names else "normal"
+    schedule = FaultSchedule(
+        fault_names or ("normal",),
+        severity,
+        0,
+        None,
+        "persistent",
+        None,
+        (severity if fault_names else 0.0,),
+    )
     catalog = PluginCatalog(include_external=False)
     environment = _component(catalog, "environment", env_name)
     agent = _component(catalog, "agent", agent_name)
@@ -112,6 +122,7 @@ def _plan_fault_combo(
             "seed": seed,
             "monitor": monitor,
             "evaluator": evaluator,
+            "fault_schedule": schedule.to_dict(),
         },
         prefix="pairrun",
     )
@@ -154,6 +165,7 @@ def _plan_fault_combo(
                 "severity": severity,
                 "seed": scenario_seed,
                 "run_id": run_id,
+                "fault_schedule_id": schedule.schedule_id,
             },
             prefix="ep",
         )
@@ -167,6 +179,7 @@ def _plan_fault_combo(
                     scenario_pair_id=scenario_pair_id,
                     scenario_manifest_hash=scenario.content_hash,
                     seed_streams=streams,
+                    fault_schedule_ids=(schedule.schedule_id,),
                     episode_id=episode_id,
                     environment=environment,
                     agent=agent,
@@ -218,6 +231,15 @@ def _run_fault_combo(
         seed=seed,
     ):
         scenario = ENVS[env_name](seed=item.scenario_seed, scenario_index=item.scenario_index).scenario_spec
+        schedule = FaultSchedule(
+            fault_names or ("normal",),
+            severity,
+            0,
+            None,
+            "persistent",
+            None,
+            (severity if fault_names else 0.0,),
+        )
         episode = runner.run(
             EpisodeSpec(
                 item.identity,
@@ -227,6 +249,7 @@ def _run_fault_combo(
                 severity,
                 item.scenario_index,
                 item.identity.seed_streams,
+                (schedule,),
                 scenario,
             )
         )

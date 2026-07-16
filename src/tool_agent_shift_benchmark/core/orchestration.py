@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from dataclasses import field as dataclass_field
 from pathlib import Path
 from random import Random
@@ -14,6 +14,7 @@ from tool_agent_shift_benchmark.core.context import ObservationContext, redact_r
 from tool_agent_shift_benchmark.core.contracts import IdentityMismatchError, OrchestrationError, PluginDescriptor
 from tool_agent_shift_benchmark.core.episode import Episode
 from tool_agent_shift_benchmark.core.evaluator import HiddenStateEvaluator
+from tool_agent_shift_benchmark.core.fault_schedule import FaultSchedule
 from tool_agent_shift_benchmark.core.identity import (
     ComponentIdentity,
     ExperimentIdentity,
@@ -71,6 +72,7 @@ class ExperimentSpec:
     shifts: tuple[str, ...] = ()
     shift_chains: tuple[tuple[str, ...], ...] = ()
     severities: tuple[float, ...] = (1.0,)
+    fault_schedules: tuple[FaultSchedule, ...] = ()
     episodes_per_combo: int = 1
     episode_steps: int = 6
     workers: int = 1
@@ -151,6 +153,9 @@ class ExperimentSpec:
             shifts=raw_shifts,
             shift_chains=chains,
             severities=tuple(float(x) for x in config.get("fault_severities", (1.0,))),
+            fault_schedules=tuple(
+                FaultSchedule.from_mapping(schedule) for schedule in config.get("fault_schedules", ())
+            ),
             episodes_per_combo=int(config.get("episodes_per_combo", 3)),
             episode_steps=int(config.get("episode_steps", 6)),
             workers=int(config.get("workers", 1) if worker_value is None else worker_value),
@@ -219,6 +224,7 @@ class EpisodeSpec:
     severity: float
     scenario_index: int
     seed_streams: EpisodeSeedStreams
+    fault_schedules: tuple[FaultSchedule, ...]
     scenario_spec: ScenarioSpec = dataclass_field(compare=False, hash=False, repr=False)
 
     @property
@@ -254,6 +260,7 @@ class EpisodeSpec:
             "scenario_index": self.scenario_index,
             "seed": self.seed,
             "seed_streams": self.seed_streams.to_dict(),
+            "fault_schedules": [schedule.to_dict() for schedule in self.fault_schedules],
             "scenario_manifest": self.scenario_spec.public_reference(),
             "identity": self.identity.to_dict(),
         }
@@ -365,6 +372,15 @@ class ExperimentPlanner:
                         )
                         seed = streams.scenario_generation
                         scenario = self._materialize_scenario(env, index, streams)
+                        schedules = tuple(
+                            schedule
+                            for schedule in self.spec.fault_schedules
+                            if schedule.components == chain and schedule.configured_severity == severity
+                        )
+                        if chain == ("normal",) and not schedules:
+                            schedules = (FaultSchedule(("normal",), 1.0, 0, None, "persistent", None, (0.0,)),)
+                        if not schedules:
+                            raise ValueError(f"missing fault schedule for treatment {chain!r} at severity {severity}")
                         pair_id = stable_hash(
                             {
                                 "contract": "scenario-pair-v1",
@@ -383,6 +399,7 @@ class ExperimentPlanner:
                                 "fault": shift,
                                 "severity": severity,
                                 "fault_seed": streams.fault_behavior,
+                                "fault_schedules": [schedule.to_dict() for schedule in schedules],
                                 "run_id": self.run_id,
                             },
                             prefix="ep",
@@ -395,6 +412,7 @@ class ExperimentPlanner:
                             scenario_pair_id=pair_id,
                             scenario_manifest_hash=scenario.content_hash,
                             seed_streams=streams,
+                            fault_schedule_ids=tuple(schedule.schedule_id for schedule in schedules),
                             episode_id=episode_id,
                             environment=_component_identity(self.catalog, "environment", env),
                             agent=_component_identity(self.catalog, "agent", agent),
@@ -410,6 +428,7 @@ class ExperimentPlanner:
                             severity,
                             index,
                             streams,
+                            schedules,
                             scenario,
                         )
                         planned.append(item)
@@ -555,14 +574,18 @@ class EpisodeRunner:
         )
         agent_obj = self.catalog.get("agent", item.agent)()
         setattr(agent_obj, "behavior_seed", item.seed_streams.agent_behavior)
-        shift_objs = [self.catalog.get("shift", name)(severity=item.severity) for name in item.shift.split("+")]
+        shift_names = tuple(
+            dict.fromkeys(component for schedule in item.fault_schedules for component in schedule.components)
+        )
+        shift_objs = {name: self.catalog.get("shift", name)(severity=item.severity) for name in shift_names}
         evaluator = HiddenStateEvaluator()
         monitor_factory = self.catalog.get("monitor", self.spec.monitor)
         monitor = monitor_factory() if self.spec.monitor != "composite" else CompositeMonitor()
         self._validate_runtime_descriptor(item, env_obj, item.identity.environment, "environment_descriptor")
         self._validate_runtime_descriptor(item, agent_obj, item.identity.agent, "agent_descriptor")
-        for shift_obj, descriptor in zip(shift_objs, item.identity.shift_chain):
-            self._validate_runtime_descriptor(item, shift_obj, descriptor, "shift_descriptor")
+        descriptors = {descriptor.name: descriptor for descriptor in item.identity.shift_chain}
+        for name, shift_obj in shift_objs.items():
+            self._validate_runtime_descriptor(item, shift_obj, descriptors[name], "shift_descriptor")
         self._validate_runtime_descriptor(item, monitor, item.identity.monitor, "monitor_descriptor")
         self._validate_runtime_descriptor(item, evaluator, item.identity.evaluator, "evaluator_descriptor")
         self._mismatch(
@@ -611,26 +634,41 @@ class EpisodeRunner:
                 clean.observation.scenario_id,
                 "environment_response",
             )
-            step_seed = int(
-                stable_hash({"episode": item.episode_id, "step": step}, prefix="step").split("_")[1],
-                16,
-            ) % (2**31)
             shifted = clean
-            for shift_index, shift_obj in enumerate(shift_objs):
-                shift_rng_seed = int(
-                    stable_hash(
-                        {"step_seed": step_seed, "shift_index": shift_index},
-                        prefix="shift",
-                    ).split("_")[1],
-                    16,
-                ) % (2**31)
-                shifted = shift_obj.apply(shifted, env_obj, Random(shift_rng_seed))
-                self._validate_observation_identity(
-                    item,
-                    shifted.observation.env_name,
-                    shifted.observation.scenario_id,
-                    "shift_response",
-                )
+            schedule_provenance: list[dict[str, Any]] = []
+            for schedule in item.fault_schedules:
+                provenance = schedule.provenance(step)
+                schedule_provenance.append(provenance)
+                scheduled_severity = schedule.severity_at(step)
+                if scheduled_severity is None:
+                    continue
+                for shift_index, name in enumerate(schedule.components):
+                    shift_rng_seed = int(
+                        stable_hash(
+                            {
+                                "fault_behavior_seed": item.seed_streams.fault_behavior,
+                                "schedule_id": schedule.schedule_id,
+                                "step": step,
+                                "shift_index": shift_index,
+                            },
+                            prefix="shift",
+                        ).split("_")[1],
+                        16,
+                    ) % (2**63)
+                    shift_obj = self.catalog.get("shift", name)(severity=scheduled_severity)
+                    shifted = shift_obj.apply(shifted, env_obj, Random(shift_rng_seed))
+                    self._validate_observation_identity(
+                        item,
+                        shifted.observation.env_name,
+                        shifted.observation.scenario_id,
+                        "shift_response",
+                    )
+            shifted_observation_metadata = dict(shifted.observation.metadata)
+            shifted_observation_metadata["fault_schedule_provenance"] = schedule_provenance
+            shifted = replace(
+                shifted,
+                observation=replace(shifted.observation, metadata=shifted_observation_metadata),
+            )
             policy_response = redact_response_for_policy(shifted)
             context = ObservationContext.from_environment(env_obj, policy_response.observation)
             decision = agent_obj.decide(context, policy_response)
@@ -700,6 +738,7 @@ class EpisodeRunner:
                 {
                     "step": step,
                     "shift_provenance": shifted.observation.metadata.get("faults", []),
+                    "fault_schedule_provenance": schedule_provenance,
                     **score,
                 }
             )
@@ -738,6 +777,7 @@ class EpisodeRunner:
                 "behavior_seed": item.seed_streams.agent_behavior,
                 "shared_across_treatments": True,
             },
+            "fault_schedules": [schedule.to_dict() for schedule in item.fault_schedules],
             "episode_steps": self.spec.episode_steps,
             "steps_taken": len(step_trace),
             "multi_step": len(step_trace) > 1,
@@ -755,7 +795,11 @@ class EpisodeRunner:
             item.environment,
             item.scenario_id,
             item.agent,
-            FaultConfig(item.shift, item.severity),
+            FaultConfig(
+                item.shift,
+                item.severity,
+                {"schedule_ids": [schedule.schedule_id for schedule in item.fault_schedules]},
+            ),
             item.seed,
             item.run_id,
             item.episode_id,
