@@ -8,6 +8,7 @@ from tool_agent_shift_benchmark.analysis.run_pairwise_compounds import (
     parse_pair,
     write_pairwise_compound_matrix,
 )
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 
 
 def test_parse_pair_rejects_invalid_faults() -> None:
@@ -47,7 +48,8 @@ fault_pairs:
     assert "pair_unsafe_action_rate" in row
     assert "delta_pair_vs_worst_single_unsafe_action_rate" in row
 
-    manifest = write_pairwise_compound_matrix(str(config), tmp_path / "analysis")
+    store = ArtifactStore(tmp_path / "bundle")
+    manifest = write_pairwise_compound_matrix(str(config), "analysis", artifact_store=store)
     assert manifest["rows"] == 1
     output = Path(manifest["output_csv"])
     assert output.exists()

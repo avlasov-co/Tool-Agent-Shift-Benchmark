@@ -13,7 +13,8 @@
 
 ## Current checkpoint
 
-Checkpoint 42 — unify experiment runners — complete; Checkpoint 43 is next.
+Checkpoint 43 — ArtifactStore-only isolated bundle writing — complete;
+Checkpoint 44 is next.
 
 ## Checkpoint evidence
 
@@ -37,3 +38,25 @@ added before each numbered checkpoint commit.
 - Added CLI/API parity, worker-count, and pairwise-projection tests. Focused
   execution, identity, pairwise, reproducibility, and schema suites pass (62
   tests); Ruff lint, format-check, strict mypy, and `git diff --check` pass.
+
+### Checkpoint 43 — ArtifactStore-only run bundles
+
+- Replaced copy-after-write `snapshot_outputs` behavior with an explicit
+  `artifact-store-v2`. New bundles have a unique root and the store validates
+  every run-relative path; it has no global-results copy or restore API.
+- Runtime records now write through the store under one bundle: normalized
+  configuration, identity, plugin descriptors, scenario manifests, episode
+  data, failures, statuses, policy/evaluator traces, analysis, plots, reports,
+  and the final manifest/checksum inventory. The normal run command creates the
+  bundle before execution, so no result first exists outside it.
+- Updated ordinary, seed-sweep, all-environment/agent sweep, pairwise, replay,
+  analysis, report, plot, and standalone entry points to use explicit bundles.
+  Global workspace cleanup/restore is retired rather than deleting or mutating
+  historical evidence. Historical `snapshot_outputs` is now only a name-stable
+  finalizer for files already in a bundle.
+- Added stale-global isolation coverage: stale `results/`, `figures/`, and
+  `docs/` files are neither copied into nor deleted by a run; analysis, report,
+  and plot smoke files remain self-contained below the bundle.
+- Full pytest passes after migrating legacy-path tests to explicit stores.
+  A command smoke exercised `tasb run`, `analyze`, `report --html`, `plot`, and
+  `pairwise` against a bundle with deliberately stale global files.

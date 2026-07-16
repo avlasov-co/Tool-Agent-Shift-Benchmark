@@ -4,11 +4,11 @@ from pathlib import Path
 
 import pytest
 
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
 from tool_agent_shift_benchmark.core.config import load_config
 from tool_agent_shift_benchmark.core.identity import IDENTITY_SCHEMA_VERSION
 from tool_agent_shift_benchmark.core.orchestration import ExperimentPlanner, ExperimentSpec
-from tool_agent_shift_benchmark.core.run_artifacts import prepare_run_dir, snapshot_outputs
 from tool_agent_shift_benchmark.run_eval import run_eval
 
 
@@ -262,9 +262,9 @@ monitor_policy: record
         encoding="utf-8",
     )
 
-    episodes = run_eval(str(config_path), 7)
-    run_dir = prepare_run_dir("identity", overwrite=True)
-    manifest = snapshot_outputs(run_dir, command=["tasb", "run"])
+    store = ArtifactStore(tmp_path / "run")
+    episodes = run_eval(str(config_path), 7, artifact_store=store)
+    manifest = store.finalize(command=["tasb", "run"])
 
     assert manifest["run_id"] == episodes[0].run_id
     assert manifest["identity_schema_version"] == IDENTITY_SCHEMA_VERSION

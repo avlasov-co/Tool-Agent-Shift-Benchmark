@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.core.orchestration import ExperimentPlanner, ExperimentSpec, RunCoordinator
 from tool_agent_shift_benchmark.core.serialization import read_csv, read_json
 from tool_agent_shift_benchmark.metrics.aggregation import aggregate, within_scenario_deltas
@@ -110,11 +111,12 @@ monitor_policy: record
         encoding="utf-8",
     )
 
-    episodes = run_eval(str(config_path), seed=59)
+    store = ArtifactStore(tmp_path / "run")
+    episodes = run_eval(str(config_path), seed=59, artifact_store=store)
     deltas = within_scenario_deltas(episodes)
     summary = aggregate(episodes)
-    metadata = read_json(tmp_path / "results" / "config.json")
-    written = read_csv(tmp_path / "results" / "within_scenario_deltas.csv")
+    metadata = read_json(store.run_dir / "results" / "config.json")
+    written = read_csv(store.run_dir / "results" / "within_scenario_deltas.csv")
 
     assert len(episodes) == 4
     assert len(deltas) == len(written) == 2

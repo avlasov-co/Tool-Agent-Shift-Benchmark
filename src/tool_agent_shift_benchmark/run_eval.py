@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 from typing import List
 
 from tool_agent_shift_benchmark.agents import AGENTS
 from tool_agent_shift_benchmark.core.action_records import ACTION_RECORD_CONTRACT, EPISODE_RECORD_VERSION
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.core.counterfactual import COUNTERFACTUAL_EVALUATION_CONTRACT
 from tool_agent_shift_benchmark.core.episode import Episode
 from tool_agent_shift_benchmark.core.execution import (
@@ -13,6 +13,7 @@ from tool_agent_shift_benchmark.core.execution import (
     execute_plan,
     normalize_execution_request,
 )
+from tool_agent_shift_benchmark.core.run_artifacts import prepare_run_dir
 from tool_agent_shift_benchmark.core.scenarios import (
     SCENARIO_COVERAGE_CONTRACT,
     SCENARIO_FAMILY_CONTRACT,
@@ -22,7 +23,7 @@ from tool_agent_shift_benchmark.core.scenarios import (
     scenario_coverage_rows,
     scenario_coverage_summary,
 )
-from tool_agent_shift_benchmark.core.serialization import canonical_dumps, write_csv, write_json, write_jsonl
+from tool_agent_shift_benchmark.core.serialization import canonical_dumps
 from tool_agent_shift_benchmark.environments.calendar_ops import CalendarOpsEnvironment
 from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
 from tool_agent_shift_benchmark.environments.risk_ops import RiskOpsEnvironment
@@ -90,6 +91,7 @@ def run_eval(
     replay_episode_ids=None,
     monitor_modes=None,
     oversight_modes=None,
+    artifact_store: ArtifactStore | None = None,
 ) -> List[Episode]:
     request = ExecutionRequest(
         config_path=config_path,
@@ -111,11 +113,14 @@ def run_eval(
         oversight_modes=tuple(oversight_modes or ()),
     )
     plan = normalize_execution_request(request)
+    implicit_bundle = artifact_store is None
+    if artifact_store is None:
+        artifact_store = ArtifactStore(prepare_run_dir())
     result = execute_plan(
         plan,
         existing_episodes=existing_episodes or (),
         checkpoint_path=checkpoint_path,
-        scenario_manifest_dir=Path("results/scenarios"),
+        scenario_manifest_writer=artifact_store.write_scenario_manifest,
     )
     spec = plan.spec
     normalized_config = {
@@ -152,6 +157,7 @@ def run_eval(
         "replay_episode_ids": list(spec.replay_episode_ids),
     }
     write_outputs(
+        artifact_store,
         list(result.episodes),
         normalized_config,
         spec.seed,
@@ -162,11 +168,15 @@ def run_eval(
         orchestration_errors=list(result.orchestration_errors),
         competence_report=result.competence_report,
         scenario_specs=result.scenario_specs,
+        plugin_catalog=plan.planner.catalog.as_dict(),
     )
+    if implicit_bundle:
+        artifact_store.finalize(command=["run_eval", "compatibility-wrapper"])
     return list(result.episodes)
 
 
 def write_outputs(
+    store: ArtifactStore,
     episodes: List[Episode],
     config,
     seed: int,
@@ -177,29 +187,24 @@ def write_outputs(
     orchestration_errors=None,
     competence_report=None,
     scenario_specs: tuple[ScenarioSpec, ...] = (),
+    plugin_catalog: list[dict[str, object]] | None = None,
 ) -> None:
-    Path("results").mkdir(exist_ok=True)
     errors = list(orchestration_errors or [])
-    # A single-seed run invalidates previous multi-seed artifacts. Leaving stale
-    # confidence intervals beside a fresh summary is how toy repos cosplay as
-    # research artifacts. Delete them and let run_seeds recreate them explicitly.
-    for stale in ["results/seed_summary.csv", "results/confidence_intervals.csv"]:
-        Path(stale).unlink(missing_ok=True)
-    write_csv("results/episode_log.csv", [e.to_row() for e in episodes])
-    write_csv("results/summary.csv", aggregate(episodes, errors))
-    write_csv("results/static_vs_dynamic.csv", _static_dynamic_rows(episodes))
-    write_csv("results/within_scenario_deltas.csv", within_scenario_deltas(episodes))
+    store.write_csv("results/episode_log.csv", [e.to_row() for e in episodes])
+    store.write_csv("results/summary.csv", aggregate(episodes, errors))
+    store.write_csv("results/static_vs_dynamic.csv", _static_dynamic_rows(episodes))
+    store.write_csv("results/within_scenario_deltas.csv", within_scenario_deltas(episodes))
     coverage = scenario_coverage_summary(scenario_specs)
-    write_json("results/scenario_coverage.json", coverage)
-    write_csv("results/scenario_coverage.csv", scenario_coverage_rows(coverage))
-    write_jsonl(
+    store.write_json("results/scenario_coverage.json", coverage)
+    store.write_csv("results/scenario_coverage.csv", scenario_coverage_rows(coverage))
+    store.write_jsonl(
         "results/multistep_traces.jsonl",
         (
             {"episode_id": episode.episode_id, "step_trace": episode.metadata.get("step_trace", [])}
             for episode in episodes
         ),
     )
-    write_jsonl(
+    store.write_jsonl(
         "results/episodes.jsonl", (episode.to_dict() for episode in sorted(episodes, key=lambda e: e.episode_id))
     )
     action_record_rows = []
@@ -246,8 +251,8 @@ def write_outputs(
                     "evaluator_labels_json": canonical_dumps(record.evaluator_labels),
                 }
             )
-    write_csv("results/action_records.csv", action_record_rows)
-    write_jsonl(
+    store.write_csv("results/action_records.csv", action_record_rows)
+    store.write_jsonl(
         "results/action_records.jsonl",
         (
             {"episode_id": episode.episode_id, "action_record": record.to_dict()}
@@ -255,7 +260,7 @@ def write_outputs(
             for record in episode.action_records
         ),
     )
-    write_jsonl(
+    store.write_jsonl(
         "results/evaluator_traces.jsonl",
         (
             {
@@ -266,14 +271,14 @@ def write_outputs(
             for episode in episodes
         ),
     )
-    write_jsonl("results/orchestration_errors.jsonl", errors or [{"orchestration_errors": []}])
+    store.write_jsonl("results/orchestration_errors.jsonl", errors or [{"orchestration_errors": []}])
     competence = competence_report or {
         "schema_version": "1",
         "passed": False,
         "failed_gates": ["competence_preflight_not_run"],
         "rows": [],
     }
-    write_json("results/competence_report.json", competence)
+    store.write_json("results/competence_report.json", competence)
     failure_rows = []
     for e in episodes:
         if e.execution.unsafe:
@@ -306,7 +311,7 @@ def write_outputs(
                     "trace_json": canonical_dumps(fc.trace),
                 }
             )
-    write_csv(
+    store.write_csv(
         "results/failure_cases.csv",
         failure_rows,
         [
@@ -357,46 +362,78 @@ def write_outputs(
                     "metadata_json": canonical_dumps(m.metadata),
                 }
             )
-    write_csv("results/monitor_events.csv", monitor_rows)
-    write_json(
+    store.write_csv("results/monitor_events.csv", monitor_rows)
+    result_config = {
+        "artifact_schema_version": "run-results-v2",
+        "seed": seed,
+        "run_id": run_id,
+        "config_digest": config_digest,
+        "episode_record_version": EPISODE_RECORD_VERSION,
+        "action_record_contract": ACTION_RECORD_CONTRACT,
+        "counterfactual_evaluation_contract": COUNTERFACTUAL_EVALUATION_CONTRACT,
+        "scenario_manifest_contract": SCENARIO_MANIFEST_CONTRACT,
+        "scenario_family_contract": SCENARIO_FAMILY_CONTRACT,
+        "scenario_split_contract": SCENARIO_SPLIT_CONTRACT,
+        "scenario_coverage_contract": SCENARIO_COVERAGE_CONTRACT,
+        "scenario_coverage_hash": coverage["coverage_hash"],
+        "identity": identity,
+        "config": config,
+        "normalized_config": config,
+        "operational_request": operational_request or {},
+        "episodes": len(episodes) + len(errors),
+        "planned_episodes": len(episodes) + len(errors),
+        "completed_episodes": len(episodes),
+        "failed_episodes": len(errors),
+        "unique_scenarios": len(
+            {
+                (episode.metadata.get("scenario_manifest") or {}).get("content_hash", episode.scenario_id)
+                for episode in episodes
+            }
+        ),
+        "unique_scenario_pairs": len({episode.scenario_pair_id for episode in episodes if episode.scenario_pair_id}),
+        "competence_gate": {
+            "schema_version": competence.get("schema_version"),
+            "passed": competence.get("passed", False),
+            "failed_gates": competence.get("failed_gates", []),
+        },
+        "orchestration_errors": errors,
+    }
+    store.write_json(
         "results/config.json",
+        result_config,
+    )
+    store.write_json("config/normalized_config.json", config)
+    store.write_json("identity/experiment_identity.json", identity or {})
+    store.write_json(
+        "plugins/descriptors.json",
         {
-            "seed": seed,
-            "run_id": run_id,
-            "config_digest": config_digest,
-            "episode_record_version": EPISODE_RECORD_VERSION,
-            "action_record_contract": ACTION_RECORD_CONTRACT,
-            "counterfactual_evaluation_contract": COUNTERFACTUAL_EVALUATION_CONTRACT,
-            "scenario_manifest_contract": SCENARIO_MANIFEST_CONTRACT,
-            "scenario_family_contract": SCENARIO_FAMILY_CONTRACT,
-            "scenario_split_contract": SCENARIO_SPLIT_CONTRACT,
-            "scenario_coverage_contract": SCENARIO_COVERAGE_CONTRACT,
-            "scenario_coverage_hash": coverage["coverage_hash"],
-            "identity": identity,
-            "config": config,
-            "normalized_config": config,
-            "operational_request": operational_request or {},
-            "episodes": len(episodes) + len(errors),
-            "planned_episodes": len(episodes) + len(errors),
-            "completed_episodes": len(episodes),
-            "failed_episodes": len(errors),
-            "unique_scenarios": len(
-                {
-                    (episode.metadata.get("scenario_manifest") or {}).get("content_hash", episode.scenario_id)
-                    for episode in episodes
-                }
-            ),
-            "unique_scenario_pairs": len(
-                {episode.scenario_pair_id for episode in episodes if episode.scenario_pair_id}
-            ),
-            "competence_gate": {
-                "schema_version": competence.get("schema_version"),
-                "passed": competence.get("passed", False),
-                "failed_gates": competence.get("failed_gates", []),
-            },
-            "orchestration_errors": errors,
+            "schema_version": "plugin-descriptors-v2",
+            "descriptors": plugin_catalog or [],
         },
     )
+    store.write_json(
+        "status.json",
+        {
+            "schema_version": "run-status-v1",
+            "planned_episodes": result_config["planned_episodes"],
+            "started_episodes": len(episodes) + len(errors),
+            "completed_episodes": len(episodes),
+            "failed_episodes": len(errors),
+            "skipped_episodes": 0,
+            "pending_episodes": 0,
+            "invalid_episodes": 0,
+        },
+    )
+    for episode in episodes:
+        store.write_trace(
+            episode.episode_id,
+            policy={"episode_id": episode.episode_id, "step_trace": episode.metadata.get("step_trace", [])},
+            evaluator={
+                "episode_id": episode.episode_id,
+                "trace": episode.metadata.get("evaluator_trace", []),
+                "action_records": [record.to_dict() for record in episode.action_records],
+            },
+        )
 
 
 def main(argv=None):
@@ -408,6 +445,7 @@ def main(argv=None):
     parser.add_argument("--all-envs", action="store_true")
     parser.add_argument("--all-agents", action="store_true")
     args = parser.parse_args(argv)
+    store = ArtifactStore(prepare_run_dir())
     episodes = run_eval(
         args.config,
         args.seed,
@@ -415,7 +453,9 @@ def main(argv=None):
         agent=args.agent,
         all_envs=args.all_envs,
         all_agents=args.all_agents,
+        artifact_store=store,
     )
+    store.finalize(command=["python", "-m", "tool_agent_shift_benchmark.run_eval"])
     print(f"wrote results for {len(episodes)} episodes")
 
 

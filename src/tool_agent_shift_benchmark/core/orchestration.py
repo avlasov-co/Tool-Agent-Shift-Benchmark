@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from dataclasses import field as dataclass_field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from tool_agent_shift_benchmark.core.action_records import (
     ACTION_RECORD_CONTRACT,
@@ -1389,6 +1389,7 @@ class RunCoordinator:
         completed: set[str] | None = None,
         checkpoint_path: str | Path | None = None,
         scenario_manifest_dir: str | Path | None = None,
+        scenario_manifest_writer: Callable[[ScenarioSpec], Path] | None = None,
     ) -> list[Episode]:
         planner = ExperimentPlanner(self.spec, self.catalog)
         self.run_id = planner.run_id
@@ -1401,7 +1402,12 @@ class RunCoordinator:
         )
         canonical_plan = planner.canonical_plan()
         self.scenario_specs = planner.scenario_specs()
-        if scenario_manifest_dir is not None:
+        if scenario_manifest_dir is not None and scenario_manifest_writer is not None:
+            raise ValueError("provide a scenario manifest directory or writer, not both")
+        if scenario_manifest_writer is not None:
+            for scenario in self.scenario_specs:
+                scenario_manifest_writer(scenario)
+        elif scenario_manifest_dir is not None:
             for scenario in self.scenario_specs:
                 write_scenario_manifest(scenario_manifest_dir, scenario)
         if checkpoint_path and Path(checkpoint_path).exists():

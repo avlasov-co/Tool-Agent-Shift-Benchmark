@@ -6,6 +6,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.core.episode import Episode
 from tool_agent_shift_benchmark.core.serialization import (
     canonical_loads,
@@ -422,9 +423,8 @@ def write_analysis_report(
     calibration: list[dict[str, Any]],
     compound_rows: list[dict[str, Any]],
     docs_path: str | Path = "docs/analysis_report.md",
+    artifact_store: ArtifactStore | None = None,
 ) -> None:
-    p = Path(docs_path)
-    p.parent.mkdir(parents=True, exist_ok=True)
     aggregate = [r for r in threshold_sweep if r.get("monitor_name") == "ALL" and r.get("environment") == "ALL"]
     best_threshold = max(
         aggregate,
@@ -528,13 +528,30 @@ def write_analysis_report(
             "and compares it against clean and worst single-fault rows when those rows are available.",
         ]
     )
-    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    content = "\n".join(lines) + "\n"
+    if artifact_store is not None:
+        artifact_store.write_text(docs_path, content)
+    else:
+        p = Path(docs_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
 
 
-def run_analysis(results_dir: str | Path = RESULTS_DIR, analysis_dir: str | Path = ANALYSIS_DIR) -> dict[str, Any]:
+def run_analysis(
+    results_dir: str | Path = RESULTS_DIR,
+    analysis_dir: str | Path = ANALYSIS_DIR,
+    *,
+    artifact_store: ArtifactStore | None = None,
+) -> dict[str, Any]:
     results = Path(results_dir)
     analysis = Path(analysis_dir)
-    analysis.mkdir(parents=True, exist_ok=True)
+    if artifact_store is None:
+        analysis.mkdir(parents=True, exist_ok=True)
+    else:
+        try:
+            analysis = artifact_store.path(analysis).relative_to(artifact_store.run_dir)
+        except ValueError as exc:
+            raise ValueError("analysis_dir must be relative to the artifact bundle") from exc
     clusters, examples = build_failure_clusters(results)
     threshold_sweep = build_monitor_threshold_sweep(results)
     calibration = build_monitor_calibration(results)
@@ -546,13 +563,29 @@ def run_analysis(results_dir: str | Path = RESULTS_DIR, analysis_dir: str | Path
         loaded_config = canonical_loads(config_path.read_text(encoding="utf-8"))
         if isinstance(loaded_config, dict):
             config_metadata = loaded_config
-    write_csv_rows(analysis / "failure_clusters.csv", clusters)
-    write_jsonl(analysis / "failure_cluster_examples.jsonl", examples)
-    write_csv_rows(analysis / "monitor_threshold_sweep.csv", threshold_sweep)
-    write_csv_rows(analysis / "monitor_calibration.csv", calibration)
-    write_csv_rows(analysis / "agent_safety_profile.csv", profiles)
-    write_csv_rows(analysis / "compound_shift_matrix.csv", compound_rows)
-    write_analysis_report(profiles, clusters, threshold_sweep, calibration, compound_rows)
+    if artifact_store is None:
+        write_csv_rows(analysis / "failure_clusters.csv", clusters)
+        write_jsonl(analysis / "failure_cluster_examples.jsonl", examples)
+        write_csv_rows(analysis / "monitor_threshold_sweep.csv", threshold_sweep)
+        write_csv_rows(analysis / "monitor_calibration.csv", calibration)
+        write_csv_rows(analysis / "agent_safety_profile.csv", profiles)
+        write_csv_rows(analysis / "compound_shift_matrix.csv", compound_rows)
+    else:
+        artifact_store.write_csv(analysis / "failure_clusters.csv", clusters)
+        artifact_store.write_jsonl(analysis / "failure_cluster_examples.jsonl", examples)
+        artifact_store.write_csv(analysis / "monitor_threshold_sweep.csv", threshold_sweep)
+        artifact_store.write_csv(analysis / "monitor_calibration.csv", calibration)
+        artifact_store.write_csv(analysis / "agent_safety_profile.csv", profiles)
+        artifact_store.write_csv(analysis / "compound_shift_matrix.csv", compound_rows)
+    write_analysis_report(
+        profiles,
+        clusters,
+        threshold_sweep,
+        calibration,
+        compound_rows,
+        docs_path="reports/analysis_report.md" if artifact_store is not None else "docs/analysis_report.md",
+        artifact_store=artifact_store,
+    )
     manifest = {
         "results_dir": str(results),
         "analysis_dir": str(analysis),
@@ -587,16 +620,25 @@ def run_analysis(results_dir: str | Path = RESULTS_DIR, analysis_dir: str | Path
             "docs/analysis_report.md",
         ],
     }
-    write_json(analysis / "analysis_manifest.json", manifest)
+    if artifact_store is None:
+        write_json(analysis / "analysis_manifest.json", manifest)
+    else:
+        artifact_store.write_json(analysis / "analysis_manifest.json", manifest)
     return manifest
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Generate post-hoc analysis artifacts from benchmark results")
-    parser.add_argument("--results-dir", default=str(RESULTS_DIR))
-    parser.add_argument("--analysis-dir", default=str(ANALYSIS_DIR))
+    parser = argparse.ArgumentParser(description="Generate post-hoc analysis artifacts in a run bundle")
+    parser.add_argument("--run", required=True)
     args = parser.parse_args(argv)
-    manifest = run_analysis(args.results_dir, args.analysis_dir)
+    from tool_agent_shift_benchmark.core.run_artifacts import resolve_run
+
+    run_dir = resolve_run(args.run)
+    if run_dir is None:  # pragma: no cover - parser requires a path
+        raise RuntimeError("run bundle was not resolved")
+    store = ArtifactStore(run_dir)
+    manifest = run_analysis(run_dir / "results", "analysis", artifact_store=store)
+    store.finalize(command=["python", "-m", "tool_agent_shift_benchmark.analysis.run_analysis"])
     print(
         "analysis complete: "
         f"failure_clusters={manifest['outputs']['failure_cluster_rows']}, "

@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.core.episode import Episode
 from tool_agent_shift_benchmark.core.serialization import canonical_loads
 from tool_agent_shift_benchmark.metrics.aggregation import aggregate
@@ -34,7 +35,12 @@ def _rows(path):
         return list(csv.DictReader(f))
 
 
-def generate_markdown_report(summary_path="results/summary.csv", out_path="docs/experimental_report.md"):
+def generate_markdown_report(
+    summary_path="results/summary.csv",
+    out_path="reports/experimental_report.md",
+    *,
+    artifact_store: ArtifactStore | None = None,
+):
     results_dir = Path(summary_path).parent
     rows = _rows(summary_path)
     failures = _rows(results_dir / "failure_cases.csv")
@@ -149,7 +155,10 @@ def generate_markdown_report(summary_path="results/summary.csv", out_path="docs/
         "systems. Frontier LLM API integration is intentionally excluded from v0.1.0 to avoid requiring paid "
         "credentials or encouraging unsafe key handling in an open-source repository.",
     ]
+    content = "\n".join(lines) + "\n"
+    if artifact_store is not None:
+        return str(artifact_store.write_text(out_path, content))
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    out.write_text(content, encoding="utf-8")
     return str(out)

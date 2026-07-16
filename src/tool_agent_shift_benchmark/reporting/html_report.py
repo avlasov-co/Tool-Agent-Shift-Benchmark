@@ -6,6 +6,7 @@ import html
 from pathlib import Path
 from string import Template
 
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.package_resources import read_builtin_resource
 
 
@@ -49,11 +50,17 @@ def _metric_cards(summary_rows: list[dict[str, str]], failure_rows: list[dict[st
 
 def render_html_report(
     results_dir: str | Path = "results",
-    output_path: str | Path = "docs/analysis_report.html",
+    output_path: str | Path = "reports/analysis_report.html",
     title: str = "Tool-Agent Shift Benchmark Report",
+    *,
+    artifact_store: ArtifactStore | None = None,
 ) -> Path:
     results = Path(results_dir)
-    analysis = results / "analysis"
+    analysis = (
+        results.parent / "analysis"
+        if artifact_store is not None and results.name == "results"
+        else results / "analysis"
+    )
     summary = _read_rows(results / "summary.csv")
     failures = _read_rows(results / "failure_cases.csv")
     profiles = _read_rows(analysis / "agent_safety_profile.csv")
@@ -142,7 +149,11 @@ def render_html_report(
         "<ul>"
         + "".join(
             f"<li>{html.escape(str(p))}</li>"
-            for p in sorted(str(p.relative_to(results)) for p in analysis.glob("*") if p.is_file())
+            for p in sorted(
+                str(p.relative_to(results.parent if artifact_store is not None else results))
+                for p in analysis.glob("*")
+                if p.is_file()
+            )
         )
         + "</ul>",
     ]
@@ -158,13 +169,14 @@ def render_html_report(
         "th{background:#202124;color:white}tr:last-child td{border-bottom:0}ul{background:white;border:1px solid #ddd;"
         "border-radius:14px;padding:20px 34px}code{background:#eee;padding:2px 5px;border-radius:5px}"
     )
+    content = ""
+    template = Template(read_builtin_resource("templates", "report.html").decode("utf-8"))
+    content = template.substitute(title=html.escape(title), css=css, sections="\n".join(sections))
+    if artifact_store is not None:
+        return artifact_store.write_text(output_path, content)
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    template = Template(read_builtin_resource("templates", "report.html").decode("utf-8"))
-    output.write_text(
-        template.substitute(title=html.escape(title), css=css, sections="\n".join(sections)),
-        encoding="utf-8",
-    )
+    output.write_text(content, encoding="utf-8")
     return output
 
 

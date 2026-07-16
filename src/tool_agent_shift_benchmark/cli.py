@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import argparse
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 from tool_agent_shift_benchmark.analysis.run_analysis import run_analysis
 from tool_agent_shift_benchmark.analysis.run_pairwise_compounds import write_pairwise_compound_matrix
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
-from tool_agent_shift_benchmark.core.config import dump_config_yaml, load_config, load_raw_config, write_config_yaml
+from tool_agent_shift_benchmark.core.config import dump_config_yaml, load_raw_config, write_config_yaml
 from tool_agent_shift_benchmark.core.config_schema import migrate_config_data, validate_config
 from tool_agent_shift_benchmark.core.contracts import CONTRACT_VERSION
 from tool_agent_shift_benchmark.core.episode import Episode
@@ -19,27 +19,27 @@ from tool_agent_shift_benchmark.core.oversight import OVERSIGHT_MODE_ORDER
 from tool_agent_shift_benchmark.core.run_artifacts import (
     prepare_run_dir,
     resolve_run,
-    restore_run_to_workspace,
     run_results_dir,
-    snapshot_outputs,
 )
 from tool_agent_shift_benchmark.core.serialization import canonical_dumps, canonical_loads
-from tool_agent_shift_benchmark.generate_report import main as generate_report_main
 from tool_agent_shift_benchmark.package_resources import builtin_config_names
-from tool_agent_shift_benchmark.plot_results import main as plot_results_main
 from tool_agent_shift_benchmark.reporting.failure_cases import format_replay, replay_case
 from tool_agent_shift_benchmark.reporting.html_report import render_html_report
+from tool_agent_shift_benchmark.reporting.plots import generate_plots
+from tool_agent_shift_benchmark.reporting.report import generate_markdown_report
 from tool_agent_shift_benchmark.run_eval import run_eval
 
 
 def _run_command(args: argparse.Namespace) -> None:
     validate_config(args.config)
-    run_dir = None
-    existing = []
+    existing: list[Episode] = []
     if args.resume:
         if not args.run_name:
             raise ValueError("--resume requires --run-name so the checkpoint bundle can be located")
         run_dir = Path("runs") / args.run_name
+        if not run_dir.is_dir():
+            raise FileNotFoundError(f"resume bundle does not exist: {run_dir}")
+        store = ArtifactStore(run_dir)
         episodes_path = run_dir / "results" / "episodes.jsonl"
         if episodes_path.exists():
             existing = [
@@ -47,11 +47,10 @@ def _run_command(args: argparse.Namespace) -> None:
                 for line in episodes_path.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
-    checkpoint = (
-        str((run_dir or Path("runs") / (args.run_name or "run-checkpoint")) / "checkpoint.json")
-        if args.resume
-        else None
-    )
+    else:
+        run_dir = prepare_run_dir(args.run_name, overwrite=args.overwrite)
+        store = ArtifactStore(run_dir)
+    checkpoint = str(run_dir / "checkpoint.json")
     episodes = run_eval(
         args.config,
         args.seed,
@@ -71,24 +70,19 @@ def _run_command(args: argparse.Namespace) -> None:
         replay_episode_ids=args.replay_episode_id,
         monitor_modes=args.monitor_mode,
         oversight_modes=args.oversight_mode,
+        artifact_store=store,
     )
-    if args.run_name:
-        if not (args.resume and run_dir and run_dir.exists()):
-            run_dir = prepare_run_dir(args.run_name, overwrite=args.overwrite)
-        catalog = PluginCatalog()
-        snapshot_outputs(
-            run_dir,
-            command=["tasb", "run"],
-            extra_metadata={
-                "config": args.config,
-                "seed": args.seed if args.seed is not None else load_config(args.config)["seed"],
-                "episodes": len(episodes),
-                "workers": args.workers if args.workers is not None else load_config(args.config)["workers"],
-                "plugin_catalog": catalog.as_dict(),
-                "contract_version": CONTRACT_VERSION,
-            },
-        )
-        print(f"run artifacts written to {run_dir}")
+    catalog = PluginCatalog()
+    store.finalize(
+        command=["tasb", "run"],
+        metadata={
+            "config": args.config,
+            "episodes": len(episodes),
+            "plugin_catalog": catalog.as_dict(),
+            "contract_version": CONTRACT_VERSION,
+        },
+    )
+    print(f"run artifacts written to {run_dir}")
     print(f"wrote results for {len(episodes)} episodes")
 
 
@@ -134,6 +128,8 @@ def _plan_command(args: argparse.Namespace) -> None:
                 "workers": execution_plan.spec.workers,
                 "artifact_paths": [
                     f"runs/{args.run_name or execution_plan.planner.run_id}/run_manifest.json",
+                    "config/normalized_config.json",
+                    "identity/experiment_identity.json",
                     "results/episodes.jsonl",
                     "traces/policy/",
                     "traces/evaluator/",
@@ -158,60 +154,62 @@ def _render_architecture_command(args: argparse.Namespace) -> None:
 
 
 def _analyze_command(args: argparse.Namespace) -> None:
-    results_dir = run_results_dir(args.run)
-    analysis_dir = Path(args.analysis_dir) if args.analysis_dir else results_dir / "analysis"
-    manifest = run_analysis(results_dir, analysis_dir)
     run_dir = resolve_run(args.run)
-    if run_dir:
-        docs_src = Path("docs/analysis_report.md")
-        if docs_src.exists():
-            (run_dir / "docs").mkdir(parents=True, exist_ok=True)
-            shutil.copy2(docs_src, run_dir / "docs" / "analysis_report.md")
-        snapshot_outputs(
-            run_dir,
-            command=["tasb", "analyze"],
-            extra_metadata={"analysis_outputs": manifest.get("outputs", {})},
-        )
+    if run_dir is None:
+        raise ValueError("tasb analyze requires an explicit --run bundle")
+    store = ArtifactStore(run_dir)
+    results_dir = run_results_dir(run_dir)
+    analysis_dir = Path(args.analysis_dir) if args.analysis_dir else Path("analysis")
+    manifest = run_analysis(results_dir, analysis_dir, artifact_store=store)
+    store.finalize(command=["tasb", "analyze"], metadata={"analysis_outputs": manifest.get("outputs", {})})
     print(canonical_dumps(manifest["outputs"], pretty=True))
 
 
 def _pairwise_command(args: argparse.Namespace) -> None:
     validate_config(args.config, pairwise=True)
-    output_dir = Path(args.output_dir) if args.output_dir else run_results_dir(args.run) / "analysis"
-    manifest = write_pairwise_compound_matrix(args.config, output_dir)
-    run_dir = resolve_run(args.run)
-    if run_dir:
-        snapshot_outputs(
-            run_dir,
-            command=["tasb", "pairwise"],
-            extra_metadata={"pairwise_rows": manifest.get("rows", 0)},
-        )
+    run_dir = resolve_run(args.run) if args.run else prepare_run_dir(args.run_name)
+    if run_dir is None:  # pragma: no cover - explicit for static type narrowing
+        raise RuntimeError("pairwise run bundle was not created")
+    store = ArtifactStore(run_dir)
+    manifest = write_pairwise_compound_matrix(
+        args.config,
+        args.output_dir or "analysis",
+        artifact_store=store,
+    )
+    store.finalize(command=["tasb", "pairwise"], metadata={"pairwise_rows": manifest.get("rows", 0)})
     print(canonical_dumps(manifest, pretty=True))
 
 
 def _plot_command(args: argparse.Namespace) -> None:
-    if args.run:
-        restore_run_to_workspace(args.run)
-    plot_results_main()
     run_dir = resolve_run(args.run)
-    if run_dir:
-        snapshot_outputs(run_dir, command=["tasb", "plot"])
+    if run_dir is None:
+        raise ValueError("tasb plots requires an explicit --run bundle")
+    store = ArtifactStore(run_dir)
+    plots = generate_plots(
+        run_dir / "results" / "summary.csv",
+        "plots",
+        results_dir=run_dir / "results",
+        artifact_store=store,
+    )
+    store.finalize(command=["tasb", "plots"], metadata={"plot_outputs": plots})
+    print(canonical_dumps({"plots": plots}, pretty=True))
 
 
 def _report_command(args: argparse.Namespace) -> None:
-    if args.run:
-        restore_run_to_workspace(args.run)
-    generate_report_main()
-    if args.html:
-        output = Path(args.output) if args.output else Path("docs/analysis_report.html")
-        render_html_report("results", output)
     run_dir = resolve_run(args.run)
-    if run_dir:
-        snapshot_outputs(
-            run_dir,
-            command=["tasb", "report"],
-            extra_metadata={"html": bool(args.html)},
-        )
+    if run_dir is None:
+        raise ValueError("tasb report requires an explicit --run bundle")
+    store = ArtifactStore(run_dir)
+    markdown = generate_markdown_report(
+        run_dir / "results" / "summary.csv",
+        "reports/experimental_report.md",
+        artifact_store=store,
+    )
+    html = None
+    if args.html:
+        output = args.output or "reports/analysis_report.html"
+        html = str(render_html_report(run_dir / "results", output, artifact_store=store))
+    store.finalize(command=["tasb", "report"], metadata={"markdown": markdown, "html": html})
     print("report generation complete")
 
 
@@ -247,10 +245,9 @@ def _verify_release_command(args: argparse.Namespace) -> None:
 
 
 def _clean_command(args: argparse.Namespace) -> None:
-    subprocess.run(["bash", "scripts/clean_outputs.sh"], check=True)
-    if args.runs and Path("runs").exists():
-        shutil.rmtree("runs")
-    print("clean complete")
+    raise RuntimeError(
+        "workspace-global cleanup is retired; remove an explicitly selected run bundle outside tasb if authorized"
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -287,6 +284,7 @@ def build_parser() -> argparse.ArgumentParser:
     pairwise = sub.add_parser("pairwise", help="run pairwise compound analysis")
     pairwise.add_argument("--config", default="compound_matrix")
     pairwise.add_argument("--run")
+    pairwise.add_argument("--run-name")
     pairwise.add_argument("--output-dir")
     pairwise.set_defaults(func=_pairwise_command)
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
 from tool_agent_shift_benchmark.core.competence import run_clean_competence_preflight
@@ -236,6 +236,7 @@ def execute_plan(
     existing_episodes: Iterable[Episode] = (),
     checkpoint_path: str | Path | None = None,
     scenario_manifest_dir: str | Path | None = None,
+    scenario_manifest_writer: Callable[[Any], Path] | None = None,
     catalog: PluginCatalog | None = None,
     run_competence_preflight: bool = True,
 ) -> ExecutionResult:
@@ -257,6 +258,7 @@ def execute_plan(
         existing_ids,
         checkpoint_path=checkpoint_path,
         scenario_manifest_dir=scenario_manifest_dir,
+        scenario_manifest_writer=scenario_manifest_writer,
     )
     episodes = _unique_episodes((*existing, *produced), planned_order=planned_order)
     return ExecutionResult(

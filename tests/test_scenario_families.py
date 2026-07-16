@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from tool_agent_shift_benchmark.agents import AGENTS
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.core.config_schema import ConfigValidationError, parse_config_data
 from tool_agent_shift_benchmark.core.context import (
     POLICY_VISIBLE_SCENARIO_ID,
@@ -14,7 +15,6 @@ from tool_agent_shift_benchmark.core.context import (
     redact_response_for_policy,
 )
 from tool_agent_shift_benchmark.core.orchestration import ExperimentPlanner, ExperimentSpec, RunCoordinator
-from tool_agent_shift_benchmark.core.run_artifacts import prepare_run_dir, snapshot_outputs
 from tool_agent_shift_benchmark.core.scenarios import (
     SCENARIO_COVERAGE_CONTRACT,
     SCENARIO_FAMILY_CONTRACT,
@@ -173,11 +173,11 @@ oversight_modes: [record_only]
         encoding="utf-8",
     )
 
-    episodes = run_eval(str(config_path), 233)
-    coverage = read_json(tmp_path / "results" / "scenario_coverage.json")
-    rows = read_csv(tmp_path / "results" / "scenario_coverage.csv")
-    run_dir = prepare_run_dir("scenario-families", runs_dir=tmp_path / "runs")
-    manifest = snapshot_outputs(run_dir, command=["tasb", "run"])
+    store = ArtifactStore(tmp_path / "run")
+    episodes = run_eval(str(config_path), 233, artifact_store=store)
+    coverage = read_json(store.run_dir / "results" / "scenario_coverage.json")
+    rows = read_csv(store.run_dir / "results" / "scenario_coverage.csv")
+    manifest = store.finalize(command=["tasb", "run"])
 
     assert len(episodes) == 6
     assert coverage["scenario_count"] == 6

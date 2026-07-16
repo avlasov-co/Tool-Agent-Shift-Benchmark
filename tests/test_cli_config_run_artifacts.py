@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from tool_agent_shift_benchmark.cli import build_parser
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.core.config_schema import ConfigValidationError, validate_config_data
 from tool_agent_shift_benchmark.core.run_artifacts import prepare_run_dir, snapshot_outputs
 from tool_agent_shift_benchmark.reporting.failure_cases import format_replay, replay_case
@@ -49,7 +50,7 @@ def test_config_validation_rejects_unknown_agent() -> None:
         )
 
 
-def test_run_artifact_snapshot_copies_outputs(tmp_path: Path, monkeypatch) -> None:
+def test_run_artifact_snapshot_does_not_copy_stale_global_outputs(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     _write_csv(Path("results/summary.csv"), [{"agent": "naive", "episodes": 1}])
     Path("figures").mkdir()
@@ -57,10 +58,12 @@ def test_run_artifact_snapshot_copies_outputs(tmp_path: Path, monkeypatch) -> No
     Path("docs").mkdir()
     Path("docs/analysis_report.md").write_text("# report\n", encoding="utf-8")
     run_dir = prepare_run_dir("smoke", overwrite=True)
+    store = ArtifactStore(run_dir)
+    store.write_csv("results/summary.csv", [{"agent": "fresh", "episodes": 2}])
     manifest = snapshot_outputs(run_dir, command=["tasb", "run"])
     assert (run_dir / "results" / "summary.csv").exists()
-    assert (run_dir / "figures" / "example.png").exists()
-    assert (run_dir / "docs" / "analysis_report.md").exists()
+    assert "figures/example.png" not in manifest["artifacts"]
+    assert "docs/analysis_report.md" not in manifest["artifacts"]
     assert manifest["command"] == ["tasb", "run"]
 
 

@@ -1,20 +1,23 @@
+"""Run-bundle lifecycle helpers.
+
+This module never imports, copies, restores, or deletes workspace-global
+benchmark outputs.  Every path it returns is relative to one explicit run
+bundle.
+"""
+
 from __future__ import annotations
 
 import hashlib
 import re
-import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from tool_agent_shift_benchmark.core.contracts import CONTRACT_VERSION
 from tool_agent_shift_benchmark.core.serialization import canonical_loads, stable_hash, write_json
 
 RUNS_DIR = Path("runs")
-RESULTS_DIR = Path("results")
-FIGURES_DIR = Path("figures")
-DOCS_DIR = Path("docs")
 
 
 def slugify(value: str) -> str:
@@ -41,45 +44,35 @@ def prepare_run_dir(
     runs_dir: str | Path = RUNS_DIR,
     overwrite: bool = False,
 ) -> Path:
+    """Create a fresh bundle without replacing a previous one.
+
+    ``overwrite`` is retained only for call compatibility and always rejects a
+    pre-existing bundle.  Replacing evidence would make stale/partial files
+    indistinguishable from fresh results and is therefore unsafe.
+    """
+
     root = Path(runs_dir)
     root.mkdir(parents=True, exist_ok=True)
-    run_dir = root / timestamped_run_name(run_name)
-    if run_dir.exists():
-        if not overwrite:
-            raise FileExistsError(f"run directory already exists: {run_dir}")
-        shutil.rmtree(run_dir)
-    (run_dir / "results").mkdir(parents=True, exist_ok=True)
-    (run_dir / "figures").mkdir(parents=True, exist_ok=True)
-    (run_dir / "docs").mkdir(parents=True, exist_ok=True)
-    (run_dir / "reports").mkdir(parents=True, exist_ok=True)
-    (run_dir / "replay").mkdir(parents=True, exist_ok=True)
-    return run_dir
+    base = timestamped_run_name(run_name)
+    candidate = root / base
+    if run_name is None:
+        counter = 2
+        while candidate.exists():
+            candidate = root / f"{base}-{counter}"
+            counter += 1
+    if candidate.exists():
+        suffix = "; --overwrite cannot replace a run bundle" if overwrite else ""
+        raise FileExistsError(f"run directory already exists: {candidate}{suffix}")
+    candidate.mkdir(parents=False)
+    return candidate
 
 
-def _copy_tree_contents(src: Path, dst: Path, patterns: Iterable[str] | None = None) -> list[str]:
-    copied: list[str] = []
-    if not src.exists():
-        return copied
-    dst.mkdir(parents=True, exist_ok=True)
-    files: Iterable[Path]
-    if patterns:
-        seen: set[Path] = set()
-        selected: list[Path] = []
-        for pattern in patterns:
-            for path in src.glob(pattern):
-                if path.is_file() and path not in seen:
-                    seen.add(path)
-                    selected.append(path)
-        files = selected
-    else:
-        files = [p for p in src.rglob("*") if p.is_file()]
-    for path in files:
-        rel = path.relative_to(src)
-        target = dst / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, target)
-        copied.append(str(target))
-    return copied
+def _bundle_payload(run_path: Path, relative: str) -> dict[str, Any]:
+    path = run_path / relative
+    if not path.exists():
+        return {}
+    value = canonical_loads(path.read_text(encoding="utf-8"))
+    return value if isinstance(value, dict) else {}
 
 
 def snapshot_outputs(
@@ -87,97 +80,55 @@ def snapshot_outputs(
     command: list[str] | None = None,
     extra_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Finalize only files already written into ``run_dir``.
+
+    The historical name is a thin compatibility wrapper.  It intentionally no
+    longer snapshots workspace-global output directories.
+    """
+
     run_path = Path(run_dir)
-    copied: list[str] = []
-    copied += _copy_tree_contents(RESULTS_DIR, run_path / "results")
-    copied += _copy_tree_contents(FIGURES_DIR, run_path / "figures", patterns=["*.png"])
-    copied += _copy_tree_contents(
-        DOCS_DIR,
-        run_path / "docs",
-        patterns=[
-            "experimental_report.md",
-            "analysis_report.md",
-            "analysis_report.html",
-        ],
+    if not run_path.is_dir():
+        raise FileNotFoundError(f"run bundle does not exist: {run_path}")
+    config_payload = _bundle_payload(run_path, "config/normalized_config.json")
+    result_config = _bundle_payload(run_path, "results/config.json")
+    identity_payload = _bundle_payload(run_path, "identity/experiment_identity.json")
+    metadata = dict(extra_metadata or {})
+    status_payload = _bundle_payload(run_path, "status.json")
+    files = sorted(
+        path
+        for path in run_path.rglob("*")
+        if path.is_file() and path.name not in {"run_manifest.json", "finalization.json"}
     )
-    config_source = run_path / "results" / "config.json"
-    if config_source.exists():
-        shutil.copy2(config_source, run_path / "config.json")
-    # The run bundle is self-describing and retains structured traces in
-    # addition to the legacy CSV export.
-    (run_path / "traces" / "policy").mkdir(parents=True, exist_ok=True)
-    (run_path / "traces" / "evaluator").mkdir(parents=True, exist_ok=True)
-    legacy_trace = run_path / "results" / "multistep_traces.jsonl"
-    if legacy_trace.exists():
-        for line in legacy_trace.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            item = canonical_loads(line)
-            episode_id = item.get("episode_id", "episode")
-            write_json(
-                run_path / "traces" / "policy" / f"{episode_id}.json",
-                {
-                    "episode_id": episode_id,
-                    "step_trace": item.get("step_trace", []),
-                },
-            )
-    evaluator_source = run_path / "results" / "evaluator_traces.jsonl"
-    if evaluator_source.exists():
-        for line in evaluator_source.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            item = canonical_loads(line)
-            episode_id = item.get("episode_id", "episode")
-            write_json(run_path / "traces" / "evaluator" / f"{episode_id}.json", item)
-    files = sorted(p for p in run_path.rglob("*") if p.is_file() and p.name != "run_manifest.json")
-    checksums = {str(p.relative_to(run_path)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
-    metadata = extra_metadata or {}
-    config_payload = {}
-    config_path = run_path / "config.json"
-    if config_path.exists():
-        config_payload = canonical_loads(config_path.read_text(encoding="utf-8"))
-    episode_count = config_payload.get("episodes")
-    seed_list = []
-    episode_stream = run_path / "results" / "episodes.jsonl"
-    if episode_stream.exists():
-        for line in episode_stream.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                seed_list.append(canonical_loads(line).get("seed"))
+    checksums = {str(path.relative_to(run_path)): hashlib.sha256(path.read_bytes()).hexdigest() for path in files}
+    effective_config = result_config or config_payload
+    identity = identity_payload or effective_config.get("identity", {})
     finished_at = datetime.now(timezone.utc).isoformat()
-    identity_payload = config_payload.get("identity", {})
     manifest = {
-        "artifact_schema_version": "1",
-        "run_dir": str(run_path),
-        "created_at_utc": finished_at,
-        "started_at_utc": metadata.get("started_at_utc", finished_at),
+        "artifact_schema_version": "2",
+        "bundle_layout_version": "run-bundle-v2",
+        "created_at_utc": metadata.get("started_at_utc", finished_at),
         "ended_at_utc": finished_at,
         "command": command or [],
         "git_commit": get_git_commit(),
-        "run_id": config_payload.get("run_id", metadata.get("run_id", "unknown")),
-        "identity_schema_version": identity_payload.get("schema_version", "1"),
-        "episode_record_version": config_payload.get("episode_record_version", "2"),
-        "action_record_contract": config_payload.get("action_record_contract", "legacy"),
-        "counterfactual_evaluation_contract": config_payload.get("counterfactual_evaluation_contract", "unavailable"),
-        "scenario_manifest_contract": config_payload.get("scenario_manifest_contract", "legacy"),
-        "scenario_family_contract": config_payload.get("scenario_family_contract", "unavailable"),
-        "scenario_split_contract": config_payload.get("scenario_split_contract", "unavailable"),
-        "scenario_coverage_hash": config_payload.get("scenario_coverage_hash"),
-        "normalized_semantic_identity": identity_payload.get("semantic"),
-        "operational_settings": identity_payload.get("operational"),
-        "legacy_run_id": identity_payload.get("legacy_run_id"),
-        "config_digest": config_payload.get("config_digest")
-        or (stable_hash(config_payload.get("config", config_payload), prefix="cfg") if config_payload else "unknown"),
-        "episode_count": episode_count,
-        "seed_list": sorted({seed for seed in seed_list if seed is not None}),
-        "plugin_catalog": metadata.get("plugin_catalog", []),
+        "run_id": effective_config.get("run_id", metadata.get("run_id", "unknown")),
+        "identity_schema_version": identity.get("schema_version", "unknown"),
+        "config_digest": effective_config.get("config_digest")
+        or (stable_hash(config_payload, prefix="cfg") if config_payload else "unknown"),
+        "episode_record_version": effective_config.get("episode_record_version", "unknown"),
+        "action_record_contract": effective_config.get("action_record_contract", "unknown"),
+        "counterfactual_evaluation_contract": effective_config.get("counterfactual_evaluation_contract", "unknown"),
+        "scenario_manifest_contract": effective_config.get("scenario_manifest_contract", "unknown"),
+        "scenario_family_contract": effective_config.get("scenario_family_contract", "unknown"),
+        "scenario_split_contract": effective_config.get("scenario_split_contract", "unknown"),
+        "scenario_coverage_hash": effective_config.get("scenario_coverage_hash"),
+        "normalized_semantic_identity": identity.get("semantic"),
+        "operational_settings": identity.get("operational"),
+        "plugin_catalog": metadata.get("plugin_catalog", _bundle_payload(run_path, "plugins/descriptors.json")),
         "contract_version": metadata.get("contract_version", CONTRACT_VERSION),
-        "checkpoint": {
-            "parent": metadata.get("parent_run"),
-            "path": str(run_path / "checkpoint.json") if (run_path / "checkpoint.json").exists() else None,
-        },
+        "status": status_payload,
         "artifacts": sorted(checksums),
         "checksums": checksums,
-        "reproducibility": {"deterministic_ordering": True, "legacy_exports": True},
+        "reproducibility": {"deterministic_ordering": True, "global_workspace_inputs": False},
         "metadata": metadata,
     }
     write_manifest(run_path, manifest)
@@ -185,52 +136,35 @@ def snapshot_outputs(
 
 
 def write_manifest(run_dir: str | Path, manifest: dict[str, Any]) -> None:
-    path = Path(run_dir) / "run_manifest.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    write_json(path, manifest)
+    write_json(Path(run_dir) / "run_manifest.json", manifest)
 
 
 def latest_run(runs_dir: str | Path = RUNS_DIR) -> Path | None:
     root = Path(runs_dir)
     if not root.exists():
         return None
-    candidates = [p for p in root.iterdir() if p.is_dir()]
-    return max(candidates, key=lambda p: p.stat().st_mtime) if candidates else None
+    candidates = [path for path in root.iterdir() if path.is_dir()]
+    return max(candidates, key=lambda path: path.stat().st_mtime) if candidates else None
 
 
 def resolve_run(run: str | Path | None = None) -> Path | None:
-    if run:
-        path = Path(run)
-        if not path.exists():
-            raise FileNotFoundError(f"run directory not found: {path}")
-        return path
-    return latest_run()
+    if run is None:
+        return None
+    path = Path(run)
+    if not path.is_dir():
+        raise FileNotFoundError(f"run bundle not found: {path}")
+    return path
 
 
-def run_results_dir(run: str | Path | None = None) -> Path:
+def run_results_dir(run: str | Path) -> Path:
     path = resolve_run(run)
     if path is None:
-        return RESULTS_DIR
-    candidate = path / "results"
-    return candidate if candidate.exists() else path
+        raise ValueError("an explicit run bundle is required")
+    return path / "results"
 
 
 def restore_run_to_workspace(run: str | Path) -> None:
-    run_path = Path(run)
-    results_src = run_path / "results"
-    figures_src = run_path / "figures"
-    docs_src = run_path / "docs"
-    if results_src.exists():
-        if RESULTS_DIR.exists():
-            shutil.rmtree(RESULTS_DIR)
-        shutil.copytree(results_src, RESULTS_DIR)
-    if figures_src.exists():
-        FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-        for file in figures_src.glob("*.png"):
-            shutil.copy2(file, FIGURES_DIR / file.name)
-    if docs_src.exists():
-        DOCS_DIR.mkdir(parents=True, exist_ok=True)
-        for file in docs_src.glob("*.md"):
-            shutil.copy2(file, DOCS_DIR / file.name)
-        for file in docs_src.glob("*.html"):
-            shutil.copy2(file, DOCS_DIR / file.name)
+    raise RuntimeError(
+        "restoring a run bundle to workspace-global results/ is unsupported; "
+        "pass explicit bundle paths to analysis, plotting, or reporting instead"
+    )

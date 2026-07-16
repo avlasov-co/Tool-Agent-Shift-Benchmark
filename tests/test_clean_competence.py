@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from tool_agent_shift_benchmark.agents import AGENT_ROLES, DIAGNOSTIC_AGENTS, REFERENCE_AGENTS
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.core.competence import (
     COMPETENCE_REQUIREMENTS,
     evaluate_clean_competence,
@@ -94,9 +95,10 @@ monitor_policy: record
         encoding="utf-8",
     )
 
-    run_eval(str(config_path), seed=71)
-    config = read_json(tmp_path / "results" / "config.json")
-    report = read_json(tmp_path / "results" / "competence_report.json")
+    store = ArtifactStore(tmp_path / "run")
+    run_eval(str(config_path), seed=71, artifact_store=store)
+    config = read_json(store.run_dir / "results" / "config.json")
+    report = read_json(store.run_dir / "results" / "competence_report.json")
 
     assert report["passed"] is True
     assert config["competence_gate"]["passed"] is True

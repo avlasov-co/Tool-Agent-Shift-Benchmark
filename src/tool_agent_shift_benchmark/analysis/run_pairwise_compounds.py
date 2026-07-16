@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from tool_agent_shift_benchmark.agents import AGENTS
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
 from tool_agent_shift_benchmark.core.config import load_config
 from tool_agent_shift_benchmark.core.episode import Episode
@@ -15,7 +16,6 @@ from tool_agent_shift_benchmark.core.execution import (
     plan_execution_config,
 )
 from tool_agent_shift_benchmark.core.orchestration import EpisodeSpec
-from tool_agent_shift_benchmark.core.serialization import write_csv, write_json
 from tool_agent_shift_benchmark.environments.calendar_ops import CalendarOpsEnvironment
 from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
 from tool_agent_shift_benchmark.environments.risk_ops import RiskOpsEnvironment
@@ -27,7 +27,6 @@ ENVS = {
     "calendar_ops": CalendarOpsEnvironment,
     "risk_ops": RiskOpsEnvironment,
 }
-ANALYSIS_DIR = Path("results/analysis")
 DEFAULT_CONFIG = "compound_matrix"
 
 
@@ -232,29 +231,37 @@ def build_pairwise_compound_matrix(
 
 
 def write_pairwise_compound_matrix(
-    config_path: str = DEFAULT_CONFIG, output_dir: str | Path = ANALYSIS_DIR
+    config_path: str = DEFAULT_CONFIG,
+    output_dir: str | Path = "analysis",
+    *,
+    artifact_store: ArtifactStore,
 ) -> dict[str, Any]:
     out = Path(output_dir)
-    out.mkdir(parents=True, exist_ok=True)
+    if out.is_absolute() or ".." in out.parts:
+        raise ValueError("pairwise output_dir must be relative to the artifact bundle")
     rows = build_pairwise_compound_matrix(config_path)
-    csv_path = out / "pairwise_compound_matrix.csv"
-    write_csv(csv_path, rows)
+    csv_path = artifact_store.write_csv(out / "pairwise_compound_matrix.csv", rows)
     summary = {
         "config_path": config_path,
         "rows": len(rows),
         "output_csv": str(csv_path),
         "description": "Pairwise compound-fault matrix comparing clean, single-fault, and paired-fault behavior.",
     }
-    write_json(out / "pairwise_compound_manifest.json", summary)
+    artifact_store.write_json(out / "pairwise_compound_manifest.json", summary)
     return summary
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Run pairwise compound-shift analysis")
     parser.add_argument("--config", default=DEFAULT_CONFIG)
-    parser.add_argument("--output-dir", default=str(ANALYSIS_DIR))
+    parser.add_argument("--output-dir", default="analysis")
+    parser.add_argument("--run-name")
     args = parser.parse_args(argv)
-    manifest = write_pairwise_compound_matrix(args.config, args.output_dir)
+    from tool_agent_shift_benchmark.core.run_artifacts import prepare_run_dir
+
+    store = ArtifactStore(prepare_run_dir(args.run_name))
+    manifest = write_pairwise_compound_matrix(args.config, args.output_dir, artifact_store=store)
+    store.finalize(command=["python", "-m", "tool_agent_shift_benchmark.analysis.run_pairwise_compounds"])
     print(f"pairwise compound matrix complete: rows={manifest['rows']} output={manifest['output_csv']}")
 
 

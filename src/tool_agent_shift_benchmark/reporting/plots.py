@@ -7,7 +7,21 @@ research outputs, so labels and annotations are part of the data contract.
 from __future__ import annotations
 
 import csv
+from io import BytesIO
 from pathlib import Path
+
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
+
+_ARTIFACT_STORE: ArtifactStore | None = None
+
+
+def _save_figure(fig, out_path: str | Path) -> None:
+    if _ARTIFACT_STORE is None:
+        fig.savefig(out_path, facecolor="white", bbox_inches="tight")
+        return
+    buffer = BytesIO()
+    fig.savefig(buffer, format="png", facecolor="white", bbox_inches="tight")
+    _ARTIFACT_STORE.write_bytes(out_path, buffer.getvalue())
 
 
 def _load_plotting_dependencies():
@@ -101,7 +115,7 @@ def _bar(
             fontweight="bold",
         )
     fig.tight_layout()
-    fig.savefig(out_path, facecolor="white", bbox_inches="tight")
+    _save_figure(fig, out_path)
     plt.close(fig)
 
 
@@ -132,16 +146,25 @@ def _scatter(rows, out_path: str | Path) -> None:
     ax.set_xticks(np.linspace(0, 1, 6))
     ax.set_xticklabels([f"{v:.0%}" for v in np.linspace(0, 1, 6)])
     fig.tight_layout()
-    fig.savefig(out_path, facecolor="white", bbox_inches="tight")
+    _save_figure(fig, out_path)
     plt.close(fig)
 
 
-def generate_plots(summary_path="results/summary.csv", figures_dir="figures"):
-    global plt, np
+def generate_plots(
+    summary_path="results/summary.csv",
+    figures_dir="plots",
+    *,
+    results_dir: str | Path | None = None,
+    artifact_store: ArtifactStore | None = None,
+):
+    global _ARTIFACT_STORE, plt, np
     plt, np = _load_plotting_dependencies()
+    _ARTIFACT_STORE = artifact_store
+    results = Path(results_dir) if results_dir is not None else Path(summary_path).parent
     rows = _read_csv(summary_path)
     figures = Path(figures_dir)
-    figures.mkdir(parents=True, exist_ok=True)
+    if artifact_store is None:
+        figures.mkdir(parents=True, exist_ok=True)
     _bar(
         rows,
         "unsafe_action_rate",
@@ -198,7 +221,7 @@ def generate_plots(summary_path="results/summary.csv", figures_dir="figures"):
         ylabel="Unsafe steps",
         color=RED,
     )
-    svd = _read_csv("results/static_vs_dynamic.csv")
+    svd = _read_csv(results / "static_vs_dynamic.csv")
     if svd:
         _bar(
             svd,
@@ -210,7 +233,7 @@ def generate_plots(summary_path="results/summary.csv", figures_dir="figures"):
             color=GOLD,
             percent=False,
         )
-    analysis = Path("results/analysis")
+    analysis = results.parent / "analysis" if results.name == "results" else results / "analysis"
     thresholds = _read_csv(analysis / "monitor_threshold_sweep.csv")
     if thresholds:
         _bar(
@@ -278,7 +301,7 @@ def generate_plots(summary_path="results/summary.csv", figures_dir="figures"):
             color=GOLD,
             percent=False,
         )
-    ci = _read_csv("results/confidence_intervals.csv")
+    ci = _read_csv(results / "confidence_intervals.csv")
     if ci:
         _bar(
             [r for r in ci if r.get("metric") == "safe_useful_action_rate"] or ci,
@@ -291,5 +314,8 @@ def generate_plots(summary_path="results/summary.csv", figures_dir="figures"):
             color=BLUE,
         )
     else:
-        (figures / "confidence_intervals.png").unlink(missing_ok=True)
+        if artifact_store is None:
+            (figures / "confidence_intervals.png").unlink(missing_ok=True)
+    if artifact_store is not None:
+        return [str(path) for path in sorted(artifact_store.run_dir.joinpath(figures).glob("*.png"))]
     return [str(p) for p in sorted(figures.glob("*.png"))]

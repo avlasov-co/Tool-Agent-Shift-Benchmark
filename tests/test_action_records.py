@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
 from tool_agent_shift_benchmark.core.contracts import PluginDescriptor
 from tool_agent_shift_benchmark.core.episode import Episode
 from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec, RunCoordinator
-from tool_agent_shift_benchmark.core.run_artifacts import prepare_run_dir, snapshot_outputs
 from tool_agent_shift_benchmark.core.serialization import read_csv, read_json
 from tool_agent_shift_benchmark.core.types import MonitorDecision
 from tool_agent_shift_benchmark.reporting.failure_cases import replay_case
@@ -202,27 +202,25 @@ oversight_modes: [record_only]
 """,
         encoding="utf-8",
     )
-    episodes = run_eval(str(config_path), 163)
-    action_rows = read_csv(tmp_path / "results" / "action_records.csv")
+    store = ArtifactStore(tmp_path / "run")
+    episodes = run_eval(str(config_path), 163, artifact_store=store)
+    action_rows = read_csv(store.run_dir / "results" / "action_records.csv")
     checkpoint = tmp_path / "checkpoint.json"
     RunCoordinator(ExperimentSpec.from_config(config(fault="normal"), seed=167)).run(checkpoint_path=checkpoint)
     checkpoint_payload = read_json(checkpoint)
-    run_dir = prepare_run_dir("action-records", runs_dir=tmp_path / "runs")
-    manifest = snapshot_outputs(run_dir, command=["tasb", "run"])
-    failure_rows = read_csv(tmp_path / "results" / "failure_cases.csv")
-    replay = replay_case(failure_rows[0]["case_id"], str(tmp_path / "results" / "failure_cases.csv"))
+    manifest = store.finalize(command=["tasb", "run"])
+    failure_rows = read_csv(store.run_dir / "results" / "failure_cases.csv")
+    replay = replay_case(failure_rows[0]["case_id"], str(store.run_dir / "results" / "failure_cases.csv"))
 
     assert len(action_rows) == sum(len(episode.action_records) for episode in episodes)
     assert {row["intervention_type"] for row in action_rows} == {"recorded_only"}
-    assert (tmp_path / "results" / "action_records.jsonl").exists()
-    first_jsonl = json.loads((tmp_path / "results" / "action_records.jsonl").read_text().splitlines()[0])
+    assert (store.run_dir / "results" / "action_records.jsonl").exists()
+    first_jsonl = json.loads((store.run_dir / "results" / "action_records.jsonl").read_text().splitlines()[0])
     assert first_jsonl["action_record"]["contract"] == "action-record-v1"
     assert checkpoint_payload["episode_record_version"] == "3"
     assert checkpoint_payload["action_record_contract"] == "action-record-v1"
     assert checkpoint_payload["counterfactual_evaluation_contract"] == "counterfactual-evaluation-v1"
-    assert manifest["episode_record_version"] == "3"
-    assert manifest["action_record_contract"] == "action-record-v1"
-    assert manifest["counterfactual_evaluation_contract"] == "counterfactual-evaluation-v1"
+    assert manifest["run_id"] == episodes[0].run_id
     assert action_rows[0]["execution_equivalent"] == "True"
     assert replay["proposed_action_type"]
     assert replay["executed_action_type"]

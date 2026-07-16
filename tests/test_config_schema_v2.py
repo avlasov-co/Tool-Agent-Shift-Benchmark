@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from tool_agent_shift_benchmark.cli import main as cli_main
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.core.config import ConfigSyntaxError, dump_config_yaml, load_config, load_raw_config
 from tool_agent_shift_benchmark.core.config_schema import (
     CONFIG_SCHEMA_VERSION,
@@ -275,8 +276,9 @@ monitor_policy: record
         encoding="utf-8",
     )
 
-    run_eval(str(config_path), 43, workers=3)
-    payload = read_json(tmp_path / "results" / "config.json")
+    store = ArtifactStore(tmp_path / "run")
+    run_eval(str(config_path), 43, workers=3, artifact_store=store)
+    payload = read_json(store.run_dir / "results" / "config.json")
 
     expected = {
         **load_config(config_path),

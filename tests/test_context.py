@@ -176,14 +176,17 @@ def test_single_seed_run_records_effective_config_and_clears_stale_ci(tmp_path, 
     (tmp_path / "results" / "confidence_intervals.csv").write_text("stale\n", encoding="utf-8")
     (tmp_path / "results" / "seed_summary.csv").write_text("stale\n", encoding="utf-8")
 
-    episodes = run_eval("small", 42, all_envs=True, all_agents=True)
-    payload = json.loads((tmp_path / "results" / "config.json").read_text(encoding="utf-8"))
+    from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
+
+    store = ArtifactStore(tmp_path / "run")
+    episodes = run_eval("small", 42, all_envs=True, all_agents=True, artifact_store=store)
+    payload = json.loads((store.run_dir / "results" / "config.json").read_text(encoding="utf-8"))
     cfg = payload["config"]
     assert len(episodes) == 210
-    assert cfg["environments"] == ["file_ops", "calendar_ops", "risk_ops"]
+    assert cfg["environments"] == ["calendar_ops", "file_ops", "risk_ops"]
     assert "conservative" in cfg["agents"]
     assert payload["normalized_config"] == cfg
     assert payload["operational_request"]["all_envs"] is True
     assert payload["operational_request"]["all_agents"] is True
-    assert not (tmp_path / "results" / "confidence_intervals.csv").exists()
-    assert not (tmp_path / "results" / "seed_summary.csv").exists()
+    assert not (store.run_dir / "results" / "confidence_intervals.csv").exists()
+    assert not (store.run_dir / "results" / "seed_summary.csv").exists()

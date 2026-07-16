@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import argparse
 import csv
-from pathlib import Path
 
+from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.core.config import load_config
-from tool_agent_shift_benchmark.core.serialization import write_csv
+from tool_agent_shift_benchmark.core.run_artifacts import prepare_run_dir
 from tool_agent_shift_benchmark.metrics.confidence import confidence_intervals
 from tool_agent_shift_benchmark.run_eval import run_eval
 
@@ -15,20 +15,33 @@ def _read_rows(path: str):
         return list(csv.DictReader(f))
 
 
-def run_seeds(config_path: str, all_envs: bool = False, all_agents: bool = False):
+def run_seeds(
+    config_path: str,
+    all_envs: bool = False,
+    all_agents: bool = False,
+    *,
+    artifact_store: ArtifactStore,
+):
     cfg = load_config(config_path)
     seeds = [int(s) for s in (cfg.get("seeds") or [42, 43, 44])]
     seed_rows = []
     for seed in seeds:
-        run_eval(config_path, seed=seed, all_envs=all_envs, all_agents=all_agents)
-        for row in _read_rows("results/summary.csv"):
+        seed_store = ArtifactStore(artifact_store.run_dir / "seed_runs" / f"seed-{seed}")
+        run_eval(
+            config_path,
+            seed=seed,
+            all_envs=all_envs,
+            all_agents=all_agents,
+            artifact_store=seed_store,
+        )
+        seed_store.finalize(command=["tasb", "run-seeds", "--seed", str(seed)])
+        for row in _read_rows(str(seed_store.run_dir / "results" / "summary.csv")):
             row = dict(row)
             row["seed"] = seed
             seed_rows.append(row)
-    Path("results").mkdir(exist_ok=True)
-    write_csv("results/seed_summary.csv", seed_rows)
+    artifact_store.write_csv("results/seed_summary.csv", seed_rows)
     ci_rows = confidence_intervals(seed_rows)
-    write_csv("results/confidence_intervals.csv", ci_rows)
+    artifact_store.write_csv("results/confidence_intervals.csv", ci_rows)
     return seed_rows, ci_rows
 
 
@@ -37,8 +50,16 @@ def main(argv=None):
     parser.add_argument("--config", default="seeds")
     parser.add_argument("--all-envs", action="store_true")
     parser.add_argument("--all-agents", action="store_true")
+    parser.add_argument("--run-name")
     args = parser.parse_args(argv)
-    seed_rows, ci_rows = run_seeds(args.config, all_envs=args.all_envs, all_agents=args.all_agents)
+    store = ArtifactStore(prepare_run_dir(args.run_name))
+    seed_rows, ci_rows = run_seeds(
+        args.config,
+        all_envs=args.all_envs,
+        all_agents=args.all_agents,
+        artifact_store=store,
+    )
+    store.finalize(command=["python", "-m", "tool_agent_shift_benchmark.run_seeds"])
     print(
         f"multi-seed episodes: {sum(int(float(r.get('episodes', 0))) for r in seed_rows)}; "
         f"seed rows: {len(seed_rows)}; ci rows: {len(ci_rows)}"
