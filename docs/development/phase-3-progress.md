@@ -13,7 +13,7 @@
 
 ## Current checkpoint
 
-Checkpoint 15 — CI — complete.
+Checkpoint 16 — CI and supply-chain hardening — complete.
 
 ## Checkpoint evidence
 
@@ -177,3 +177,25 @@ commit. The final section will retain baseline failures and remaining risks.
 - Local validation parsed the workflow YAML, checked all 35 Markdown files,
   and passed `git diff --check`. Security workflow and dependency automation
   are added next in Checkpoint 16.
+
+### Checkpoint 16 — CI and supply-chain hardening
+
+- Kept workflow default permissions at `contents: read`, while giving CodeQL
+  only its required `security-events: write`. Workflows do not use
+  `pull_request_target`, publishing, deployment credentials, or privileged
+  release paths, so untrusted fork pull requests cannot receive secrets.
+- Pinned every workflow action to a reviewed immutable SHA with its readable
+  release version beside it. Added Dependabot updates for pip, npm, and Actions;
+  a pull-request dependency-review workflow; and scheduled/push/PR Python
+  CodeQL analysis.
+- Added a locked `pip-audit` job and reproducible CycloneDX SBOM generation
+  beside the standard sdist/wheel build artifacts. A local audit of
+  `requirements/development.txt` with `pip-audit 2.10.1` reported no known
+  vulnerabilities at the time of validation.
+- Expanded `SECURITY.md` with lockfile, immutable-action, fork-PR, SBOM, secret
+  scanning, and push-protection expectations. The safe browser ZIP repair is
+  covered by traversal and executable-mode regression tests; shell commands in
+  repository scripts were also reviewed for quoted interpolation and do not
+  execute untrusted archive members.
+- Workflow YAML parses cleanly. The action-pinning/security tests, verifier
+  tests, docs checks, lint, formatting, and `git diff --check` passed.
