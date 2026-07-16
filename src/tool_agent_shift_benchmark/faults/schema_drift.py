@@ -1,46 +1,90 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from random import Random
+
+from tool_agent_shift_benchmark.core.schema_registry import (
+    SCHEMA_CHANGE_FAMILIES,
+    SCHEMA_REGISTRY,
+    SCHEMA_REGISTRY_CONTRACT,
+    apply_schema_delta,
+)
 
 from .base import BaseFault, clone_response
 
 
 class SchemaDriftFault(BaseFault):
     name = "schema_drift"
+    version = "3.0.0"
+    channel = "tool_schema"
+    mechanism = "versioned_schema_delta"
+    capabilities = (*BaseFault.capabilities, SCHEMA_REGISTRY_CONTRACT)
+
+    def __init__(self, severity: float = 1.0, family: str | None = None):
+        super().__init__(severity)
+        if family is not None and family not in SCHEMA_CHANGE_FAMILIES:
+            raise ValueError(f"unknown schema change family: {family!r}")
+        self.family = family
 
     def apply(self, response, env, rng: Random):
         if self.severity == 0.0:
             return self._record_only(
                 response,
-                self._effect("schema_incompatibility", 0.0, {"renamed_fields": [], "schema_changed": False}),
+                self._effect(
+                    "schema_delta",
+                    0.0,
+                    {
+                        "schema_changed": False,
+                        "source_schema": response.observation.schema_version,
+                        "target_schema": response.observation.schema_version,
+                        "change_families": [],
+                        "change_count": 0,
+                        "compatibility_class": "compatible",
+                        "renamed_fields": [],
+                    },
+                ),
             )
-        data = dict(response.observation.data)
-        primary_mapping = {
-            "file_ops": ("files", "items"),
-            "calendar_ops": ("availability", "slots"),
-            "risk_ops": ("market_state", "snapshot"),
-        }
-        candidates = [primary_mapping.get(response.observation.env_name), ("lifecycle", "workflow")]
-        present = [candidate for candidate in candidates if candidate is not None and candidate[0] in data]
-        rename_count = int(self.severity * len(present))
-        renamed_fields: list[str] = []
-        for source, destination in present[:rename_count]:
-            data[destination] = data.pop(source)
-            renamed_fields.append(f"{source}->{destination}")
+        families = (self.family,) if self.family is not None else None
+        delta = SCHEMA_REGISTRY.delta(
+            response.observation.env_name,
+            severity=self.severity,
+            rng=rng,
+            families=families,
+        )
+        data = apply_schema_delta(response.observation.data, delta)
+        renamed = [
+            f"{change.source_path}->{change.target_path}"
+            for change in delta.changes
+            if change.family in {"alias_rename", "nested_field_move"}
+        ]
         effect = self._effect(
-            "schema_incompatibility",
-            self.severity,
+            "schema_delta",
+            len(delta.changes) / len(SCHEMA_CHANGE_FAMILIES),
             {
                 "schema_changed": True,
-                "schema_version_before": response.observation.schema_version,
-                "schema_version_after": "v2_drifted",
-                "renamed_fields": renamed_fields,
-                "rename_fraction": rename_count / len(present) if present else 0.0,
+                "source_schema": delta.source_schema.version,
+                "target_schema": delta.target_schema.version,
+                "schema_delta_hash": delta.delta_hash,
+                "change_families": [change.family for change in delta.changes],
+                "change_count": len(delta.changes),
+                "maximum_change_count": len(SCHEMA_CHANGE_FAMILIES),
+                "compatibility_class": delta.compatibility_class,
+                "renamed_fields": renamed,
             },
         )
-        return clone_response(
+        schema_info = {
+            "contract": SCHEMA_REGISTRY_CONTRACT,
+            "source_schema": delta.source_schema.to_dict(),
+            "target_schema": delta.target_schema.to_dict(),
+            "schema_delta": delta.to_dict(),
+            "compatibility_class": delta.compatibility_class,
+        }
+        observation_metadata = self._record(response, effect)
+        observation_metadata["schema_info"] = schema_info
+        shifted = clone_response(
             response,
             data=data,
-            schema_version="v2_drifted",
-            metadata=self._record(response, effect),
+            schema_version=delta.target_schema.version,
+            metadata=observation_metadata,
         )
+        return replace(shifted, metadata={**response.metadata, "schema_info": schema_info})

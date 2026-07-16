@@ -1,4 +1,4 @@
-"""Typed, normalized scientific identity schema version 8."""
+"""Typed, normalized scientific identity schema version 9."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from tool_agent_shift_benchmark.core.catalog import PluginCatalog
     from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec
 
-IDENTITY_SCHEMA_VERSION = "8"
+IDENTITY_SCHEMA_VERSION = "9"
 SCENARIO_GENERATOR_NAME = "deterministic_synthetic_scenarios"
 SCENARIO_GENERATOR_VERSION = "2.1.0"
 EVALUATOR_NAME = "hidden_state_evaluator"
@@ -79,6 +79,7 @@ class StepSemanticsIdentity:
     maximum_steps: int
     requery_contract: str
     policy_memory_contract: str
+    schema_registry_contract: str
     clock_contract: str
     maximum_requeries_per_step: int
     termination_conditions: tuple[str, ...]
@@ -260,6 +261,7 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
     from tool_agent_shift_benchmark.core.fault_schedule import FAULT_SCHEDULE_CONTRACT, FaultSchedule
     from tool_agent_shift_benchmark.core.memory import POLICY_MEMORY_CONTRACT
     from tool_agent_shift_benchmark.core.requery import TOOL_REQUERY_CONTRACT
+    from tool_agent_shift_benchmark.core.schema_registry import SCHEMA_REGISTRY_CONTRACT
     from tool_agent_shift_benchmark.core.timing import CAUSAL_LATENCY_CONTRACT
 
     configured_schedules = spec.fault_schedules
@@ -322,6 +324,7 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
             spec.episode_steps,
             TOOL_REQUERY_CONTRACT,
             POLICY_MEMORY_CONTRACT,
+            SCHEMA_REGISTRY_CONTRACT,
             CAUSAL_LATENCY_CONTRACT,
             spec.requery_attempts,
             ("completed", "unsafe_action", "abstained", "budget_exhausted"),

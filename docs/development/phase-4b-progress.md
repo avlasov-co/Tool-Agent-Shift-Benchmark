@@ -15,7 +15,8 @@
 
 ## Current checkpoint
 
-Checkpoint 27 complete; Checkpoint 28 — schema-drift families (in progress).
+Checkpoints 27–28 complete; Checkpoint 29 — distinct fault mechanisms (in
+progress).
 
 ## Checkpoint evidence
 
@@ -52,14 +53,45 @@ Checkpoint 27 complete; Checkpoint 28 — schema-drift families (in progress).
   and 1,558 branches. Ruff lint/format, strict mypy, compilation, and
   `git diff --check` passed.
 
+### Checkpoint 28 — versioned schema-drift families
+
+- Added `tool-schema-registry-v1` with immutable source/target schemas, typed
+  fields, typed deltas, compatibility classes, stable schema/delta hashes, and
+  a deterministic reverse-adaptation result. Machine-readable schema
+  information is exposed only as declared `schema_info`; it contains schema
+  structure and migration operations, never hidden environment values or fault
+  labels.
+- Implemented all seven families in FileOps, CalendarOps, and RiskOps: additive
+  compatible fields, type widening, alias/rename, nested moves, unit changes,
+  required-field removal, and breaking type changes. Severity monotonically
+  selects one through seven change families; compatibility progresses from
+  `compatible` through `requires_adaptation` to `breaking`.
+- Added exact reverse migrations for compatible/repairable deltas. Numeric unit
+  and widening repairs reject booleans, strings, fractional integer values, and
+  tampered delta hashes rather than coercing them silently. Required removal and
+  breaking type changes explicitly return failed adaptation.
+- `ValidateThenActAgent` and `RetryAgent` consume only validated registry
+  deltas. They adapt compatible changes, explicitly repair aliases/nesting/
+  units, and fail closed on unsupported or tampered migrations. `SchemaMonitor`
+  allows valid compatible/repairable declarations and blocks breaking or
+  unknown drift.
+- Scientific identity advanced to schema `9` and binds
+  `tool-schema-registry-v1`. Schema drift is version `3.0.0`,
+  `ValidateThenActAgent` is `2.0.0`, `RetryAgent` is `4.0.0`, and the composite
+  monitor is `2.0.0`; identity-v2 through identity-v8 records remain readable.
+- Focused schema/agent/monitor/severity/requery tests passed 209 tests. The full
+  suite passed 418 tests. Branch coverage passed at 82.09% over 5,873 statements
+  and 1,736 branches. Ruff lint/format, strict mypy, compilation, and
+  `git diff --check` passed.
+
 ## Contract and schema ledger
 
 | Concern | Starting version | Phase 4B version |
 | --- | --- | --- |
-| Scientific identity | 7 | 8 |
+| Scientific identity | 7 | 9 |
 | Episode record | legacy aggregate | pending |
 | Policy memory | metadata hint only | `policy-memory-v1` |
-| Tool schema registry | none | pending |
+| Tool schema registry | none | `tool-schema-registry-v1` |
 | Fault channel/mechanism | implicit | pending |
 | Fault composition | schedules plus special case | pending |
 | Monitor composition | declared names only | pending |

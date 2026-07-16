@@ -109,7 +109,7 @@ def test_maximum_severity_effect_summaries_match_defined_endpoints() -> None:
 
     assert set(named_effect(schema, "schema_drift")["details"]["renamed_fields"]) == {
         "files->items",
-        "lifecycle->workflow",
+        "lifecycle.phase->lifecycle.state.phase",
     }
     missing_details = named_effect(missing, "missing_field")["details"]
     assert missing_details["removed_count"] == missing_details["candidate_count"]
@@ -210,5 +210,5 @@ def test_fault_effect_contract_and_fault_plugin_version_are_scientific_identity(
     assert coordinator.identity is not None
     assert coordinator.identity.semantic.fault_effect_contract == FAULT_EFFECT_CONTRACT
     descriptor = PluginCatalog(include_external=False).descriptor("shift", "schema_drift")
-    assert descriptor.version == "2.0.0"
+    assert descriptor.version == "3.0.0"
     assert FAULT_EFFECT_CONTRACT in descriptor.capabilities

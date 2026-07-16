@@ -209,7 +209,7 @@ def test_requery_budget_is_semantic_identity_and_builtin_capability() -> None:
     assert first_coordinator.identity is not None
     assert first_coordinator.identity.semantic.step_semantics.maximum_requeries_per_step == 1
     retry_descriptor = PluginCatalog(include_external=False).descriptor("agent", "retry")
-    assert retry_descriptor.version == "3.0.0"
+    assert retry_descriptor.version == "4.0.0"
     assert TOOL_REQUERY_CONTRACT in retry_descriptor.capabilities
 
 

@@ -4,6 +4,11 @@ from typing import Any
 
 from tool_agent_shift_benchmark.core.memory import POLICY_MEMORY_CONTRACT, MemoryOperation, MemoryWrite
 from tool_agent_shift_benchmark.core.requery import REQUERY_ACTION_TYPE, TOOL_REQUERY_CONTRACT
+from tool_agent_shift_benchmark.core.schema_registry import (
+    SCHEMA_REGISTRY_CONTRACT,
+    adapt_to_source_schema,
+    schema_delta_from_metadata,
+)
 from tool_agent_shift_benchmark.core.serialization import stable_hash
 from tool_agent_shift_benchmark.core.types import AgentAction, AgentDecision
 
@@ -12,8 +17,8 @@ from .base import BaseAgent
 
 class RetryAgent(BaseAgent):
     name = "retry"
-    version = "3.0.0"
-    capabilities = (TOOL_REQUERY_CONTRACT, POLICY_MEMORY_CONTRACT)
+    version = "4.0.0"
+    capabilities = (TOOL_REQUERY_CONTRACT, POLICY_MEMORY_CONTRACT, SCHEMA_REGISTRY_CONTRACT)
     stateful_memory = True
 
     def __init__(self) -> None:
@@ -27,13 +32,20 @@ class RetryAgent(BaseAgent):
     def decide(self, context, response):
         observation = response.observation
         data = observation.data
+        schema_adaptation = None
+        if observation.schema_version != "v1":
+            delta = schema_delta_from_metadata(response.metadata)
+            if delta is not None:
+                schema_adaptation = adapt_to_source_schema(data, delta)
+                if schema_adaptation.succeeded:
+                    data = schema_adaptation.data
         missing = [field for field in context.required_fields if field not in data]
         issues: list[str] = []
         if not response.ok or response.errors:
             issues.append("incomplete_observation")
         if missing and "incomplete_observation" not in issues:
             issues.append("incomplete_observation")
-        if observation.schema_version != "v1":
+        if observation.schema_version != "v1" and (schema_adaptation is None or not schema_adaptation.succeeded):
             issues.append("invalid_schema")
         if "conflicting_views" in data:
             issues.append("conflicting_output")
@@ -112,6 +124,7 @@ class RetryAgent(BaseAgent):
                     "remaining_requeries": remaining,
                     "missing": missing,
                     "clean_tool_bypass_prevented": True,
+                    "schema_adaptation": schema_adaptation.to_dict() if schema_adaptation is not None else None,
                 },
                 (memory_write,),
                 tuple(memory_operations),
@@ -132,6 +145,7 @@ class RetryAgent(BaseAgent):
                     "persistent_fault_suspected": repeated,
                     "clean_tool_bypass_prevented": True,
                     "safe_abstention": True,
+                    "schema_adaptation": schema_adaptation.to_dict() if schema_adaptation is not None else None,
                 },
                 (memory_write,),
                 tuple(memory_operations),
@@ -156,6 +170,7 @@ class RetryAgent(BaseAgent):
                 "retry": False,
                 "attempt_number": attempt_number,
                 "remaining_requeries": remaining,
+                "schema_adaptation": schema_adaptation.to_dict() if schema_adaptation is not None else None,
             },
             (memory_write,),
             tuple(memory_operations),

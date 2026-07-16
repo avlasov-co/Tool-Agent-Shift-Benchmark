@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from tool_agent_shift_benchmark.core.schema_registry import SCHEMA_REGISTRY_CONTRACT
 from tool_agent_shift_benchmark.core.types import MonitorDecision
 
 from .base import BaseMonitor
@@ -12,6 +13,8 @@ from .schema import SchemaMonitor
 
 class CompositeMonitor(BaseMonitor):
     name = "composite_monitor"
+    version = "2.0.0"
+    capabilities = (SCHEMA_REGISTRY_CONTRACT,)
 
     def __init__(self, monitors=None):
         self.monitors = monitors or [
