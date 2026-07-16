@@ -126,6 +126,7 @@ def test_operational_settings_do_not_change_scientific_identity() -> None:
         ({"fault_severities": [0.5]}, 42),
         ({"episodes_per_combo": 3}, 42),
         ({"episode_steps": 3}, 42),
+        ({"requery_attempts": 3}, 42),
         ({"monitor_policy": "record"}, 42),
         ({"scenario_generator_version": "3.0.0"}, 42),
         ({"scenario_schema_version": "v2"}, 42),
@@ -205,6 +206,8 @@ def test_identity_document_contains_required_typed_fields() -> None:
     assert semantic.fault_schedules[0].cadence == "each_step"
     assert semantic.oversight_treatment == "gate"
     assert semantic.step_semantics.maximum_steps == 2
+    assert semantic.step_semantics.requery_contract == "tool-requery-v1"
+    assert semantic.step_semantics.maximum_requeries_per_step == 2
     assert semantic.scenario_seed_streams.root_seed == 42
     assert semantic.scenario_seed_streams.algorithm == "sha256-domain-separated-63-v1"
     assert semantic.evaluator.name == "hidden_state_evaluator"

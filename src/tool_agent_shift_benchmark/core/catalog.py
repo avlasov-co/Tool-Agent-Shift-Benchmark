@@ -40,7 +40,8 @@ class PluginCatalog:
     def _add(self, kind: str, name: str, factory: Any, version: str = "1.0.0") -> None:
         if name in self._items[kind]:
             raise ValueError(f"duplicate {kind} plugin identifier: {name}")
-        descriptor = PluginDescriptor(kind, name, version=version)
+        capabilities = tuple(str(value) for value in getattr(factory, "capabilities", ()))
+        descriptor = PluginDescriptor(kind, name, version=version, capabilities=capabilities)
         if descriptor.contract_version != CONTRACT_VERSION:
             raise ValueError(f"incompatible contract version for {kind}:{name}")
         self._items[kind][name] = factory
@@ -48,7 +49,7 @@ class PluginCatalog:
 
     def _add_builtins(self) -> None:
         for name, value in AGENTS.items():
-            self._add("agent", name, value)
+            self._add("agent", name, value, version=str(getattr(value, "version", "1.0.0")))
         for name, value in BUILTIN_ENVIRONMENTS.items():
             self._add("environment", name, value)
         for name, value in FAULTS.items():

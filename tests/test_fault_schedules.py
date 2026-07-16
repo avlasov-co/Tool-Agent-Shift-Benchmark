@@ -136,7 +136,7 @@ def test_fault_schedule_is_part_of_semantic_and_episode_identity() -> None:
     first_item = next(item for item in first_planner.plan() if item.shift == "stale_observation")
     second_item = next(item for item in second_planner.plan() if item.shift == "stale_observation")
 
-    assert IDENTITY_SCHEMA_VERSION == "4"
+    assert int(IDENTITY_SCHEMA_VERSION) >= 4
     assert first_planner.run_id != second_planner.run_id
     assert first_item.episode_id != second_item.episode_id
     assert first_item.identity.fault_schedule_ids == tuple(

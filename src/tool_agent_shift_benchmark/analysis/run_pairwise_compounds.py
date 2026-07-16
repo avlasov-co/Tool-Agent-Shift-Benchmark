@@ -123,6 +123,7 @@ def _plan_fault_combo(
             "monitor": monitor,
             "evaluator": evaluator,
             "fault_schedule": schedule.to_dict(),
+            "requery_attempts": 2,
         },
         prefix="pairrun",
     )

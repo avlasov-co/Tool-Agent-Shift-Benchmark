@@ -18,7 +18,7 @@
 
 ## Current checkpoint
 
-Checkpoint 23 — fault schedules — complete; preparing Checkpoint 24.
+Checkpoint 24 — real retry and requery — complete; preparing Checkpoint 25.
 
 ## Checkpoint evidence
 
@@ -210,6 +210,47 @@ diagnostic checks remain visible here.
   passed (195 tests). Compilation, strict mypy, Ruff lint/format, and
   `git diff --check` passed after mechanical formatting and import ordering.
 
+### Checkpoint 24 — real retry and requery
+
+- Added versioned `tool-requery-v1` semantics. `AgentAction` can now represent
+  `requery_tool` as a policy decision that is neither an environment action nor
+  an abstention; targeted or abstaining requeries are rejected at construction.
+  RetryAgent advanced to component version `2.0.0` and declares this capability
+  in its plugin descriptor.
+- Added semantic config `requery_attempts` (default `2`) independently of the
+  pre-existing operational `retry_attempts`, which continues to govern whole-
+  episode infrastructure retries after plugin exceptions. The per-step requery
+  budget is part of step semantics and scientific identity advanced to schema
+  `5`; identity-v2 through identity-v4 episode records remain readable.
+- The runner now executes a bounded tool-attempt loop inside each lifecycle
+  step. Every attempt requests a new internal clean environment response, then
+  evaluates and composes the same current fault schedule before redaction. Only
+  the shifted, redacted response is passed to the agent or monitor; a requery
+  never calls `execute` or creates a state transition.
+- Each deterministic `ToolAttemptRecord` records step, attempt/max attempt,
+  stable call ID, decision and reason, outcome, unit tool cost, response
+  latency, and a hash of the policy-visible shifted response. Evaluator-only
+  provenance records the exact schedule evaluations and realized faults and
+  explicitly records that no clean response was exposed. Policy traces omit
+  this evaluator provenance.
+- Episode traces and metadata now report per-step attempt lists, total tool
+  calls, accepted requeries, tool cost units, and the enforced budget. A policy
+  that requests beyond the final attempt is converted to an explicit safe
+  `requery_budget_exhausted` abstention.
+- RetryAgent requests another shifted observation for incomplete observations,
+  invalid schema, and conflicting output. It fingerprints visible responses,
+  detects repetition and suspected persistent faults, can act when a later
+  response recovers, and safely abstains after exhaustion without retaining an
+  environment handle or accessing pristine state.
+- Tests prove every persistent-fault attempt has the same active schedule and
+  remains shifted, clean/evaluator provenance is absent from policy records,
+  retry counts are bounded even for a non-compliant agent, recovery and
+  repeated-response paths work, cost/latency/provenance are recorded, requery
+  budget changes scientific identity, and traces are byte-deterministic across
+  worker counts. Focused requery/config/identity tests passed (83 tests); the
+  full suite passed (207 tests). Compilation, strict mypy, Ruff lint/format,
+  and `git diff --check` passed.
+
 ## Contract versions
 
 - Starting identity schema: `2`.
@@ -218,8 +259,9 @@ diagnostic checks remain visible here.
 - Starting plugin contract: `1`.
 - Starting canonical serialization schema: `1`.
 - Starting scenario semantic label: `v1` (not a complete manifest schema).
-- Current identity and planned-identity schema: `4`.
+- Current identity and planned-identity schema: `5`.
 - Current fault-schedule contract: `fault-schedule-v2`.
+- Current tool-requery contract: `tool-requery-v1`.
 - Current scenario-manifest contract: `scenario-manifest-v2`.
 - Current step-lifecycle contract: `environment-state-machine-v2`.
 

@@ -98,6 +98,7 @@ def test_malformed_yaml_and_duplicate_keys_have_locations(tmp_path: Path) -> Non
         ({"fault_severities": [1.1]}, "$.fault_severities[0]"),
         ({"artifact_policy": "discard"}, "$.artifact_policy"),
         ({"retry_attempts": -1}, "$.retry_attempts"),
+        ({"requery_attempts": -1}, "$.requery_attempts"),
         ({"failure_policy": "ignore"}, "$.failure_policy"),
         ({"progress_display": "yes"}, "$.progress_display"),
         ({"execution_batch_size": 0}, "$.execution_batch_size"),

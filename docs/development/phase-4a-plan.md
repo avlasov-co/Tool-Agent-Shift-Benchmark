@@ -104,9 +104,10 @@ checkpoint.
   `start_step/end_step/cadence` to the richer schedule representation.
 - Identity advances from v2 to v3 when scenario content, pair identity, six
   seed streams, and lifecycle meaning become scientific inputs, then to v4
-  when exact fault schedules become semantic inputs. Stored identity-v2 and
-  identity-v3 episodes remain readable as legacy provenance but are not
-  silently relabeled as scheduled v4 units.
+  when exact fault schedules become semantic inputs, and to v5 when the bounded
+  per-step requery budget becomes part of policy semantics. Stored earlier
+  identity episodes remain readable as legacy provenance but are not silently
+  relabeled as scheduled/requery-capable v5 units.
 - Scenario manifests start at schema v2 because historical `v1` was a semantic
   label, not a complete reconstructible manifest contract. Explicit migration
   rules are recorded in code and documentation.

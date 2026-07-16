@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any, Dict, List, Optional
 
+from tool_agent_shift_benchmark.core.requery import REQUERY_ACTION_TYPE
 from tool_agent_shift_benchmark.core.serialization import canonical_dumps, register_dataclass
 from tool_agent_shift_benchmark.core.serialization import stable_hash as stable_hash
 
@@ -83,6 +84,12 @@ class AgentAction:
         _require_non_empty("action_type", self.action_type)
         if not self.abstain and self.action_type == "abstain":
             object.__setattr__(self, "abstain", True)
+        if self.action_type == REQUERY_ACTION_TYPE and (self.abstain or self.target is not None):
+            raise ValueError("a tool requery cannot abstain or target an environment resource")
+
+    @property
+    def is_requery(self) -> bool:
+        return self.action_type == REQUERY_ACTION_TYPE
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

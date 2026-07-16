@@ -70,6 +70,7 @@ ALLOWED_KEYS = frozenset(
         "monitor_modes",
         "failure_policy",
         "retry_attempts",
+        "requery_attempts",
         "artifact_policy",
         "episode_ids",
         "scenario_indices",
@@ -184,6 +185,7 @@ class ConfigV2:
     monitor_modes: tuple[str, ...]
     failure_policy: str
     retry_attempts: int
+    requery_attempts: int
     artifact_policy: str
     episode_ids: tuple[str, ...]
     scenario_indices: tuple[int, ...]
@@ -533,6 +535,7 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
     if failure_policy not in {"continue", "fail_fast"}:
         raise _error(source, "$.failure_policy", "must be 'continue' or 'fail_fast'")
     retry_attempts = _integer(root.get("retry_attempts", 0), source, "$.retry_attempts", minimum=0)
+    requery_attempts = _integer(root.get("requery_attempts", 2), source, "$.requery_attempts", minimum=0)
     artifact_policy = _string(root.get("artifact_policy", "bundle"), source, "$.artifact_policy")
     if artifact_policy not in {"bundle", "legacy", "both"}:
         raise _error(source, "$.artifact_policy", "must be 'bundle', 'legacy', or 'both'")
@@ -641,6 +644,7 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
         monitor_modes,
         failure_policy,
         retry_attempts,
+        requery_attempts,
         artifact_policy,
         episode_ids,
         scenario_indices,

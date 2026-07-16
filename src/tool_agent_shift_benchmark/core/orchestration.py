@@ -22,6 +22,11 @@ from tool_agent_shift_benchmark.core.identity import (
     build_experiment_identity,
 )
 from tool_agent_shift_benchmark.core.lifecycle import STEP_LIFECYCLE_CONTRACT, StateTransition
+from tool_agent_shift_benchmark.core.requery import (
+    TOOL_CALL_COST_UNITS,
+    TOOL_REQUERY_CONTRACT,
+    ToolAttemptRecord,
+)
 from tool_agent_shift_benchmark.core.scenarios import (
     ScenarioManifestError,
     ScenarioSpec,
@@ -35,6 +40,7 @@ from tool_agent_shift_benchmark.core.types import (
     AgentDecision,
     FaultConfig,
     MonitorDecision,
+    ToolResponse,
     stable_hash,
 )
 from tool_agent_shift_benchmark.monitors.composite import CompositeMonitor
@@ -79,6 +85,7 @@ class ExperimentSpec:
     monitor_policy: str = "gate"
     failure_policy: str = "continue"
     retry_attempts: int = 0
+    requery_attempts: int = 2
     monitor: str = "composite"
     artifact_policy: str = "bundle"
     scenario_indices: tuple[int, ...] = ()
@@ -95,6 +102,8 @@ class ExperimentSpec:
     def __post_init__(self) -> None:
         if self.workers <= 0:
             raise ValueError("workers must be positive")
+        if self.retry_attempts < 0 or self.requery_attempts < 0:
+            raise ValueError("retry and requery attempts must be non-negative")
         if any(index < 0 for index in self.scenario_indices):
             raise ValueError("scenario_indices must be non-negative")
         if self.selection_offset < 0:
@@ -162,6 +171,7 @@ class ExperimentSpec:
             monitor_policy=str(config.get("monitor_policy", "gate")),
             failure_policy=str(config.get("failure_policy", "continue")),
             retry_attempts=int(config.get("retry_attempts", 0)),
+            requery_attempts=int(config.get("requery_attempts", 2)),
             monitor=str(config.get("monitor", "composite")),
             artifact_policy=str(config.get("artifact_policy", "bundle")),
             scenario_indices=tuple(
@@ -566,6 +576,92 @@ class EpisodeRunner:
             descriptor=descriptor,
         )
 
+    def _observe_through_schedule(
+        self,
+        item: EpisodeSpec,
+        env_obj: Any,
+        *,
+        step: int,
+        attempt_number: int,
+        maximum_attempts: int,
+    ) -> tuple[ToolResponse, ToolResponse, list[dict[str, Any]], dict[str, Any]]:
+        clean = env_obj.tool_response()
+        self._validate_observation_identity(
+            item,
+            clean.observation.env_name,
+            clean.observation.scenario_id,
+            "environment_response",
+        )
+        shifted = clean
+        schedule_provenance: list[dict[str, Any]] = []
+        for schedule in item.fault_schedules:
+            provenance = {**schedule.provenance(step), "attempt_number": attempt_number}
+            schedule_provenance.append(provenance)
+            scheduled_severity = schedule.severity_at(step)
+            if scheduled_severity is None:
+                continue
+            for shift_index, name in enumerate(schedule.components):
+                shift_rng_seed = int(
+                    stable_hash(
+                        {
+                            "fault_behavior_seed": item.seed_streams.fault_behavior,
+                            "schedule_id": schedule.schedule_id,
+                            "step": step,
+                            "attempt_number": attempt_number,
+                            "shift_index": shift_index,
+                        },
+                        prefix="shift",
+                    ).split("_")[1],
+                    16,
+                ) % (2**63)
+                shift_obj = self.catalog.get("shift", name)(severity=scheduled_severity)
+                shifted = shift_obj.apply(shifted, env_obj, Random(shift_rng_seed))
+                self._validate_observation_identity(
+                    item,
+                    shifted.observation.env_name,
+                    shifted.observation.scenario_id,
+                    "shift_response",
+                )
+        shifted_observation_metadata = dict(shifted.observation.metadata)
+        shifted_observation_metadata["fault_schedule_provenance"] = schedule_provenance
+        shifted = replace(
+            shifted,
+            observation=replace(shifted.observation, metadata=shifted_observation_metadata),
+        )
+        policy_response = redact_response_for_policy(shifted)
+        visible_response_hash = stable_hash(policy_response.to_dict(), prefix="visible")
+        tool_call_id = stable_hash(
+            {
+                "contract": TOOL_REQUERY_CONTRACT,
+                "episode_id": item.episode_id,
+                "step": step,
+                "attempt_number": attempt_number,
+            },
+            prefix="call",
+        )
+        policy_requery_metadata = {
+            "contract": TOOL_REQUERY_CONTRACT,
+            "tool_call_id": tool_call_id,
+            "attempt_number": attempt_number,
+            "maximum_attempts": maximum_attempts,
+            "remaining_requeries": maximum_attempts - attempt_number,
+            "visible_response_hash": visible_response_hash,
+        }
+        policy_response = replace(
+            policy_response,
+            metadata={**policy_response.metadata, "requery": policy_requery_metadata},
+        )
+        shifted = replace(shifted, metadata={**shifted.metadata, "requery": policy_requery_metadata})
+        response_provenance = {
+            "source": "scheduled_shift_channel",
+            "tool_call_id": tool_call_id,
+            "visible_response_hash": visible_response_hash,
+            "schedule_evaluations": schedule_provenance,
+            "realized_faults": shifted.observation.metadata.get("faults", []),
+            "clean_response_exposed": False,
+        }
+        return shifted, policy_response, schedule_provenance, response_provenance
+
     def run(self, item: EpisodeSpec) -> Episode:
         env_obj = self.catalog.get("environment", item.environment)(
             seed=item.seed,
@@ -626,60 +722,72 @@ class EpisodeRunner:
         final_response = final_decision = final_execution = None
         stop_reason, failure_step, unsafe_steps = "budget_exhausted", "", 0
         state_transitions: list[dict[str, Any]] = []
+        total_tool_calls = 0
+        total_requeries = 0
+        total_tool_cost_units = 0
         for step in range(self.spec.episode_steps):
-            clean = env_obj.tool_response()
-            self._validate_observation_identity(
-                item,
-                clean.observation.env_name,
-                clean.observation.scenario_id,
-                "environment_response",
-            )
-            shifted = clean
-            schedule_provenance: list[dict[str, Any]] = []
-            for schedule in item.fault_schedules:
-                provenance = schedule.provenance(step)
-                schedule_provenance.append(provenance)
-                scheduled_severity = schedule.severity_at(step)
-                if scheduled_severity is None:
+            maximum_attempts = self.spec.requery_attempts + 1
+            policy_attempts: list[dict[str, Any]] = []
+            evaluator_attempts: list[dict[str, Any]] = []
+            for attempt_number in range(1, maximum_attempts + 1):
+                shifted, policy_response, schedule_provenance, response_provenance = self._observe_through_schedule(
+                    item,
+                    env_obj,
+                    step=step,
+                    attempt_number=attempt_number,
+                    maximum_attempts=maximum_attempts,
+                )
+                total_tool_calls += 1
+                total_tool_cost_units += TOOL_CALL_COST_UNITS
+                context = ObservationContext.from_environment(env_obj, policy_response.observation)
+                decision = agent_obj.decide(context, policy_response)
+                self._mismatch(
+                    item,
+                    field="decision.agent_name",
+                    expected=item.agent,
+                    actual=decision.agent_name,
+                    phase="agent_decision",
+                    descriptor=item.identity.agent,
+                )
+                requery_requested = decision.action.is_requery
+                can_requery = attempt_number < maximum_attempts
+                outcome = (
+                    "requery_requested"
+                    if requery_requested and can_requery
+                    else "requery_budget_exhausted"
+                    if requery_requested
+                    else "environment_action"
+                )
+                reason = decision.action.reason or ",".join(decision.reasons) or outcome
+                attempt_record = ToolAttemptRecord(
+                    contract=TOOL_REQUERY_CONTRACT,
+                    step=step,
+                    attempt_number=attempt_number,
+                    maximum_attempts=maximum_attempts,
+                    tool_call_id=str(policy_response.metadata["requery"]["tool_call_id"]),
+                    decision_type=decision.action.action_type,
+                    outcome=outcome,
+                    reason=reason,
+                    reasons=tuple(decision.reasons),
+                    tool_cost_units=TOOL_CALL_COST_UNITS,
+                    latency_ms=policy_response.latency_ms,
+                    visible_response_hash=str(policy_response.metadata["requery"]["visible_response_hash"]),
+                    response_provenance=response_provenance,
+                )
+                policy_attempts.append(attempt_record.policy_dict())
+                evaluator_attempts.append(attempt_record.to_dict())
+                if requery_requested and can_requery:
+                    total_requeries += 1
                     continue
-                for shift_index, name in enumerate(schedule.components):
-                    shift_rng_seed = int(
-                        stable_hash(
-                            {
-                                "fault_behavior_seed": item.seed_streams.fault_behavior,
-                                "schedule_id": schedule.schedule_id,
-                                "step": step,
-                                "shift_index": shift_index,
-                            },
-                            prefix="shift",
-                        ).split("_")[1],
-                        16,
-                    ) % (2**63)
-                    shift_obj = self.catalog.get("shift", name)(severity=scheduled_severity)
-                    shifted = shift_obj.apply(shifted, env_obj, Random(shift_rng_seed))
-                    self._validate_observation_identity(
-                        item,
-                        shifted.observation.env_name,
-                        shifted.observation.scenario_id,
-                        "shift_response",
+                if requery_requested:
+                    decision = AgentDecision(
+                        decision.agent_name,
+                        AgentAction("abstain", abstain=True, reason="requery_budget_exhausted"),
+                        decision.confidence,
+                        [*decision.reasons, "requery_budget_exhausted"],
+                        {**decision.metadata, "runner_enforced_requery_budget": True},
                     )
-            shifted_observation_metadata = dict(shifted.observation.metadata)
-            shifted_observation_metadata["fault_schedule_provenance"] = schedule_provenance
-            shifted = replace(
-                shifted,
-                observation=replace(shifted.observation, metadata=shifted_observation_metadata),
-            )
-            policy_response = redact_response_for_policy(shifted)
-            context = ObservationContext.from_environment(env_obj, policy_response.observation)
-            decision = agent_obj.decide(context, policy_response)
-            self._mismatch(
-                item,
-                field="decision.agent_name",
-                expected=item.agent,
-                actual=decision.agent_name,
-                phase="agent_decision",
-                descriptor=item.identity.agent,
-            )
+                break
             monitor_decision = (
                 getattr(agent_obj, "last_monitor_decision", None) if item.agent == "monitor_gated" else None
             )
@@ -731,6 +839,8 @@ class EpisodeRunner:
                     "monitor": monitor_decision.to_dict(),
                     "execution": execution.to_dict(),
                     "transition": transition.to_dict(),
+                    "attempt_count": len(policy_attempts),
+                    "attempts": policy_attempts,
                 }
             )
             score = evaluator.score(env_obj, action, execution)
@@ -739,6 +849,7 @@ class EpisodeRunner:
                     "step": step,
                     "shift_provenance": shifted.observation.metadata.get("faults", []),
                     "fault_schedule_provenance": schedule_provenance,
+                    "tool_attempts": evaluator_attempts,
                     **score,
                 }
             )
@@ -778,6 +889,11 @@ class EpisodeRunner:
                 "shared_across_treatments": True,
             },
             "fault_schedules": [schedule.to_dict() for schedule in item.fault_schedules],
+            "requery_contract": TOOL_REQUERY_CONTRACT,
+            "maximum_requeries_per_step": self.spec.requery_attempts,
+            "total_tool_calls": total_tool_calls,
+            "total_requeries": total_requeries,
+            "total_tool_cost_units": total_tool_cost_units,
             "episode_steps": self.spec.episode_steps,
             "steps_taken": len(step_trace),
             "multi_step": len(step_trace) > 1,
