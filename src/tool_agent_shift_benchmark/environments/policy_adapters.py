@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from tool_agent_shift_benchmark.core.immutability import freeze_mapping
 from tool_agent_shift_benchmark.core.policy_adapter import BasePolicyAdapter
 from tool_agent_shift_benchmark.core.types import AgentAction, Observation
 
@@ -46,7 +47,11 @@ class FileOpsPolicyAdapter(BasePolicyAdapter):
         files = observation.data.get("files")
         if not isinstance(files, (list, tuple)):
             return ()
-        return tuple(dict(item) for item in files if isinstance(item, Mapping))
+        return tuple(
+            freeze_mapping(item, path="$.policy_adapter.visible_candidates[]")
+            for item in files
+            if isinstance(item, Mapping)
+        )
 
     def validate_observation_data(self, data: Mapping[str, Any]) -> tuple[str, ...]:
         issues = [f"missing:{name}" for name in self.required_fields if name not in data]
@@ -176,7 +181,11 @@ class CalendarOpsPolicyAdapter(BasePolicyAdapter):
         slots = observation.data.get("availability")
         if not isinstance(slots, (list, tuple)):
             return ()
-        return tuple(dict(item) for item in slots if isinstance(item, Mapping))
+        return tuple(
+            freeze_mapping(item, path="$.policy_adapter.visible_candidates[]")
+            for item in slots
+            if isinstance(item, Mapping)
+        )
 
     def validate_observation_data(self, data: Mapping[str, Any]) -> tuple[str, ...]:
         issues = [f"missing:{name}" for name in self.required_fields if name not in data]
@@ -296,7 +305,12 @@ class RiskOpsPolicyAdapter(BasePolicyAdapter):
         state = observation.data.get("market_state")
         if not isinstance(state, Mapping):
             return ()
-        return ({"market_state": dict(state), "exposure": observation.data.get("exposure")},)
+        return (
+            freeze_mapping(
+                {"market_state": state, "exposure": observation.data.get("exposure")},
+                path="$.policy_adapter.visible_candidates[]",
+            ),
+        )
 
     def validate_observation_data(self, data: Mapping[str, Any]) -> tuple[str, ...]:
         issues = [f"missing:{name}" for name in self.required_fields if name not in data]

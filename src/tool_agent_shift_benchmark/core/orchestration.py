@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from dataclasses import field as dataclass_field
@@ -749,7 +750,7 @@ class EpisodeRunner:
                         MemoryCorruptionRequest(schedule.schedule_id, scheduled_severity, shift_rng_seed)
                     )
             lifecycle = shifted.observation.data.get("lifecycle")
-            lifecycle_phase = str(lifecycle.get("phase", "unknown")) if isinstance(lifecycle, dict) else "unknown"
+            lifecycle_phase = str(lifecycle.get("phase", "unknown")) if isinstance(lifecycle, Mapping) else "unknown"
             policy_adapter = env_obj.policy_adapter(shifted.observation)
             shift_context = ShiftContext.create(
                 step_index=step,

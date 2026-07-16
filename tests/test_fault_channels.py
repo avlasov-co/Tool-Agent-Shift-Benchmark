@@ -154,7 +154,7 @@ def test_stale_data_unsafe_outcome_is_not_automatically_a_constraint_violation()
     assert result.unsafe
     assert result.stale_data_action
     assert not result.constraint_violation
-    assert result.unsafe_reasons == ["acted_on_stale_directory_listing"]
+    assert result.unsafe_reasons == ("acted_on_stale_directory_listing",)
 
 
 def test_fault_channel_contract_is_bound_into_scientific_identity() -> None:
@@ -172,6 +172,6 @@ def test_fault_channel_contract_is_bound_into_scientific_identity() -> None:
     )
     coordinator.run()
 
-    assert IDENTITY_SCHEMA_VERSION == "19"
+    assert IDENTITY_SCHEMA_VERSION == "20"
     assert coordinator.identity is not None
     assert coordinator.identity.semantic.fault_channel_contract == FAULT_CHANNEL_CONTRACT

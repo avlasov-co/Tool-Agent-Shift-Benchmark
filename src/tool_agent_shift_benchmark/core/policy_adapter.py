@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
+from tool_agent_shift_benchmark.core.immutability import freeze_mapping
 from tool_agent_shift_benchmark.core.serialization import canonicalize, register_dataclass
 from tool_agent_shift_benchmark.core.types import AgentAction, Observation
 
@@ -42,10 +43,7 @@ class BasePolicyAdapter:
             ("task_metadata", self.task_metadata),
             ("action_schema", self.action_schema),
         ):
-            normalized = canonicalize(value, path=f"$.policy_adapter.{label}")
-            if not isinstance(normalized, dict):
-                raise ValueError(f"policy adapter {label} must be a mapping")
-            object.__setattr__(self, label, normalized)
+            object.__setattr__(self, label, freeze_mapping(value, path=f"$.policy_adapter.{label}"))
         required = tuple(str(value) for value in self.required_fields)
         if any(not value for value in required) or len(required) != len(set(required)):
             raise ValueError("policy adapter required fields must be unique non-empty strings")

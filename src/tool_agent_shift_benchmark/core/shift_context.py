@@ -4,21 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from random import Random
-from types import MappingProxyType
 from typing import Any, Mapping
 
+from tool_agent_shift_benchmark.core.immutability import freeze_mapping
 from tool_agent_shift_benchmark.core.serialization import canonicalize, register_dataclass
 
 SHIFT_CONTEXT_SCHEMA_VERSION = "shift-context-v1"
-
-
-def _freeze(value: Any) -> Any:
-    normalized = canonicalize(value)
-    if isinstance(normalized, dict):
-        return MappingProxyType({key: _freeze(item) for key, item in normalized.items()})
-    if isinstance(normalized, list):
-        return tuple(_freeze(item) for item in normalized)
-    return normalized
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,9 +40,7 @@ class ShiftContext:
             "fault_schedule",
             "channel_metadata",
         ):
-            frozen = _freeze(getattr(self, field_name))
-            if not isinstance(frozen, Mapping):
-                raise ValueError(f"shift context {field_name} must be a mapping")
+            frozen = freeze_mapping(getattr(self, field_name), path=f"$.shift_context.{field_name}")
             object.__setattr__(self, field_name, frozen)
 
     @classmethod

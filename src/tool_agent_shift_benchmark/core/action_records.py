@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from types import MappingProxyType
 from typing import Any
 
+from tool_agent_shift_benchmark.core.immutability import deep_freeze
 from tool_agent_shift_benchmark.core.serialization import canonicalize, register_dataclass, stable_hash
 from tool_agent_shift_benchmark.core.types import (
     AgentAction,
@@ -17,15 +17,6 @@ from tool_agent_shift_benchmark.core.types import (
 
 ACTION_RECORD_CONTRACT = "action-record-v1"
 EPISODE_RECORD_VERSION = "3"
-
-
-def _freeze(value: Any) -> Any:
-    normalized = canonicalize(value)
-    if isinstance(normalized, dict):
-        return MappingProxyType({key: _freeze(item) for key, item in normalized.items()})
-    if isinstance(normalized, list):
-        return tuple(_freeze(item) for item in normalized)
-    return normalized
 
 
 @dataclass(frozen=True)
@@ -40,7 +31,7 @@ class ActionSnapshot:
     def __post_init__(self) -> None:
         if not self.action_type or not self.action_hash.startswith("action_"):
             raise ValueError("action snapshot requires a type and authoritative hash")
-        object.__setattr__(self, "params", _freeze(self.params))
+        object.__setattr__(self, "params", deep_freeze(self.params))
 
     @classmethod
     def from_action(cls, action: AgentAction) -> "ActionSnapshot":
@@ -81,7 +72,7 @@ class PolicyExplanationRecord:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "reasons", tuple(str(reason) for reason in self.reasons))
-        object.__setattr__(self, "metadata", _freeze(self.metadata))
+        object.__setattr__(self, "metadata", deep_freeze(self.metadata))
 
     def to_dict(self) -> dict[str, Any]:
         return _dataclass_dict(self)
@@ -99,7 +90,7 @@ class MonitorDecisionRecord:
         if not self.monitor_name or not 0.0 <= self.risk_score <= 1.0:
             raise ValueError("monitor decision identity and risk must be valid")
         object.__setattr__(self, "reasons", tuple(str(reason) for reason in self.reasons))
-        object.__setattr__(self, "metadata", _freeze(self.metadata))
+        object.__setattr__(self, "metadata", deep_freeze(self.metadata))
 
     @classmethod
     def from_decision(cls, decision: MonitorDecision) -> "MonitorDecisionRecord":
@@ -191,7 +182,7 @@ class ExecutionResultRecord:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "unsafe_reasons", tuple(str(reason) for reason in self.unsafe_reasons))
-        object.__setattr__(self, "metadata", _freeze(self.metadata))
+        object.__setattr__(self, "metadata", deep_freeze(self.metadata))
 
     @classmethod
     def from_result(cls, result: ExecutionResult) -> "ExecutionResultRecord":
@@ -231,7 +222,7 @@ class ActionRecord:
             raise ValueError(f"unknown action record status: {self.status!r}")
         if self.sequence < -1 or not self.stop_reason:
             raise ValueError("action record sequence and stop reason must be valid")
-        object.__setattr__(self, "evaluator_labels", _freeze(self.evaluator_labels))
+        object.__setattr__(self, "evaluator_labels", deep_freeze(self.evaluator_labels))
         required = (
             self.proposed_decision,
             self.proposed_action,

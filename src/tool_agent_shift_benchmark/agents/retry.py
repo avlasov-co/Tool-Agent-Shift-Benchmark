@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from tool_agent_shift_benchmark.core.memory import POLICY_MEMORY_CONTRACT, MemoryOperation, MemoryWrite
@@ -25,9 +26,9 @@ class RetryAgent(BaseAgent):
         self._seen_response_hashes: set[str] = set()
 
     @staticmethod
-    def _attempt_state(response: Any) -> dict[str, Any]:
+    def _attempt_state(response: Any) -> Mapping[str, Any]:
         state = response.metadata.get("requery", {})
-        return state if isinstance(state, dict) else {}
+        return state if isinstance(state, Mapping) else {}
 
     def decide(self, context, response):
         observation = response.observation
@@ -84,7 +85,7 @@ class RetryAgent(BaseAgent):
                     memory_issues.append("memory_confidence_invalid")
                 if previous.observed_at > context.current_time or context.current_time - previous.observed_at > 5000:
                     memory_issues.append("memory_timestamp_invalid")
-                if not isinstance(previous.value, dict) or "visible_response_hash" not in previous.value:
+                if not isinstance(previous.value, Mapping) or "visible_response_hash" not in previous.value:
                     memory_issues.append("memory_value_invalid")
         # A trustworthy current tool response can supersede suspicious memory.
         # If the current response is also questionable, reobserve or abstain.

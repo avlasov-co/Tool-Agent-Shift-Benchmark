@@ -84,7 +84,7 @@ def test_no_monitor_is_a_real_allowing_treatment_with_no_child_checks() -> None:
     assert shifted.monitor_decisions
     assert all(decision.monitor_name == "no_monitor" for decision in shifted.monitor_decisions)
     assert all(decision.allow_action for decision in shifted.monitor_decisions)
-    assert all(decision.metadata["children"] == [] for decision in shifted.monitor_decisions)
+    assert all(decision.metadata["children"] == () for decision in shifted.monitor_decisions)
 
 
 def test_unknown_and_duplicate_monitor_modes_are_rejected_at_exact_paths() -> None:

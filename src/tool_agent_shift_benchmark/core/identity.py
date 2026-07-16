@@ -1,4 +1,4 @@
-"""Typed, normalized scientific identity schema version 19."""
+"""Typed, normalized scientific identity schema version 20."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Mapping
 
 from tool_agent_shift_benchmark.core.action_records import ACTION_RECORD_CONTRACT, EPISODE_RECORD_VERSION
 from tool_agent_shift_benchmark.core.counterfactual import COUNTERFACTUAL_EVALUATION_CONTRACT
+from tool_agent_shift_benchmark.core.immutability import POLICY_DATA_IMMUTABILITY_CONTRACT
 from tool_agent_shift_benchmark.core.monitoring import (
     MONITOR_COMPOSITION_CONTRACT,
     MonitorCompositionDescriptor,
@@ -33,7 +34,7 @@ if TYPE_CHECKING:
     from tool_agent_shift_benchmark.core.catalog import PluginCatalog
     from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec
 
-IDENTITY_SCHEMA_VERSION = "19"
+IDENTITY_SCHEMA_VERSION = "20"
 SCENARIO_GENERATOR_NAME = "deterministic_synthetic_scenarios"
 SCENARIO_GENERATOR_VERSION = "3.0.0"
 EVALUATOR_NAME = "hidden_state_evaluator"
@@ -104,6 +105,7 @@ class StepSemanticsIdentity:
     version: str
     environment_policy_adapter_contract: str
     shift_context_schema_version: str
+    policy_data_immutability_contract: str
     maximum_steps: int
     requery_contract: str
     policy_memory_contract: str
@@ -415,6 +417,7 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
             STEP_SEMANTICS_VERSION,
             ENVIRONMENT_POLICY_ADAPTER_CONTRACT,
             SHIFT_CONTEXT_SCHEMA_VERSION,
+            POLICY_DATA_IMMUTABILITY_CONTRACT,
             spec.episode_steps,
             TOOL_REQUERY_CONTRACT,
             POLICY_MEMORY_CONTRACT,

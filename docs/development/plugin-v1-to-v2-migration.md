@@ -44,6 +44,16 @@ Factories must have a stable declared name and be non-abstract. Descriptor
 identity, configuration schema/hash, and capability declarations must match the
 implementation. Duplicate names and partial implementations fail registration.
 
+## Immutable policy data
+
+Contract-v2 policy code must treat all inputs as immutable. Observation data,
+constraints, metadata, action parameters, adapter schemas/candidates, and
+memory values implement read-only `Mapping` interfaces; JSON arrays are
+tuples. Do not require concrete `dict`/`list` types or mutate input aliases.
+Create an explicit local copy with canonical serialization when mutable
+scratch data is needed. Returned actions and decisions are defensively copied
+and recursively frozen by their typed constructors.
+
 ## Entry-point migration
 
 Entry-point packages must publish non-executable v2 descriptor metadata and an

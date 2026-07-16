@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from tool_agent_shift_benchmark.core.serialization import stable_hash
@@ -11,7 +12,7 @@ def shift_context(environment: Any, response: Any, seed: int, *, step: int = 0) 
 
     adapter = environment.policy_adapter(response.observation)
     lifecycle = response.observation.data.get("lifecycle")
-    phase = str(lifecycle.get("phase", "unknown")) if isinstance(lifecycle, dict) else "unknown"
+    phase = str(lifecycle.get("phase", "unknown")) if isinstance(lifecycle, Mapping) else "unknown"
     return ShiftContext.create(
         step_index=step,
         attempt_number=1,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from tool_agent_shift_benchmark.core.types import MonitorDecision
 
 from .base import BaseMonitor
@@ -11,9 +13,9 @@ class ConsistencyMonitor(BaseMonitor):
     def check(self, env, observation, action):
         reasons = []
         conflict = observation.data.get("conflicting_views")
-        sources = conflict.get("sources", []) if isinstance(conflict, dict) else []
-        source_ids = [source.get("source_id") for source in sources if isinstance(source, dict)]
-        reliabilities = [float(source.get("reliability", 0.0)) for source in sources if isinstance(source, dict)]
+        sources = conflict.get("sources", ()) if isinstance(conflict, Mapping) else ()
+        source_ids = [source.get("source_id") for source in sources if isinstance(source, Mapping)]
+        reliabilities = [float(source.get("reliability", 0.0)) for source in sources if isinstance(source, Mapping)]
         if conflict:
             reasons.append("conflicting_tool_output")
         return MonitorDecision(

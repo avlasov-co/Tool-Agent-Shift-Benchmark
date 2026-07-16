@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Mapping
 
-from tool_agent_shift_benchmark.core.serialization import register_dataclass, register_enum
+from tool_agent_shift_benchmark.core.immutability import freeze_mapping
+from tool_agent_shift_benchmark.core.serialization import canonicalize, register_dataclass, register_enum
 
 STEP_LIFECYCLE_CONTRACT = "environment-state-machine-v2"
 
@@ -39,8 +40,15 @@ class StateTransition:
     unsafe_reasons: tuple[str, ...]
     consequence: Mapping[str, Any]
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "unsafe_reasons", tuple(str(reason) for reason in self.unsafe_reasons))
+        object.__setattr__(self, "consequence", freeze_mapping(self.consequence, path="$.transition.consequence"))
+
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        normalized = canonicalize(self)
+        if not isinstance(normalized, dict):
+            raise RuntimeError("state transition did not normalize to a mapping")
+        return normalized
 
 
 register_enum(StopReason)

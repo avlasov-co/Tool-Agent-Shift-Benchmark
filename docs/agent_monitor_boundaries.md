@@ -40,6 +40,20 @@ The synthetic environment still performs hidden scoring through `execute(...)` a
 
 This means a monitor may allow an action that looks safe from visible data, while the hidden evaluator later marks it unsafe. That is not a bug. That is the point of testing agents under stale, missing, conflicting, or shifted observations.
 
+## Recursive immutability
+
+The `policy-data-immutability-v1` boundary defensively copies and recursively
+freezes observations, constraints, metadata, action schemas, visible
+candidates, action parameters, decisions, monitor inputs/results, and policy
+memory. Mappings are read-only and arrays are tuples; top-level frozen
+dataclasses do not contain mutable nested dictionaries or lists. `to_dict()`
+and canonical serialization thaw into fresh JSON-shaped dictionaries/lists,
+so serialization stays deterministic without returning a runtime alias.
+
+`tests/test_deep_immutability.py` covers nested mapping/list mutation, original
+alias mutation, shared references across episodes, a malicious agent followed
+by a verifying monitor, and one malicious monitor followed by another monitor.
+
 ## Regression coverage
 
 `tests/test_context.py` checks that the context exposes no hidden evaluator

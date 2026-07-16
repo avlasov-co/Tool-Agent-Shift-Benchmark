@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
-from tool_agent_shift_benchmark.core.serialization import register_dataclass
+from tool_agent_shift_benchmark.core.immutability import freeze_mapping
+from tool_agent_shift_benchmark.core.serialization import canonicalize, register_dataclass
 
 TOOL_REQUERY_CONTRACT = "tool-requery-v1"
 REQUERY_ACTION_TYPE = "requery_tool"
@@ -26,7 +28,7 @@ class ToolAttemptRecord:
     tool_cost_units: int
     latency_ms: int
     visible_response_hash: str
-    response_provenance: dict[str, Any]
+    response_provenance: Mapping[str, Any]
 
     def __post_init__(self) -> None:
         if self.contract != TOOL_REQUERY_CONTRACT:
@@ -37,9 +39,17 @@ class ToolAttemptRecord:
             raise ValueError("maximum attempts must cover the recorded attempt")
         if self.tool_cost_units < 0 or self.latency_ms < 0:
             raise ValueError("tool attempt cost and latency must be non-negative")
+        object.__setattr__(
+            self,
+            "response_provenance",
+            freeze_mapping(self.response_provenance, path="$.tool_attempt.response_provenance"),
+        )
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        normalized = canonicalize(self)
+        if not isinstance(normalized, dict):
+            raise RuntimeError("tool attempt did not normalize to a mapping")
+        return normalized
 
     def policy_dict(self) -> dict[str, Any]:
         """Return attempt data without evaluator-only schedule provenance."""

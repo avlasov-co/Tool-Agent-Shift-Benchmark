@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from tool_agent_shift_benchmark.core.schema_registry import SCHEMA_REGISTRY_CONTRACT, schema_delta_from_metadata
 from tool_agent_shift_benchmark.core.types import MonitorDecision
 
@@ -19,7 +21,7 @@ class SchemaMonitor(BaseMonitor):
             delta = schema_delta_from_metadata(observation.metadata)
             if (
                 delta is None
-                or not isinstance(schema_info, dict)
+                or not isinstance(schema_info, Mapping)
                 or schema_info.get("contract") != SCHEMA_REGISTRY_CONTRACT
             ):
                 reasons.append(f"schema_version:{observation.schema_version}")

@@ -19,7 +19,8 @@
 
 ## Current checkpoint
 
-Checkpoints 36–38 are complete. Checkpoint 39 — deep immutability — is next.
+Checkpoints 36–39 are complete. Checkpoint 40 — lazy plugin discovery — is
+next.
 
 ## Checkpoint evidence
 
@@ -119,6 +120,37 @@ commit identifiers will be recorded here before every checkpoint commit.
   after compilation. Branch coverage passes at 81.96% over 7,352 statements
   and 2,218 branches. Ruff lint/format, strict mypy, and `git diff --check`
   pass.
+
+### Checkpoint 39 — deep immutability
+
+- Added `policy-data-immutability-v1` and a single canonical defensive-freeze
+  utility. It first canonicalizes into an alias-free copy, then recursively
+  exposes mappings as read-only mapping proxies and sequences as tuples.
+  Canonical serialization returns fresh ordinary dictionaries and lists.
+- Observation data/constraints/metadata, response metadata/errors, action
+  parameters, agent and monitor reasons/metadata, execution records, policy
+  memory values, adapter schemas/constraints/task metadata/candidates, policy
+  traces, tool-attempt provenance, action records, shift contexts, and plugin
+  descriptor schema/metadata now freeze in their constructors. Frozen
+  dataclasses no longer retain mutable nested aliases.
+- Updated agents and monitors to consume the documented `Mapping`/tuple
+  surface. Policy adapter result values are re-frozen by `ObservationContext`,
+  providing a defensive boundary even for a custom adapter implementation.
+  Records containing immutable mappings serialize through canonicalization
+  instead of `dataclasses.asdict`, which cannot safely copy mapping proxies.
+- Scientific identity advances from schema 19 to 20 and binds
+  `policy-data-immutability-v1` in step semantics; identity-v2 through
+  identity-v19 reads remain accepted.
+- Added four adversarial cases covering original-alias mutation, nested mapping
+  mutation, list mutation, schema/constraint/candidate mutation, action and
+  memory mutation, a malicious agent followed by a verifying monitor across
+  two episodes, and a malicious monitor followed by a second monitor. Every
+  mutation is denied and later plugins/episodes retain their original values.
+  The tests also prove immutable runtime values serialize deterministically to
+  ordinary JSON shapes.
+- The full suite passes 519 tests after compilation. Branch coverage passes at
+  82.05% over 7,428 statements and 2,228 branches. Ruff lint/format, strict
+  mypy, and `git diff --check` pass.
 
 ## Terminal validation
 

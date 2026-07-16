@@ -57,7 +57,7 @@ def test_compatible_schema_changes_adapt_back_to_the_source(environment_type: ty
 
     assert delta.compatibility_class == "compatible"
     assert result.succeeded
-    assert result.data == clean.observation.data
+    assert canonical_dumps(result.data) == canonical_dumps(clean.observation.data)
 
 
 @pytest.mark.parametrize("environment_type", ENVIRONMENTS)
@@ -72,7 +72,7 @@ def test_repairable_schema_changes_have_explicit_reverse_migrations(environment_
     assert delta.compatibility_class == "requires_adaptation"
     assert result.status == "repaired"
     assert result.repairs == (family,)
-    assert result.data == clean.observation.data
+    assert canonical_dumps(result.data) == canonical_dumps(clean.observation.data)
 
 
 def test_validating_agent_repairs_declared_alias_and_acts() -> None:

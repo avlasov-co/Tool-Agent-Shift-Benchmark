@@ -25,6 +25,6 @@ class ConservativeAbstentionAgent(BaseAgent):
                 self.name,
                 AgentAction("abstain", abstain=True, reason="conservative_uncertainty"),
                 0.98,
-                uncertainty + reasons,
+                uncertainty + list(reasons),
             )
         return AgentDecision(self.name, candidate, 0.65, ["low_uncertainty"])

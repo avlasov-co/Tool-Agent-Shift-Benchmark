@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Any, Dict, List, Mapping, Tuple
+from typing import Any, Mapping
 
+from tool_agent_shift_benchmark.core.immutability import deep_freeze
 from tool_agent_shift_benchmark.core.memory import PolicyMemoryView
 from tool_agent_shift_benchmark.core.policy_adapter import BasePolicyAdapter, validate_policy_adapter
 from tool_agent_shift_benchmark.core.serialization import canonicalize, register_dataclass
@@ -127,7 +128,7 @@ class ObservationContext:
         return self.policy_adapter.environment_name
 
     @property
-    def required_fields(self) -> Tuple[str, ...]:
+    def required_fields(self) -> tuple[str, ...]:
         return self.policy_adapter.required_fields
 
     @property
@@ -147,17 +148,25 @@ class ObservationContext:
         return self.policy_adapter.action_schema
 
     def visible_candidates(self, observation: Observation) -> tuple[Mapping[str, Any], ...]:
-        return self.policy_adapter.visible_candidates(observation)
+        candidates = deep_freeze(
+            self.policy_adapter.visible_candidates(observation),
+            path="$.observation_context.visible_candidates",
+        )
+        if not isinstance(candidates, tuple) or any(not isinstance(item, Mapping) for item in candidates):
+            raise ValueError("policy adapter visible candidates must be a sequence of mappings")
+        return candidates
 
-    def recommended_action(self, data: Dict[str, Any]) -> AgentAction:
+    def recommended_action(self, data: Mapping[str, Any]) -> AgentAction:
         return self.policy_adapter.recommend_action(data)
 
-    def validate_observation_data(self, data: Dict[str, Any]) -> List[str]:
-        return list(self.policy_adapter.validate_observation_data(data))
+    def validate_observation_data(self, data: Mapping[str, Any]) -> tuple[str, ...]:
+        return tuple(self.policy_adapter.validate_observation_data(data))
 
-    def validate_action(self, action: AgentAction, observation: Observation | None = None) -> Tuple[bool, List[str]]:
+    def validate_action(
+        self, action: AgentAction, observation: Observation | None = None
+    ) -> tuple[bool, tuple[str, ...]]:
         allowed, reasons = self.policy_adapter.validate_action(action, observation)
-        return allowed, list(reasons)
+        return allowed, tuple(reasons)
 
     def abstain(self, reason: str) -> AgentAction:
         return self.policy_adapter.abstain(reason)

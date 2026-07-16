@@ -14,6 +14,7 @@ from enum import Enum
 from typing import Any, ClassVar, Mapping, Protocol, runtime_checkable
 
 from tool_agent_shift_benchmark.core.context import ObservationContext
+from tool_agent_shift_benchmark.core.immutability import deep_freeze, freeze_mapping
 from tool_agent_shift_benchmark.core.serialization import (
     canonicalize,
     register_dataclass,
@@ -146,9 +147,17 @@ class PluginDescriptor:
         metadata = canonicalize(self.metadata, path="$.metadata")
         if not isinstance(metadata, dict):
             raise ValueError("plugin descriptor metadata must be a mapping")
-        object.__setattr__(self, "configuration_schema", schema)
+        object.__setattr__(
+            self,
+            "configuration_schema",
+            freeze_mapping(schema, path="$.plugin_descriptor.configuration_schema"),
+        )
         object.__setattr__(self, "capabilities", capabilities)
-        object.__setattr__(self, "metadata", metadata)
+        object.__setattr__(
+            self,
+            "metadata",
+            freeze_mapping(metadata, path="$.plugin_descriptor.metadata"),
+        )
 
     @classmethod
     def for_factory(
@@ -240,6 +249,9 @@ class ShiftResult:
     response: ToolResponse
     provenance: Mapping[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "provenance", freeze_mapping(self.provenance, path="$.shift_result.provenance"))
+
 
 @dataclass(frozen=True)
 class PolicyTraceVisible:
@@ -248,6 +260,9 @@ class PolicyTraceVisible:
     episode_id: str
     steps: tuple[Mapping[str, Any], ...] = ()
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "steps", tuple(deep_freeze(step) for step in self.steps))
+
 
 @dataclass(frozen=True)
 class EvaluatorTrace:
@@ -255,6 +270,9 @@ class EvaluatorTrace:
 
     episode_id: str
     steps: tuple[Mapping[str, Any], ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "steps", tuple(deep_freeze(step) for step in self.steps))
 
     def to_dict(self) -> dict[str, Any]:
         return {"episode_id": self.episode_id, "steps": [canonicalize(step) for step in self.steps]}
@@ -433,6 +451,20 @@ class OrchestrationError:
     actual: Any = None
     plugin_descriptor: Mapping[str, Any] | None = None
     action_record: Mapping[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        if self.plugin_descriptor is not None:
+            object.__setattr__(
+                self,
+                "plugin_descriptor",
+                freeze_mapping(self.plugin_descriptor, path="$.orchestration_error.plugin_descriptor"),
+            )
+        if self.action_record is not None:
+            object.__setattr__(
+                self,
+                "action_record",
+                freeze_mapping(self.action_record, path="$.orchestration_error.action_record"),
+            )
 
     def to_dict(self) -> dict[str, Any]:
         normalized = canonicalize(self)

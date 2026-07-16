@@ -130,7 +130,7 @@ def test_runner_gives_malicious_shift_only_the_documented_context() -> None:
         }
     identity = coordinator.identity
     assert identity is not None
-    assert identity.schema_version == IDENTITY_SCHEMA_VERSION == "19"
+    assert identity.schema_version == IDENTITY_SCHEMA_VERSION == "20"
     assert identity.semantic.step_semantics.shift_context_schema_version == SHIFT_CONTEXT_SCHEMA_VERSION
     provenance = episodes[0].tool_response.observation.metadata["fault_schedule_provenance"]
     assert all(item["shift_context_schema_version"] == SHIFT_CONTEXT_SCHEMA_VERSION for item in provenance)

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass, replace
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
 from random import Random
 from typing import Any, Iterable
 
+from tool_agent_shift_benchmark.core.immutability import deep_freeze, freeze_mapping
 from tool_agent_shift_benchmark.core.serialization import canonicalize, register_dataclass, stable_hash
 
 POLICY_MEMORY_CONTRACT = "policy-memory-v1"
@@ -39,10 +41,10 @@ class MemoryWrite:
             or not 0.0 <= float(self.confidence) <= 1.0
         ):
             raise ValueError("memory write confidence must be finite and in [0, 1]")
-        canonicalize(self.value, path="$.memory_write.value")
+        object.__setattr__(self, "value", deep_freeze(self.value, path="$.memory_write.value"))
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return _memory_dict(self)
 
 
 @dataclass(frozen=True)
@@ -56,7 +58,7 @@ class MemoryOperation:
             raise ValueError(f"unknown memory operation: {self.operation!r}")
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return _memory_dict(self)
 
 
 @dataclass(frozen=True)
@@ -68,6 +70,9 @@ class MemoryEntry:
     written_step: int
     confidence: float
     content_hash: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "value", deep_freeze(self.value, path="$.memory_entry.value"))
 
     @classmethod
     def from_write(cls, write: MemoryWrite, *, step: int) -> "MemoryEntry":
@@ -82,7 +87,7 @@ class MemoryEntry:
         return cls(**payload, content_hash=stable_hash(payload, prefix="mem"))
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return _memory_dict(self)
 
 
 @dataclass(frozen=True)
@@ -106,7 +111,7 @@ class PolicyMemoryView:
         return next((entry for entry in self.entries if entry.key == key), None)
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return _memory_dict(self)
 
 
 @dataclass(frozen=True)
@@ -115,15 +120,26 @@ class MemoryCorruptionRecord:
     target: str
     before_hash: str
     after_hash: str | None
-    policy_visible_before: dict[str, Any]
-    policy_visible_after: dict[str, Any] | None
+    policy_visible_before: Mapping[str, Any]
+    policy_visible_after: Mapping[str, Any] | None
 
     def __post_init__(self) -> None:
         if self.corruption_type not in MEMORY_CORRUPTION_TYPES:
             raise ValueError(f"unknown memory corruption type: {self.corruption_type!r}")
+        object.__setattr__(
+            self,
+            "policy_visible_before",
+            freeze_mapping(self.policy_visible_before, path="$.memory_corruption.policy_visible_before"),
+        )
+        if self.policy_visible_after is not None:
+            object.__setattr__(
+                self,
+                "policy_visible_after",
+                freeze_mapping(self.policy_visible_after, path="$.memory_corruption.policy_visible_after"),
+            )
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return _memory_dict(self)
 
 
 @dataclass(frozen=True)
@@ -153,6 +169,13 @@ class MemoryCorruptionRequest:
     schedule_id: str
     severity: float
     rng_seed: int
+
+
+def _memory_dict(value: Any) -> dict[str, Any]:
+    normalized = canonicalize(value)
+    if not isinstance(normalized, dict):
+        raise RuntimeError("memory record did not normalize to a mapping")
+    return normalized
 
 
 def _rehash(entry: MemoryEntry) -> MemoryEntry:
