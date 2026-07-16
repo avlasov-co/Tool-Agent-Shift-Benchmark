@@ -6,7 +6,6 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from dataclasses import field as dataclass_field
 from pathlib import Path
-from random import Random
 from typing import Any
 
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
@@ -14,6 +13,7 @@ from tool_agent_shift_benchmark.core.context import ObservationContext, redact_r
 from tool_agent_shift_benchmark.core.contracts import IdentityMismatchError, OrchestrationError, PluginDescriptor
 from tool_agent_shift_benchmark.core.episode import Episode
 from tool_agent_shift_benchmark.core.evaluator import HiddenStateEvaluator
+from tool_agent_shift_benchmark.core.fault_composition import FAULT_COMPOSITION_CONTRACT, compose_fault_chain
 from tool_agent_shift_benchmark.core.fault_effects import FAULT_EFFECT_CONTRACT
 from tool_agent_shift_benchmark.core.fault_schedule import FaultSchedule
 from tool_agent_shift_benchmark.core.identity import (
@@ -39,7 +39,7 @@ from tool_agent_shift_benchmark.core.scenarios import (
     read_scenario_manifest,
     write_scenario_manifest,
 )
-from tool_agent_shift_benchmark.core.seeding import EpisodeSeedStreams, episode_seed_streams
+from tool_agent_shift_benchmark.core.seeding import EpisodeSeedStreams, derive_seed, episode_seed_streams
 from tool_agent_shift_benchmark.core.serialization import canonical_loads, write_json
 from tool_agent_shift_benchmark.core.timing import CAUSAL_LATENCY_CONTRACT, ResponseTiming
 from tool_agent_shift_benchmark.core.types import (
@@ -607,6 +607,7 @@ class EpisodeRunner:
         )
         shifted = clean
         schedule_provenance: list[dict[str, Any]] = []
+        fault_compositions: list[dict[str, Any]] = []
         memory_requests: list[MemoryCorruptionRequest] = []
         for schedule in item.fault_schedules:
             component_channels = []
@@ -624,32 +625,51 @@ class EpisodeRunner:
             scheduled_severity = schedule.severity_at(step)
             if scheduled_severity is None:
                 continue
-            for shift_index, name in enumerate(schedule.components):
-                shift_rng_seed = int(
-                    stable_hash(
-                        {
-                            "fault_behavior_seed": item.seed_streams.fault_behavior,
-                            "schedule_id": schedule.schedule_id,
-                            "step": step,
-                            "attempt_number": attempt_number,
-                            "shift_index": shift_index,
-                        },
-                        prefix="shift",
-                    ).split("_")[1],
-                    16,
-                ) % (2**63)
+            applications: list[tuple[str, Any, int]] = []
+            occurrences: dict[str, int] = {}
+            for name in schedule.components:
+                occurrence = occurrences.get(name, 0)
+                occurrences[name] = occurrence + 1
+                shift_rng_seed = derive_seed(
+                    item.seed_streams.root_seed,
+                    "fault_behavior",
+                    {
+                        "scenario_generation": item.seed_streams.scenario_generation,
+                        "environment": item.environment,
+                        "scenario_index": item.scenario_index,
+                        "agent": item.agent,
+                        "component": name,
+                        "component_occurrence": occurrence,
+                        "configured_severity": schedule.configured_severity,
+                        "onset_step": schedule.onset_step,
+                        "duration": schedule.duration,
+                        "persistence": schedule.persistence,
+                        "recurrence": schedule.recurrence,
+                        "per_step_severity": schedule.per_step_severity,
+                        "step": step,
+                        "attempt_number": attempt_number,
+                    },
+                )
                 shift_obj = self.catalog.get("shift", name)(severity=scheduled_severity)
-                shifted = shift_obj.apply(shifted, env_obj, Random(shift_rng_seed))
+                applications.append((name, shift_obj, shift_rng_seed))
                 if getattr(shift_obj, "channel", "tool_response") == "policy_memory":
                     memory_requests.append(
                         MemoryCorruptionRequest(schedule.schedule_id, scheduled_severity, shift_rng_seed)
                     )
-                self._validate_observation_identity(
-                    item,
-                    shifted.observation.env_name,
-                    shifted.observation.scenario_id,
-                    "shift_response",
-                )
+            shifted, composition = compose_fault_chain(
+                shifted,
+                env_obj,
+                applications,
+                schedule_id=schedule.schedule_id,
+                scheduled_severity=scheduled_severity,
+            )
+            fault_compositions.append(composition.to_dict())
+            self._validate_observation_identity(
+                item,
+                shifted.observation.env_name,
+                shifted.observation.scenario_id,
+                "shift_response",
+            )
         shifted_observation_metadata = dict(shifted.observation.metadata)
         shifted_observation_metadata["fault_schedule_provenance"] = schedule_provenance
         shifted = replace(
@@ -701,6 +721,7 @@ class EpisodeRunner:
             "tool_call_id": tool_call_id,
             "visible_response_hash": visible_response_hash,
             "schedule_evaluations": schedule_provenance,
+            "fault_compositions": fault_compositions,
             "realized_faults": shifted.observation.metadata.get("faults", []),
             "timing": timing.to_dict(),
             "clean_response_exposed": False,
@@ -984,6 +1005,7 @@ class EpisodeRunner:
             },
             "fault_schedules": [schedule.to_dict() for schedule in item.fault_schedules],
             "fault_effect_contract": FAULT_EFFECT_CONTRACT,
+            "fault_composition_contract": FAULT_COMPOSITION_CONTRACT,
             "configured_fault_severity": item.severity,
             "fault_effects": fault_effects,
             "fault_effect_applications": len(fault_effects),

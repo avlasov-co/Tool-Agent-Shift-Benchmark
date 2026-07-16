@@ -20,7 +20,12 @@ Configured fault severity must be finite and within `[0, 1]`. `0.0` is policy-eq
 | `conflicting_tool_output` | A severity fraction of top-level fields differs across sources | Second source omits all candidate fields; `conflicting_fields` and `conflict_fraction` |
 | `corrupted_memory` | One to three ordered misleading claims | Three claims; `corrupted_claims` and `corruption_amount` |
 | `constraint_shift` | Proportional numeric deltas plus declared thresholded categorical changes | Maximum environment-specific relaxation; exact `constraint_deltas` |
-| `compound_shift` | Composes stale, missing, conflict, and latency effects at the same severity | Maximum of component realized magnitudes plus per-component summaries |
+| ordered `shift_chains` | Composes any declared fault components at the scheduled severity, preserving exact order | Component effects plus input/output and policy-visible intermediate hashes |
+
+`compound_shift` remains readable as a deprecated compatibility alias for the
+historical stale → missing → conflict → latency chain. New configurations use
+ordinary ordered `shift_chains`; no component order is canonicalized unless a
+future mechanism supplies a proof of commutativity.
 
 Effect details are deterministic scientific records, not policy hints. They remain in evaluator traces and episode metadata and are stripped from every agent/monitor input.
 

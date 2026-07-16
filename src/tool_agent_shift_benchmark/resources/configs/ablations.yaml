@@ -35,4 +35,13 @@ faults:
   - conflicting_tool_output
   - corrupted_memory
   - constraint_shift
-  - compound_shift
+shift_chains:
+  - [normal]
+  - [schema_drift]
+  - [stale_observation]
+  - [latency_spike]
+  - [missing_field]
+  - [conflicting_tool_output]
+  - [corrupted_memory]
+  - [constraint_shift]
+  - [stale_observation, missing_field, conflicting_tool_output, latency_spike]

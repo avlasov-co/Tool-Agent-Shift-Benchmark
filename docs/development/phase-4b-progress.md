@@ -15,7 +15,7 @@
 
 ## Current checkpoint
 
-Checkpoints 27–29 complete; Checkpoint 30 — generic ordered compound shifts (in
+Checkpoints 27–30 complete; Checkpoint 31 — monitor ablation treatments (in
 progress).
 
 ## Checkpoint evidence
@@ -116,16 +116,46 @@ progress).
   6,078 statements and 1,806 branches. Ruff lint/format, strict mypy,
   compilation, and `git diff --check` passed.
 
+### Checkpoint 30 — generic ordered compound shifts
+
+- Added `fault-composition-v1` as the sole runtime application path for active
+  fault schedules. Single components, arbitrary ordered chains, overlapping
+  schedules, and pairwise compound analysis now all use the same composer.
+- Every application records its schedule ID, exact declared order, scheduled
+  severity, local component seed, evaluator-response input/output hashes,
+  policy-visible output hash, effect hash, and a composition hash. Adjacent
+  component hashes form a contiguous chain. Composition provenance remains in
+  evaluator attempts and is absent from policy traces.
+- Component RNG seeds are derived independently of containing-chain name and
+  position while remaining bound to scenario, agent, schedule window/profile,
+  component occurrence, step, and attempt. Matched single and compound cells
+  therefore share component realizations without sharing mutable RNG state.
+- No component order is canonicalized: all registered mechanisms are treated
+  as non-commutative until a future contract proves otherwise. Scientific
+  identity already preserves chain order and now advances to schema `11` to
+  bind `fault-composition-v1`; identity-v2 through identity-v10 reads remain
+  supported.
+- Replaced `compound_shift` in packaged experiment matrices with an explicit
+  stale → missing → conflict → latency `shift_chain`. The historical component
+  remains a version `4.0.0`, explicitly deprecated compatibility alias and
+  delegates its fixed chain through the generic composer.
+- Tests prove schema→missing differs from missing→schema, latency and staleness
+  compose causally, component histories reproduce exactly, intermediate hashes
+  are contiguous, and matched singles/compounds share the intended seeds and
+  first-component outputs. The full suite passed 461 tests. Branch coverage
+  passed at 82.11% over 6,172 statements and 1,832 branches. Ruff lint/format,
+  strict mypy, compilation, and `git diff --check` passed.
+
 ## Contract and schema ledger
 
 | Concern | Starting version | Phase 4B version |
 | --- | --- | --- |
-| Scientific identity | 7 | 10 |
+| Scientific identity | 7 | 11 |
 | Episode record | legacy aggregate | pending |
 | Policy memory | metadata hint only | `policy-memory-v1` |
 | Tool schema registry | none | `tool-schema-registry-v1` |
 | Fault channel/mechanism | implicit | `fault-channel-v1` |
-| Fault composition | schedules plus special case | pending |
+| Fault composition | schedules plus special case | `fault-composition-v1` |
 | Monitor composition | declared names only | pending |
 | Oversight treatment | `record` / `gate` | pending |
 | Counterfactual evaluator | none | pending |

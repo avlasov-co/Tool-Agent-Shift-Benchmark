@@ -168,6 +168,6 @@ def test_fault_channel_contract_is_bound_into_scientific_identity() -> None:
     )
     coordinator.run()
 
-    assert IDENTITY_SCHEMA_VERSION == "10"
+    assert IDENTITY_SCHEMA_VERSION == "11"
     assert coordinator.identity is not None
     assert coordinator.identity.semantic.fault_channel_contract == FAULT_CHANNEL_CONTRACT

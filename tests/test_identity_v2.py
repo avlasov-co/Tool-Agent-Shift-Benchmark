@@ -207,6 +207,7 @@ def test_identity_document_contains_required_typed_fields() -> None:
     assert semantic.fault_effect_contract == "fault-effect-v1"
     assert semantic.shift_chains[0][0].version == "3.0.0"
     assert semantic.fault_channel_contract == "fault-channel-v1"
+    assert semantic.fault_composition_contract == "fault-composition-v1"
     assert semantic.oversight_treatment == "gate"
     assert semantic.step_semantics.maximum_steps == 2
     assert semantic.step_semantics.requery_contract == "tool-requery-v1"

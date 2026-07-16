@@ -61,14 +61,18 @@ The score is only a sorting helper. The component metrics remain the evidence.
 
 ## Compound-shift comparison
 
-The compound-shift matrix compares the existing fixed `compound_shift` fault against clean and worst single-fault rows when those rows are available in `results/summary.csv`.
+The legacy compound-shift matrix can compare historical fixed `compound_shift`
+rows against clean and worst single-fault rows when those rows are available in
+`results/summary.csv`. New experiments represent compounds as explicit ordered
+`shift_chains` and record their full composition histories.
 
 This is post-hoc comparison, not a new pairwise fault injector. For explicit pairwise fault generation, use the pairwise compound experiment below.
 
 
 ## Pairwise compound experiment
 
-The analysis runner above compares the existing fixed `compound_shift` rows when they are already present in `results/summary.csv`. For an explicit pairwise experiment, run:
+The analysis runner above accepts legacy fixed `compound_shift` rows when they
+are already present in `results/summary.csv`. For an explicit pairwise ordered-chain experiment, run:
 
 ```bash
 python -m tool_agent_shift_benchmark.analysis.run_pairwise_compounds --config compound_matrix
