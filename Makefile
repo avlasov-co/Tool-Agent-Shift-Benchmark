@@ -1,6 +1,6 @@
 PYTHON ?= python3
 
-.PHONY: setup lint format format-check typecheck test coverage audit small full plots report repro clean seeds sweep architecture
+.PHONY: setup lint format format-check typecheck test coverage audit distribution-smoke small full plots report repro clean seeds sweep architecture
 
 setup:
 	$(PYTHON) -m pip install --require-hashes -r requirements/development.txt
@@ -49,6 +49,9 @@ architecture:
 
 audit:
 	$(PYTHON) -m tool_agent_shift_benchmark.audit
+
+distribution-smoke:
+	$(PYTHON) scripts/distribution_smoke.py --python $(PYTHON)
 
 repro:
 	bash scripts/run_repro.sh

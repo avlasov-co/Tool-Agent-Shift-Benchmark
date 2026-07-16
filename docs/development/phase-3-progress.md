@@ -13,7 +13,7 @@
 
 ## Current checkpoint
 
-Checkpoint 12 — reproducible dependencies — complete.
+Checkpoint 13 — isolated distribution testing — complete.
 
 ## Checkpoint evidence
 
@@ -100,3 +100,27 @@ commit. The final section will retain baseline failures and remaining risks.
   Mermaid CLI `11.12.0` and Puppeteer browsers `2.7.1`. `make setup`, lint,
   formatting, focused strict mypy, tests, `pip check`, and `git diff --check`
   passed.
+
+### Checkpoint 13 — isolated distribution testing
+
+- Added `scripts/distribution_smoke.py` and `make distribution-smoke`. The
+  driver copies source to a sanitized temporary directory before asking the
+  standard PEP 517 backend to produce one sdist and one wheel, so builds never
+  mutate or clean the active checkout.
+- Archive inspection rejects VCS metadata, virtual environments, caches,
+  bytecode, macOS metadata, local results/figures/runs, `node_modules`, stale
+  egg-info, undeclared Python package roots, and missing packaged config,
+  policy, or HTML-template resources.
+- Each artifact is independently installed into a fresh virtual environment
+  from an empty working directory with `PYTHONPATH` removed. The driver first
+  installs the reviewed development lock, then installs the artifact with
+  `--no-deps`; it verifies import location and resource access, both CLI entry
+  points, config listing/validation, planning, a minimal run, analysis, HTML
+  reporting, and `pip check`.
+- Added focused archive-inspection tests. The full `make distribution-smoke
+  PYTHON=.venv/bin/python` command built and independently exercised both
+  `tool_agent_shift_benchmark-0.3.0.tar.gz` and its wheel. A first Make-target
+  run exposed a virtualenv-symlink bug in the driver; preserving the selected
+  venv executable path fixed it before this checkpoint's successful run.
+- `ruff check`, formatting, focused strict mypy, 156 tests, `pip check`, and
+  `git diff --check` passed. CI integration follows in Checkpoint 15.
