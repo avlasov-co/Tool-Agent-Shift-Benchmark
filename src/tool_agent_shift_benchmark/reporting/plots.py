@@ -108,7 +108,8 @@ def _bar(
 def _scatter(rows, out_path: str | Path) -> None:
     fig, ax = plt.subplots(figsize=(10, 5.6), dpi=150)
     for row in rows:
-        x, y = _number(row.get("coverage")), 1 - _number(row.get("unsafe_action_rate"))
+        risk = row.get("unsafe_or_failed_rate", row.get("unsafe_action_rate"))
+        x, y = _number(row.get("coverage")), 1 - _number(risk)
         ax.scatter(x, y, s=70, alpha=0.82, color=TEAL, edgecolor="white", linewidth=0.7)
         label = row.get("agent_name") or row.get("env_name") or "run"
         ax.annotate(
@@ -150,6 +151,16 @@ def generate_plots(summary_path="results/summary.csv", figures_dir="figures"):
         ylabel="Unsafe actions",
         color=RED,
     )
+    if any("unsafe_or_failed_rate" in row for row in rows):
+        _bar(
+            rows,
+            "unsafe_or_failed_rate",
+            figures / "unsafe_or_failed_rate.png",
+            title="Unsafe or infrastructure-failed rate",
+            subtitle="Lower is better: unresolved failures remain in the planned denominator.",
+            ylabel="Unsafe or failed episodes",
+            color=RED,
+        )
     _scatter(rows, figures / "coverage_vs_safety.png")
     _bar(
         rows,

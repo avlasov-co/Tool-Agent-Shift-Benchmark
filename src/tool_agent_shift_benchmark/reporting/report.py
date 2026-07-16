@@ -18,7 +18,16 @@ def _rows(path):
                 for line in structured.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
-            return aggregate(episodes)
+            errors_path = p.parent / "orchestration_errors.jsonl"
+            errors = []
+            if errors_path.exists():
+                errors = [
+                    canonical_loads(line)
+                    for line in errors_path.read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ]
+                errors = [value for value in errors if "planned_episode" in value]
+            return aggregate(episodes, errors)
     if not p.exists():
         return []
     with p.open("r", encoding="utf-8") as f:
@@ -35,14 +44,18 @@ def generate_markdown_report(summary_path="results/summary.csv", out_path="docs/
     config_path = results_dir / "config.json"
     if config_path.exists():
         cfg = canonical_loads(config_path.read_text(encoding="utf-8"))
+
+    def risk(row):
+        return float(row.get("unsafe_or_failed_rate", row.get("unsafe_action_rate", 0)) or 0)
+
     best = sorted(
         rows,
         key=lambda r: (
-            float(r.get("unsafe_action_rate", 0) or 0),
+            risk(r),
             -float(r.get("safe_useful_action_rate", 0) or 0),
         ),
     )[:8]
-    worst = sorted(rows, key=lambda r: float(r.get("unsafe_action_rate", 0) or 0), reverse=True)[:5]
+    worst = sorted(rows, key=risk, reverse=True)[:5]
     lines = [
         "# Experimental Report",
         "",
@@ -59,14 +72,15 @@ def generate_markdown_report(summary_path="results/summary.csv", out_path="docs/
         "",
         "## Summary table",
         "",
-        "| environment | agent | fault | severity | unsafe | coverage | safe useful |",
-        "|---|---|---|---:|---:|---:|---:|",
+        "| environment | agent | fault | severity | unsafe/failed | infra failures | coverage | safe useful |",
+        "|---|---|---|---:|---:|---:|---:|---:|",
     ]
     for r in best:
         lines.append(
             f"| {r.get('env_name')} | {r.get('agent_name')} | {r.get('fault_name')} | "
             f"{float(r.get('fault_severity', 1) or 1):.2f} | "
-            f"{float(r.get('unsafe_action_rate', 0) or 0):.3f} | "
+            f"{risk(r):.3f} | "
+            f"{float(r.get('infrastructure_failures', 0) or 0):.0f} | "
             f"{float(r.get('coverage', 0) or 0):.3f} | "
             f"{float(r.get('safe_useful_action_rate', 0) or 0):.3f} |"
         )
@@ -75,7 +89,7 @@ def generate_markdown_report(summary_path="results/summary.csv", out_path="docs/
         lines.append(
             f"- {r.get('env_name')} / {r.get('agent_name')} / {r.get('fault_name')} "
             f"severity {r.get('fault_severity')}: "
-            f"unsafe={float(r.get('unsafe_action_rate', 0) or 0):.3f}"
+            f"unsafe_or_failed={risk(r):.3f}"
         )
     lines += [
         "",
@@ -86,6 +100,9 @@ def generate_markdown_report(summary_path="results/summary.csv", out_path="docs/
         "- **Unsafe action rate / constraint violation rate / unsafe step rate:** lower values mean fewer unsafe "
         "decisions. Episode-level violation rate counts whether an episode failed at least once; step rate measures "
         "how often unsafe behavior occurred across the rollout.",
+        "- **Unsafe-or-failed rate:** treats infrastructure-failed planned episodes as unresolved risk while keeping "
+        "them distinct from unsafe actions. It is the primary report ranking so a crashed configuration cannot "
+        "appear safer by disappearing from completed episodes.",
         "- **Coverage vs. safety:** each point is one configuration. Points farther right complete more useful work; "
         "points higher up have a higher safe-action rate. The desirable region is the upper-right corner.",
         "- **Monitor recall:** higher values mean the monitor catches more genuinely unsafe cases. Recall alone does "

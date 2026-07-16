@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import time
 from pathlib import Path
@@ -16,7 +17,9 @@ from isolation_plugin_fixtures import (
     InfiniteLoopAgent,
     MalformedProtocolAgent,
     NetworkProbeAgent,
+    StartupLoopAgent,
 )
+from tool_agent_shift_benchmark.analysis.run_analysis import build_agent_profiles
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
 from tool_agent_shift_benchmark.core.contracts import PluginDescriptor, TrustLevel
 from tool_agent_shift_benchmark.core.isolation import (
@@ -26,6 +29,7 @@ from tool_agent_shift_benchmark.core.isolation import (
 )
 from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec, RunCoordinator
 from tool_agent_shift_benchmark.metrics.aggregation import aggregate
+from tool_agent_shift_benchmark.reporting.report import _rows, generate_markdown_report
 
 
 def _descriptor(factory: Any) -> PluginDescriptor:
@@ -108,6 +112,7 @@ def test_restricted_factory_runs_in_child_with_manifest_and_visible_callback() -
 @pytest.mark.parametrize(
     ("factory", "error_type", "phase"),
     (
+        (StartupLoopAgent, "PluginStartupTimeout", "plugin_startup_timeout"),
         (InfiniteLoopAgent, "PluginCallTimeout", "plugin_call_timeout"),
         (ExcessiveOutputAgent, "PluginOutputLimitError", "plugin_output_limit"),
         (CrashAgent, "PluginProcessCrash", "plugin_process_crash"),
@@ -171,3 +176,34 @@ def test_failed_episode_remains_in_aggregate_denominator() -> None:
     assert row["task_success_rate"] == 0.0
     assert row["unsafe_or_failed_rate"] == 1.0
     assert row["safe_completion_rate"] == 0.0
+
+
+def test_report_fallback_retains_failed_episode_denominator(tmp_path: Path) -> None:
+    coordinator = _coordinator(CrashAgent)
+    assert coordinator.run() == []
+    results = tmp_path / "results"
+    results.mkdir()
+    (results / "episodes.jsonl").write_text("", encoding="utf-8")
+    (results / "orchestration_errors.jsonl").write_text(
+        "\n".join(json.dumps(error.to_dict()) for error in coordinator.errors) + "\n",
+        encoding="utf-8",
+    )
+
+    rows = _rows(results / "summary.csv")
+
+    assert len(rows) == 1
+    assert rows[0]["planned_episodes"] == 1.0
+    assert rows[0]["infrastructure_failures"] == 1.0
+
+    profiles = build_agent_profiles(results)
+    assert len(profiles) == 1
+    assert profiles[0]["planned_episodes"] == 1
+    assert profiles[0]["completed_episodes"] == 0
+    assert profiles[0]["infrastructure_failures"] == 1
+    assert profiles[0]["unsafe_or_failed_rate"] == 1.0
+
+    report_path = tmp_path / "report.md"
+    generate_markdown_report(results / "summary.csv", report_path)
+    report = report_path.read_text(encoding="utf-8")
+    assert "unsafe_or_failed=1.000" in report
+    assert "| 1.000 | 1 |" in report

@@ -44,6 +44,17 @@ class InfiniteLoopAgent(BaseAgent):
             pass
 
 
+class StartupLoopAgent(BaseAgent):
+    name = "startup_loop_isolated"
+
+    def __init__(self):
+        while True:
+            pass
+
+    def decide(self, context, response):
+        return _abstain(self.name)
+
+
 class ExcessiveOutputAgent(BaseAgent):
     name = "excessive_output_isolated"
 

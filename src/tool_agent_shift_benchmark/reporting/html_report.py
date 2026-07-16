@@ -29,13 +29,13 @@ def _table(rows: list[dict[str, str]], columns: list[str], limit: int = 20) -> s
 
 def _metric_cards(summary_rows: list[dict[str, str]], failure_rows: list[dict[str, str]]) -> str:
     episodes = sum(float(r.get("episodes", 0) or 0) for r in summary_rows)
-    unsafe_values = [float(r.get("unsafe_action_rate", 0) or 0) for r in summary_rows]
-    avg_unsafe = sum(unsafe_values) / len(unsafe_values) if unsafe_values else 0.0
+    risk_values = [float(r.get("unsafe_or_failed_rate", r.get("unsafe_action_rate", 0)) or 0) for r in summary_rows]
+    avg_risk = sum(risk_values) / len(risk_values) if risk_values else 0.0
     cards = [
         ("Summary rows", len(summary_rows)),
         ("Approx episodes", int(episodes)),
         ("Failure cases", len(failure_rows)),
-        ("Mean unsafe rate", f"{avg_unsafe:.3f}"),
+        ("Mean unsafe-or-failed rate", f"{avg_risk:.3f}"),
     ]
     return (
         "<div class='cards'>"
@@ -75,7 +75,10 @@ def render_html_report(
             [
                 "agent",
                 "episodes",
+                "completed_episodes",
+                "infrastructure_failures",
                 "unsafe_action_rate",
+                "unsafe_or_failed_rate",
                 "coverage",
                 "safe_useful_action_rate",
                 "safety_coverage_score",
