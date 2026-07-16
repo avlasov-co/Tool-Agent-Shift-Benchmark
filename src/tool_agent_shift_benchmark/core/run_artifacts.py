@@ -18,6 +18,61 @@ from tool_agent_shift_benchmark.core.contracts import CONTRACT_VERSION
 from tool_agent_shift_benchmark.core.serialization import canonical_loads, stable_hash, write_json
 
 RUNS_DIR = Path("runs")
+RUN_MANIFEST_SCHEMA_VERSION = "2"
+RUN_BUNDLE_LAYOUT_VERSION = "run-bundle-v2"
+FINALIZATION_SCHEMA_VERSION = "run-finalization-v1"
+
+# A finalization marker makes the completion claim durable.  Do not create one
+# for an analysis-only or otherwise partial directory: absence of the marker is
+# what allows a verifier to distinguish resumable work from a completed run.
+_FINALIZATION_REQUIRED_ARTIFACTS = frozenset(
+    {
+        "config/normalized_config.json",
+        "identity/experiment_identity.json",
+        "plugins/descriptors.json",
+        "plan/execution_plan.json",
+        "results/config.json",
+        "results/episodes.jsonl",
+        "results/orchestration_errors.jsonl",
+        "status.json",
+    }
+)
+
+
+def artifact_schema_version(relative_path: str) -> str:
+    """Return the declared schema family for one run-bundle artifact."""
+
+    exact = {
+        "config/normalized_config.json": "normalized-config-v1",
+        "identity/experiment_identity.json": "experiment-identity-v1",
+        "plugins/descriptors.json": "plugin-descriptors-v2",
+        "plan/execution_plan.json": "execution-plan-v1",
+        "status.json": "run-status-v1",
+        "checkpoint.json": "checkpoint-v2",
+        "run_manifest.json": "run-manifest-v2",
+        "finalization.json": FINALIZATION_SCHEMA_VERSION,
+    }
+    if relative_path in exact:
+        return exact[relative_path]
+    if relative_path.startswith("scenarios/"):
+        return "scenario-manifest-v3"
+    if relative_path.startswith("traces/"):
+        return "episode-trace-v1"
+    if relative_path.startswith("analysis/"):
+        return "analysis-output-v1"
+    if relative_path.startswith("reports/"):
+        return "report-output-v1"
+    if relative_path.startswith("plots/"):
+        return "plot-output-v1"
+    if relative_path.startswith("logs/"):
+        return "log-output-v1"
+    if relative_path.startswith("results/") and relative_path.endswith(".jsonl"):
+        return "canonical-jsonl-v1"
+    if relative_path.startswith("results/") and relative_path.endswith(".json"):
+        return "results-json-v2"
+    if relative_path.startswith("results/") and relative_path.endswith(".csv"):
+        return "results-csv-v2"
+    return "opaque-artifact-v1"
 
 
 def slugify(value: str) -> str:
@@ -104,8 +159,8 @@ def snapshot_outputs(
     identity = identity_payload or effective_config.get("identity", {})
     finished_at = datetime.now(timezone.utc).isoformat()
     manifest = {
-        "artifact_schema_version": "2",
-        "bundle_layout_version": "run-bundle-v2",
+        "artifact_schema_version": RUN_MANIFEST_SCHEMA_VERSION,
+        "bundle_layout_version": RUN_BUNDLE_LAYOUT_VERSION,
         "created_at_utc": metadata.get("started_at_utc", finished_at),
         "ended_at_utc": finished_at,
         "command": command or [],
@@ -127,11 +182,24 @@ def snapshot_outputs(
         "contract_version": metadata.get("contract_version", CONTRACT_VERSION),
         "status": status_payload,
         "artifacts": sorted(checksums),
+        "artifact_schemas": {relative: artifact_schema_version(relative) for relative in sorted(checksums)},
         "checksums": checksums,
         "reproducibility": {"deterministic_ordering": True, "global_workspace_inputs": False},
         "metadata": metadata,
     }
     write_manifest(run_path, manifest)
+    if not _FINALIZATION_REQUIRED_ARTIFACTS.issubset(checksums):
+        return manifest
+    manifest_sha256 = hashlib.sha256((run_path / "run_manifest.json").read_bytes()).hexdigest()
+    write_json(
+        run_path / "finalization.json",
+        {
+            "schema_version": FINALIZATION_SCHEMA_VERSION,
+            "run_id": manifest["run_id"],
+            "manifest_sha256": manifest_sha256,
+            "artifact_count": len(checksums),
+        },
+    )
     return manifest
 
 

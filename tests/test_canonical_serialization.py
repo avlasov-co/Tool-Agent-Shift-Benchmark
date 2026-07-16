@@ -13,8 +13,10 @@ from typing import Any
 
 import pytest
 
+from tool_agent_shift_benchmark.core import serialization
 from tool_agent_shift_benchmark.core.serialization import (
     CanonicalSerializationError,
+    atomic_write_bytes,
     canonical_bytes,
     canonical_dumps,
     canonical_loads,
@@ -120,6 +122,21 @@ def test_canonical_writers_use_deterministic_utf8_and_newlines(tmp_path: Path) -
     lines = jsonl_path.read_bytes().splitlines()
     assert lines[0] == canonical_bytes(record)
     assert lines[1] == canonical_bytes({"a": 2.0, "z": "ß"})
+
+
+def test_atomic_writer_preserves_the_previous_artifact_when_replacement_fails(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / "record.json"
+    path.write_bytes(b"previous")
+
+    def _fail_replace(source: str | bytes | Path, target: str | bytes | Path) -> None:
+        raise OSError("injected replace failure")
+
+    monkeypatch.setattr(serialization.os, "replace", _fail_replace)
+    with pytest.raises(OSError, match="injected replace failure"):
+        atomic_write_bytes(path, b"replacement")
+
+    assert path.read_bytes() == b"previous"
+    assert not list(tmp_path.glob(".record.json.*.tmp"))
 
 
 def _nested_value(rng: random.Random, depth: int = 0) -> Any:

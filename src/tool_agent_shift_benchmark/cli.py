@@ -22,6 +22,7 @@ from tool_agent_shift_benchmark.core.run_artifacts import (
     run_results_dir,
 )
 from tool_agent_shift_benchmark.core.serialization import canonical_dumps, canonical_loads
+from tool_agent_shift_benchmark.core.verification import legacy_migration_plan, verify_run
 from tool_agent_shift_benchmark.package_resources import builtin_config_names
 from tool_agent_shift_benchmark.reporting.failure_cases import format_replay, replay_case
 from tool_agent_shift_benchmark.reporting.html_report import render_html_report
@@ -244,6 +245,17 @@ def _verify_release_command(args: argparse.Namespace) -> None:
     subprocess.run([sys.executable, "-m", "tool_agent_shift_benchmark.release_verification"], check=True)
 
 
+def _verify_run_command(args: argparse.Namespace) -> None:
+    result = verify_run(args.bundle)
+    print(canonical_dumps(result, pretty=True))
+    if args.strict and result["status"] != "complete_valid":
+        raise RuntimeError(f"run verification failed: {result['status']}")
+
+
+def _migrate_run_command(args: argparse.Namespace) -> None:
+    print(canonical_dumps(legacy_migration_plan(args.bundle), pretty=True))
+
+
 def _clean_command(args: argparse.Namespace) -> None:
     raise RuntimeError(
         "workspace-global cleanup is retired; remove an explicitly selected run bundle outside tasb if authorized"
@@ -326,6 +338,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     verify = sub.add_parser("verify-release", help="run release verifier")
     verify.set_defaults(func=_verify_release_command)
+
+    verify_run = sub.add_parser("verify-run", help="verify a versioned run bundle without modifying it")
+    verify_run.add_argument("bundle")
+    verify_run.add_argument("--strict", action="store_true")
+    verify_run.set_defaults(func=_verify_run_command)
+
+    migrate_run = sub.add_parser("migrate-run", help="show an explicit non-mutating legacy run migration plan")
+    migrate_run.add_argument("bundle")
+    migrate_run.set_defaults(func=_migrate_run_command)
 
     clean = sub.add_parser("clean", help="clean generated outputs")
     clean.add_argument("--runs", action="store_true")

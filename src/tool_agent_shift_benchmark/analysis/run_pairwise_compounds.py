@@ -242,6 +242,7 @@ def write_pairwise_compound_matrix(
     rows = build_pairwise_compound_matrix(config_path)
     csv_path = artifact_store.write_csv(out / "pairwise_compound_matrix.csv", rows)
     summary = {
+        "artifact_schema_version": "analysis-output-v1",
         "config_path": config_path,
         "rows": len(rows),
         "output_csv": str(csv_path),

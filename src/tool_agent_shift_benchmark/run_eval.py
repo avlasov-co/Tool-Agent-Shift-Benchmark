@@ -170,6 +170,7 @@ def run_eval(
         scenario_specs=result.scenario_specs,
         plugin_catalog=plan.planner.catalog.as_dict(),
     )
+    artifact_store.write_json("plan/execution_plan.json", plan.to_dict())
     if implicit_bundle:
         artifact_store.finalize(command=["run_eval", "compatibility-wrapper"])
     return list(result.episodes)

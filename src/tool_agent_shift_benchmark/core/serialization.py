@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import io
 import json
 import math
+import os
+import tempfile
 from collections.abc import Iterable, Mapping
 from dataclasses import fields, is_dataclass
 from enum import Enum
@@ -120,10 +123,34 @@ def canonical_loads(text: str) -> Any:
     return canonicalize(value)
 
 
-def write_json(path: str | Path, data: Any) -> None:
+def atomic_write_bytes(path: str | Path, content: bytes) -> None:
+    """Durably replace one local artifact without exposing a partial target."""
+
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes((canonical_dumps(data, pretty=True) + "\n").encode("utf-8"))
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=target.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, target)
+        try:
+            directory_descriptor = os.open(target.parent, os.O_RDONLY)
+        except OSError:
+            return
+        try:
+            os.fsync(directory_descriptor)
+        finally:
+            os.close(directory_descriptor)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+def write_json(path: str | Path, data: Any) -> None:
+    atomic_write_bytes(path, (canonical_dumps(data, pretty=True) + "\n").encode("utf-8"))
 
 
 def read_json(path: str | Path) -> Any:
@@ -131,9 +158,7 @@ def read_json(path: str | Path) -> Any:
 
 
 def write_jsonl(path: str | Path, rows: Iterable[Any]) -> None:
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes("".join(canonical_dumps(row) + "\n" for row in rows).encode("utf-8"))
+    atomic_write_bytes(path, "".join(canonical_dumps(row) + "\n" for row in rows).encode("utf-8"))
 
 
 def _csv_value(value: Any, *, path: str) -> Any:
@@ -150,8 +175,6 @@ def write_csv(
     rows: Iterable[Dict[str, Any]],
     fieldnames: List[str] | None = None,
 ) -> None:
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
     materialized = list(rows)
     if fieldnames is None:
         keys: list[str] = []
@@ -162,13 +185,14 @@ def write_csv(
                 if key not in keys:
                     keys.append(key)
         fieldnames = keys
-    with target.open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=fieldnames)
-        writer.writeheader()
-        for row_index, row in enumerate(materialized):
-            writer.writerow(
-                {key: _csv_value(row.get(key), path=f"$[{row_index}]{_field_path('', key)}") for key in fieldnames}
-            )
+    stream = io.StringIO(newline="")
+    writer = csv.DictWriter(stream, fieldnames=fieldnames)
+    writer.writeheader()
+    for row_index, row in enumerate(materialized):
+        writer.writerow(
+            {key: _csv_value(row.get(key), path=f"$[{row_index}]{_field_path('', key)}") for key in fieldnames}
+        )
+    atomic_write_bytes(path, stream.getvalue().encode("utf-8"))
 
 
 def read_csv(path: str | Path) -> List[Dict[str, str]]:

@@ -587,6 +587,7 @@ def run_analysis(
         artifact_store=artifact_store,
     )
     manifest = {
+        "artifact_schema_version": "analysis-output-v1",
         "results_dir": str(results),
         "analysis_dir": str(analysis),
         "inputs": {

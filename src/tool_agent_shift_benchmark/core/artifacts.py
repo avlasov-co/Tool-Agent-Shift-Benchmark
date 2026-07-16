@@ -7,7 +7,7 @@ from typing import Any, Iterable, Mapping
 
 from tool_agent_shift_benchmark.core.run_artifacts import snapshot_outputs
 from tool_agent_shift_benchmark.core.scenarios import ScenarioSpec, manifest_filename
-from tool_agent_shift_benchmark.core.serialization import write_csv, write_json, write_jsonl
+from tool_agent_shift_benchmark.core.serialization import atomic_write_bytes, write_csv, write_json, write_jsonl
 
 ARTIFACT_STORE_SCHEMA_VERSION = "artifact-store-v2"
 ARTIFACT_SCHEMA_VERSIONS = {
@@ -38,6 +38,7 @@ class ArtifactStore:
             "config",
             "identity",
             "plugins",
+            "plan",
             "scenarios",
             "results",
             "traces/policy",
@@ -80,14 +81,12 @@ class ArtifactStore:
 
     def write_text(self, relative_path: str | Path, content: str) -> Path:
         target = self.path(relative_path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
+        atomic_write_bytes(target, content.encode("utf-8"))
         return target
 
     def write_bytes(self, relative_path: str | Path, content: bytes) -> Path:
         target = self.path(relative_path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(content)
+        atomic_write_bytes(target, content)
         return target
 
     def write_scenario_manifest(self, scenario: ScenarioSpec) -> Path:
@@ -96,8 +95,14 @@ class ArtifactStore:
         )
 
     def write_trace(self, episode_id: str, *, policy: Mapping[str, Any], evaluator: Mapping[str, Any]) -> None:
-        self.write_json(Path("traces/policy") / f"{episode_id}.json", dict(policy))
-        self.write_json(Path("traces/evaluator") / f"{episode_id}.json", dict(evaluator))
+        self.write_json(
+            Path("traces/policy") / f"{episode_id}.json",
+            {"artifact_schema_version": "episode-trace-v1", **dict(policy)},
+        )
+        self.write_json(
+            Path("traces/evaluator") / f"{episode_id}.json",
+            {"artifact_schema_version": "episode-trace-v1", **dict(evaluator)},
+        )
 
     def finalize(
         self,
