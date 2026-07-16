@@ -9,17 +9,13 @@ from tool_agent_shift_benchmark.agents import AGENTS
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
 from tool_agent_shift_benchmark.core.config import load_config
 from tool_agent_shift_benchmark.core.episode import Episode
-from tool_agent_shift_benchmark.core.fault_schedule import FaultSchedule
-from tool_agent_shift_benchmark.core.identity import (
-    EVALUATOR_NAME,
-    IDENTITY_SCHEMA_VERSION,
-    ComponentIdentity,
-    PlannedEpisodeIdentity,
+from tool_agent_shift_benchmark.core.execution import (
+    ExecutionRequest,
+    execute_plan,
+    plan_execution_config,
 )
-from tool_agent_shift_benchmark.core.orchestration import EpisodeRunner, EpisodeSpec, ExperimentSpec
-from tool_agent_shift_benchmark.core.seeding import episode_seed_streams
+from tool_agent_shift_benchmark.core.orchestration import EpisodeSpec
 from tool_agent_shift_benchmark.core.serialization import write_csv, write_json
-from tool_agent_shift_benchmark.core.types import FaultConfig, stable_hash
 from tool_agent_shift_benchmark.environments.calendar_ops import CalendarOpsEnvironment
 from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
 from tool_agent_shift_benchmark.environments.risk_ops import RiskOpsEnvironment
@@ -37,49 +33,62 @@ DEFAULT_CONFIG = "compound_matrix"
 
 @dataclass(frozen=True)
 class PairwiseEpisodeSpec:
-    identity: PlannedEpisodeIdentity
-    scenario_index: int
-    environment: str
-    agent: str
+    episode: EpisodeSpec
     fault_names: tuple[str, ...]
-    severity: float
 
     @property
     def run_id(self) -> str:
-        return self.identity.run_id
+        return self.episode.run_id
 
     @property
     def scenario_id(self) -> str:
-        return self.identity.scenario_id
+        return self.episode.scenario_id
 
     @property
     def scenario_pair_id(self) -> str:
-        if self.identity.scenario_pair_id is None:
-            raise RuntimeError("pairwise episode is missing scenario_pair_id")
-        return self.identity.scenario_pair_id
+        return self.episode.scenario_pair_id
 
     @property
     def episode_id(self) -> str:
-        return self.identity.episode_id
+        return self.episode.episode_id
 
     @property
     def scenario_seed(self) -> int:
-        return self.identity.scenario_seed
+        return self.episode.seed
 
 
-def _component(catalog: PluginCatalog, kind: str, name: str) -> ComponentIdentity:
-    descriptor = catalog.descriptor(kind, name)
-    return ComponentIdentity(
-        kind,
-        descriptor.name,
-        descriptor.version,
-        descriptor.contract_version,
-        descriptor.implementation_identifier,
-        descriptor.configuration_hash,
-        descriptor.trust_level.value,
-        descriptor.capabilities,
-        descriptor.isolation_mode,
+def _pairwise_execution_plan(
+    *,
+    env_name: str,
+    agent_name: str,
+    fault_names: tuple[str, ...],
+    severity: float,
+    episodes_per_combo: int,
+    seed: int,
+):
+    """Build pairwise treatments through the ordinary normalized planner."""
+
+    selected_chain = list(fault_names or ("normal",))
+    config = {
+        "schema_version": 2,
+        "environments": [env_name],
+        "agents": [agent_name],
+        "faults": selected_chain,
+        "shift_chains": [selected_chain],
+        "fault_severities": [severity],
+        "episodes_per_combo": episodes_per_combo,
+        "episode_steps": 6,
+        "monitor_modes": ["full_composite_monitor"],
+        "oversight_modes": ["record_only"],
+    }
+    request = ExecutionRequest(
+        config_path="<pairwise_compound>",
+        mode="pairwise_compound",
+        seed=seed,
+        environments=(env_name,),
+        agents=(agent_name,),
     )
+    return plan_execution_config(request, config, catalog=PluginCatalog(include_external=False))
 
 
 def parse_pair(pair: str) -> tuple[str, str]:
@@ -103,112 +112,16 @@ def _plan_fault_combo(
     episodes_per_combo: int,
     seed: int,
 ) -> list[PairwiseEpisodeSpec]:
-    combo_name = "+".join(fault_names) if fault_names else "normal"
-    schedule = FaultSchedule(
-        fault_names or ("normal",),
-        severity,
-        0,
-        None,
-        "persistent",
-        None,
-        (severity if fault_names else 0.0,),
+    plan = _pairwise_execution_plan(
+        env_name=env_name,
+        agent_name=agent_name,
+        fault_names=fault_names,
+        severity=severity,
+        episodes_per_combo=episodes_per_combo,
+        seed=seed,
     )
-    catalog = PluginCatalog(include_external=False)
-    environment = _component(catalog, "environment", env_name)
-    agent = _component(catalog, "agent", agent_name)
-    shift_chain = tuple(_component(catalog, "shift", name) for name in (fault_names or ("normal",)))
-    monitor = _component(catalog, "monitor", "composite")
-    evaluator = _component(catalog, "evaluator", EVALUATOR_NAME)
-    run_id = stable_hash(
-        {
-            "identity_schema_version": IDENTITY_SCHEMA_VERSION,
-            "kind": "pairwise_compound_matrix",
-            "environment": environment,
-            "agent": agent,
-            "faults": shift_chain,
-            "severity": severity,
-            "episodes_per_combo": episodes_per_combo,
-            "seed": seed,
-            "monitor": monitor,
-            "monitor_mode": "full_composite_monitor",
-            "oversight_mode": "record_only",
-            "evaluator": evaluator,
-            "fault_schedule": schedule.to_dict(),
-            "requery_attempts": 2,
-        },
-        prefix="pairrun",
-    )
-    planned: list[PairwiseEpisodeSpec] = []
-    for index in range(episodes_per_combo):
-        scenario_id = f"{env_name}_scenario_{index}"
-        streams = episode_seed_streams(
-            root_seed=seed,
-            environment=env_name,
-            scenario_index=index,
-            generator_name="deterministic_synthetic_scenarios",
-            generator_version="3.0.0",
-            scenario_schema_version="v2",
-            agent=agent_name,
-            shift=combo_name,
-            severity=severity,
-            monitor="composite",
-            oversight_treatment="record_only",
-        )
-        scenario_seed = streams.scenario_generation
-        scenario = ENVS[env_name](seed=scenario_seed, scenario_index=index).scenario_spec
-        scenario_pair_id = stable_hash(
-            {
-                "contract": "scenario-pair-v1",
-                "environment": env_name,
-                "scenario_id": scenario_id,
-                "scenario_manifest_hash": scenario.content_hash,
-                "agent": agent_name,
-                "agent_behavior_seed": streams.agent_behavior,
-                "execution_seed": streams.execution,
-            },
-            prefix="pair",
-        )
-        episode_id = stable_hash(
-            {
-                "env": env_name,
-                "scenario": scenario_id,
-                "agent": agent_name,
-                "fault": combo_name,
-                "severity": severity,
-                "seed": scenario_seed,
-                "run_id": run_id,
-                "fault_schedule_id": schedule.schedule_id,
-            },
-            prefix="ep",
-        )
-        planned.append(
-            PairwiseEpisodeSpec(
-                PlannedEpisodeIdentity(
-                    identity_schema_version=IDENTITY_SCHEMA_VERSION,
-                    run_id=run_id,
-                    scenario_id=scenario_id,
-                    scenario_seed=scenario_seed,
-                    scenario_pair_id=scenario_pair_id,
-                    scenario_manifest_hash=scenario.content_hash,
-                    seed_streams=streams,
-                    fault_schedule_ids=(schedule.schedule_id,),
-                    episode_id=episode_id,
-                    environment=environment,
-                    agent=agent,
-                    shift_chain=shift_chain,
-                    monitor=monitor,
-                    evaluator=evaluator,
-                    monitor_mode="full_composite_monitor",
-                    oversight_mode="record_only",
-                ),
-                index,
-                env_name,
-                agent_name,
-                fault_names,
-                severity,
-            )
-        )
-    return planned
+    target = "+".join(fault_names) if fault_names else "normal"
+    return [PairwiseEpisodeSpec(item, fault_names) for item in plan.episodes if item.shift == target]
 
 
 def _run_fault_combo(
@@ -220,57 +133,17 @@ def _run_fault_combo(
     episodes_per_combo: int,
     seed: int,
 ) -> list[Episode]:
-    episodes: list[Episode] = []
-    combo_name = "+".join(fault_names) if fault_names else "normal"
-    selected_faults = list(fault_names or ("normal",))
-    config = {
-        "schema_version": 2,
-        "environments": [env_name],
-        "agents": [agent_name],
-        "faults": selected_faults,
-        "shift_chains": [selected_faults],
-        "fault_severities": [severity],
-        "episodes_per_combo": episodes_per_combo,
-        "episode_steps": 6,
-        "oversight_modes": ["record_only"],
-    }
-    runtime_spec = ExperimentSpec.from_config(config, seed=seed)
-    runner = EpisodeRunner(runtime_spec, PluginCatalog(include_external=False))
-    for item in _plan_fault_combo(
+    plan = _pairwise_execution_plan(
         env_name=env_name,
         agent_name=agent_name,
         fault_names=fault_names,
         severity=severity,
         episodes_per_combo=episodes_per_combo,
         seed=seed,
-    ):
-        scenario = ENVS[env_name](seed=item.scenario_seed, scenario_index=item.scenario_index).scenario_spec
-        schedule = FaultSchedule(
-            fault_names or ("normal",),
-            severity,
-            0,
-            None,
-            "persistent",
-            None,
-            (severity if fault_names else 0.0,),
-        )
-        episode = runner.run(
-            EpisodeSpec(
-                item.identity,
-                env_name,
-                agent_name,
-                combo_name,
-                severity,
-                item.scenario_index,
-                item.identity.seed_streams,
-                (schedule,),
-                scenario,
-            )
-        )
-        episode.fault = FaultConfig(combo_name, severity, {"parts": list(fault_names)})
-        episode.metadata["pairwise_compound_matrix"] = True
-        episodes.append(episode)
-    return episodes
+    )
+    result = execute_plan(plan, catalog=plan.planner.catalog, run_competence_preflight=False)
+    target = "+".join(fault_names) if fault_names else "normal"
+    return [episode for episode in result.episodes if episode.fault.name == target]
 
 
 def _metrics(episodes: list[Episode]) -> dict[str, float]:

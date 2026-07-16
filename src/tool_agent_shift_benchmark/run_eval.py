@@ -6,11 +6,13 @@ from typing import List
 
 from tool_agent_shift_benchmark.agents import AGENTS
 from tool_agent_shift_benchmark.core.action_records import ACTION_RECORD_CONTRACT, EPISODE_RECORD_VERSION
-from tool_agent_shift_benchmark.core.competence import run_clean_competence_preflight
-from tool_agent_shift_benchmark.core.config import load_config
 from tool_agent_shift_benchmark.core.counterfactual import COUNTERFACTUAL_EVALUATION_CONTRACT
 from tool_agent_shift_benchmark.core.episode import Episode
-from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec, RunCoordinator
+from tool_agent_shift_benchmark.core.execution import (
+    ExecutionRequest,
+    execute_plan,
+    normalize_execution_request,
+)
 from tool_agent_shift_benchmark.core.scenarios import (
     SCENARIO_COVERAGE_CONTRACT,
     SCENARIO_FAMILY_CONTRACT,
@@ -89,42 +91,35 @@ def run_eval(
     monitor_modes=None,
     oversight_modes=None,
 ) -> List[Episode]:
-    source_config = load_config(config_path)
-    env_names = list(ENVS) if all_envs else ([env] if env else source_config.get("environments", ["file_ops"]))
-    agent_names = list(AGENTS) if all_agents else ([agent] if agent else source_config.get("agents", ["naive"]))
-    selected_config = {
-        **source_config,
-        "environments": env_names,
-        "agents": agent_names,
-    }
-    if monitor_modes is not None:
-        selected_config["monitor_modes"] = list(monitor_modes)
-    if oversight_modes is not None:
-        selected_config.pop("monitor_policy", None)
-        selected_config["oversight_modes"] = list(oversight_modes)
-    runtime_config = {
-        **selected_config,
-        "_config_path": config_path,
-        "_working_directory": str(Path.cwd()),
-    }
-    spec = ExperimentSpec.from_config(
-        runtime_config,
+    request = ExecutionRequest(
+        config_path=config_path,
+        mode="replay" if replay_episode_ids else "ordinary",
         seed=seed,
-        environments=env_names,
-        agents=agent_names,
+        environments=(env,) if env else (),
+        agents=(agent,) if agent else (),
+        all_environments=all_envs,
+        all_agents=all_agents,
         workers=workers,
-        scenario_indices=scenario_indices,
-        episode_ids=episode_ids,
+        scenario_indices=tuple(scenario_indices or ()),
+        episode_ids=tuple(episode_ids or ()),
         selection_offset=selection_offset,
         selection_limit=selection_limit,
         partition_index=partition_index,
         partition_count=partition_count,
-        replay_episode_ids=replay_episode_ids,
+        replay_episode_ids=tuple(replay_episode_ids or ()),
+        monitor_modes=tuple(monitor_modes or ()),
+        oversight_modes=tuple(oversight_modes or ()),
     )
-    coordinator = RunCoordinator(spec)
-    competence_report = run_clean_competence_preflight(spec)
+    plan = normalize_execution_request(request)
+    result = execute_plan(
+        plan,
+        existing_episodes=existing_episodes or (),
+        checkpoint_path=checkpoint_path,
+        scenario_manifest_dir=Path("results/scenarios"),
+    )
+    spec = plan.spec
     normalized_config = {
-        **source_config,
+        **{key: value for key, value in plan.normalized_config.items() if not key.startswith("_")},
         "environments": list(spec.environments),
         "agents": list(spec.agents),
         "seed": spec.seed,
@@ -138,23 +133,10 @@ def run_eval(
         "replay_episode_ids": list(spec.replay_episode_ids),
         "monitor_modes": list(spec.monitor_modes),
         "oversight_modes": list(spec.oversight_modes),
-        "monitor_policy": str(
-            "independent" if oversight_modes is not None else source_config.get("monitor_policy", "independent")
-        ),
     }
-    existing_episodes = existing_episodes or []
-    episodes = coordinator.run(
-        {e.episode_id for e in existing_episodes},
-        checkpoint_path=checkpoint_path,
-        scenario_manifest_dir=Path("results/scenarios"),
-    )
-    episodes = sorted(existing_episodes + episodes, key=lambda e: e.episode_id)
-    run_id = episodes[0].run_id if episodes else coordinator.run_id
-    if run_id is None:
-        raise RuntimeError("planner did not provide a run ID")
-    if coordinator.identity is None:
-        raise RuntimeError("planner did not provide an identity document")
     effective_config = {
+        **request.to_dict(),
+        "execution_plan_schema_version": plan.to_dict()["schema_version"],
         "source_config_path": config_path,
         "all_envs": all_envs,
         "all_agents": all_agents,
@@ -170,18 +152,18 @@ def run_eval(
         "replay_episode_ids": list(spec.replay_episode_ids),
     }
     write_outputs(
-        episodes,
+        list(result.episodes),
         normalized_config,
         spec.seed,
-        run_id,
-        identity=coordinator.identity.to_dict(),
-        config_digest=coordinator.identity.config_digest,
+        plan.planner.run_id,
+        identity=plan.planner.identity.to_dict(),
+        config_digest=plan.planner.identity.config_digest,
         operational_request=effective_config,
-        orchestration_errors=[e.to_dict() for e in coordinator.errors],
-        competence_report=competence_report,
-        scenario_specs=coordinator.scenario_specs,
+        orchestration_errors=list(result.orchestration_errors),
+        competence_report=result.competence_report,
+        scenario_specs=result.scenario_specs,
     )
-    return episodes
+    return list(result.episodes)
 
 
 def write_outputs(

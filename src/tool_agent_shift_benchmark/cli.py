@@ -13,8 +13,8 @@ from tool_agent_shift_benchmark.core.config import dump_config_yaml, load_config
 from tool_agent_shift_benchmark.core.config_schema import migrate_config_data, validate_config
 from tool_agent_shift_benchmark.core.contracts import CONTRACT_VERSION
 from tool_agent_shift_benchmark.core.episode import Episode
+from tool_agent_shift_benchmark.core.execution import ExecutionRequest, normalize_execution_request
 from tool_agent_shift_benchmark.core.monitoring import MONITOR_MODE_ORDER
-from tool_agent_shift_benchmark.core.orchestration import ExperimentPlanner, ExperimentSpec
 from tool_agent_shift_benchmark.core.oversight import OVERSIGHT_MODE_ORDER
 from tool_agent_shift_benchmark.core.run_artifacts import (
     prepare_run_dir,
@@ -105,38 +105,35 @@ def _plugins_command(args: argparse.Namespace) -> None:
 
 
 def _plan_command(args: argparse.Namespace) -> None:
-    config = load_config(args.config)
-    if args.monitor_mode:
-        config["monitor_modes"] = args.monitor_mode
-    if args.oversight_mode:
-        config.pop("monitor_policy", None)
-        config["oversight_modes"] = args.oversight_mode
-    spec = ExperimentSpec.from_config(
-        config,
+    request = ExecutionRequest(
+        config_path=args.config,
+        mode="replay" if args.replay_episode_id else "ordinary",
         seed=args.seed,
-        scenario_indices=args.scenario_index,
-        episode_ids=args.episode_id,
+        scenario_indices=tuple(args.scenario_index or ()),
+        episode_ids=tuple(args.episode_id or ()),
         selection_offset=args.offset,
         selection_limit=args.limit,
         partition_index=args.partition_index,
         partition_count=args.partition_count,
-        replay_episode_ids=args.replay_episode_id,
+        replay_episode_ids=tuple(args.replay_episode_id or ()),
+        monitor_modes=tuple(args.monitor_mode or ()),
+        oversight_modes=tuple(args.oversight_mode or ()),
     )
-    planner = ExperimentPlanner(spec)
-    plan = planner.plan()
+    execution_plan = normalize_execution_request(request)
     print(
         canonical_dumps(
             {
-                "run_id": planner.run_id,
-                "config_digest": planner.config_digest,
-                "identity": planner.identity.to_dict(),
-                "plugins": planner.catalog.as_dict(),
-                "episodes": len(plan),
-                "matrix": [item.to_dict() for item in plan],
+                "run_id": execution_plan.planner.run_id,
+                "config_digest": execution_plan.planner.config_digest,
+                "identity": execution_plan.planner.identity.to_dict(),
+                "plugins": execution_plan.planner.catalog.as_dict(),
+                "execution": execution_plan.to_dict(),
+                "episodes": len(execution_plan.episodes),
+                "matrix": [item.to_dict() for item in execution_plan.episodes],
                 "seed_policy": "stable hash(run, environment, agent, shift, severity, scenario_index)",
-                "workers": spec.workers,
+                "workers": execution_plan.spec.workers,
                 "artifact_paths": [
-                    f"runs/{args.run_name or planner.run_id}/run_manifest.json",
+                    f"runs/{args.run_name or execution_plan.planner.run_id}/run_manifest.json",
                     "results/episodes.jsonl",
                     "traces/policy/",
                     "traces/evaluator/",
