@@ -18,7 +18,8 @@
 
 ## Current checkpoint
 
-Checkpoint 26 — universal severity contract — complete; preparing final validation and Phase 4B handoff.
+Phase 4A complete. Checkpoints 18 through 26 are separate commits and the
+terminal validation and Phase 4B handoff are recorded below.
 
 ## Checkpoint evidence
 
@@ -351,9 +352,67 @@ diagnostic checks remain visible here.
 - Current scenario-manifest contract: `scenario-manifest-v2`.
 - Current step-lifecycle contract: `environment-state-machine-v2`.
 
+## Terminal validation
+
+- The final matched evidence command was `tasb run --config ablations --agent
+  retry --run-name phase-4a-validation --workers 2`. It completed 27 episodes:
+  three environments by one scenario pair and nine treatments. Analysis,
+  plotting, Markdown/HTML reporting, and run-manifest checksum verification
+  all completed under `runs/phase-4a-validation/`; no root evidence is used as
+  a Phase 4A source.
+- Each pair has nine members and exactly one scenario-manifest hash. The run
+  contains three manifests, 24 treatment-minus-clean delta rows, a passing
+  competence report with no failed gates or orchestration errors, and 27
+  policy/evaluator trace pairs.
+- Trace lengths are `{1: 11, 2: 3, 3: 4, 4: 7, 5: 2}`. The clean FileOps and
+  CalendarOps episodes each completed four transitions and clean RiskOps
+  completed five. Shorter shifted episodes remain visible with explicit
+  abstention or unsafe stop reasons rather than disappearing.
+- Persistent schema drift forced three shifted tool calls and two requeries in
+  each environment. Every attempt recorded an active persistent schedule, the
+  scheduled shifted-channel source, `clean_response_exposed: false`, and the
+  same shifted-response hash before bounded safe abstention.
+- Latency-spike traces causally advanced clocks by the exact response delay:
+  FileOps recorded `(1000, 538, 1538)`, `(1538, 531, 2069)`, and
+  `(2069, 506, 2575)`; CalendarOps recorded `(2000, 504, 2504)`,
+  `(2504, 544, 3048)`, and `(3048, 539, 3587)`; RiskOps recorded
+  `(3000, 513, 3513)` and `(3513, 548, 4061)`. Tuples are observation time,
+  latency, and resulting environment clock in simulated milliseconds.
+- All episode identities are schema `7`; effects use `fault-effect-v1` and the
+  run spans realized magnitudes `0.0` through `1.0`. Policy traces contain no
+  `hidden_ground_truth`, `fault_schedule_provenance`, or fault-label field.
+- An explicit worker/process payload comparison produced the same SHA-256 for
+  worker counts one and four:
+  `08bf5df48edce6b1c5ebdb4a9c95111dd2bd86cac39e078f73034aaf84cee4ae`.
+  The isolated release verifier separately compared 35 generated files from
+  two fixed-seed pipelines byte-for-byte.
+- The terminal suite passes 362 tests. Branch coverage is 80.96% over 5,286
+  statements and 1,496 branches. Ruff lint, Ruff format-check, strict mypy,
+  byte compilation, `git diff --check`, distribution smoke (27 checks), and
+  the isolated 27-phase release verifier pass.
+- The non-strict, non-destructive audit passes compilation, tests, coverage,
+  deterministic planning, wheel build/inspection/install, installed `tasb`
+  help/config/migration/plan smoke, and release metadata. It retains the
+  documented Phase 1/2 diagnostic that historical checked-in root evidence has
+  no `results/episodes.jsonl`. That evidence was intentionally not regenerated;
+  the Phase 4A run bundle contains the current structured output and verified
+  checksums.
+
 ## Remaining risks
 
 - Root generated evidence is historical and must not be regenerated merely to
   satisfy validation.
 - Existing external plugin contracts are one-shot; compatibility adapters will
   be required until a separately managed contract deprecation.
+- The final validation is an engineering evidence run with one synthetic
+  scenario per environment, not a publication-scale experiment or model
+  performance claim.
+- Realized severity is normalized and monotonic at the perturbation layer where
+  scientifically meaningful; downstream policy harm is not assumed to be
+  linear in severity.
+- Historical identity-v2 runs without complete manifests remain readable but
+  cannot retroactively prove matched base-state equivalence or be regenerated
+  into Phase 4A semantics.
+
+See [the Phase 4B handoff](phase-4b-handoff.md) for the commit map, migration
+impact, limitations, and prioritized continuation work.

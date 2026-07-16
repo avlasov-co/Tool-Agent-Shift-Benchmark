@@ -15,7 +15,8 @@ Start here if you are evaluating the repository.
 5. [`docs/experimental_report.md`](experimental_report.md) — generated report from the included run.
 6. [`docs/cli.md`](cli.md) — command-line workflow.
 7. [`docs/release_process.md`](release_process.md) — release validation and archive checklist.
-6. [`docs/analysis_layer.md`](analysis_layer.md) — post-hoc analysis, pairwise compound analysis, and release verification.
+8. [`docs/analysis_layer.md`](analysis_layer.md) — post-hoc analysis, pairwise compound analysis, and release verification.
+9. [`docs/development/phase-4b-handoff.md`](development/phase-4b-handoff.md) — Phase 4A contract, migration, evidence, limitations, and Phase 4B continuation map.
 
 ## Run first
 
