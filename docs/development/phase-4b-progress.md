@@ -15,8 +15,8 @@
 
 ## Current checkpoint
 
-Checkpoints 27–34 complete; Checkpoint 35 — scenario families and isolated
-splits (next).
+Checkpoints 27–35 complete; terminal validation and the Phase 5A handoff are
+next.
 
 ## Checkpoint evidence
 
@@ -273,11 +273,51 @@ splits (next).
   over 6,786 statements and 2,054 branches. Ruff lint/format, strict mypy,
   compilation, and `git diff --check` passed.
 
+### Checkpoint 35 — parameterized scenario families and isolated splits
+
+- Added `scenario-family-v1`, `scenario-split-v1`, and
+  `scenario-coverage-v1`; scenario manifests advance to schema `3` and
+  `scenario-manifest-v3`. Complete v1 and hashed v2 manifests migrate to a
+  declared legacy family/split, while malformed historical records still fail
+  explicitly.
+- FileOps now samples parameterized resource-lifecycle tasks, hazards,
+  protected object types, constraints, and deadlines. CalendarOps samples
+  attendee count, duration, priority, privacy, time-zone/working-hour
+  constraints, scheduling deadlines, and late conflicts. RiskOps samples
+  balanced, defensive, and growth-constrained review modes alongside market
+  transitions, execution-time limits, and timed hidden hazards.
+- Omitted split declarations create deterministic `development`, `validation`,
+  and `challenge` splits from reserved, disjoint one-million-index namespaces
+  beginning at 0, 1,000,000, and 2,000,000. Explicit custom split indices must
+  be non-empty, unique, and globally non-overlapping. The selected split and
+  every descriptor are bound into scientific identity schema `16`.
+- Policy-visible responses replace the authoritative scenario identifier with
+  `policy_visible_scenario`; `ObservationContext` contains neither scenario nor
+  split identity, and response metadata redaction removes split/family labels.
+  First-party-agent tests prove invariant decisions under label substitution
+  and reject source references to scenario IDs, split IDs, challenge labels, or
+  fixed behavior seeds.
+- Run outputs now include `results/scenario_coverage.json` and
+  `results/scenario_coverage.csv`. Config, checkpoints, and run manifests bind
+  their coverage hash and all scenario contracts. Coverage summaries are
+  deterministic under input reordering.
+- The representative 108-scenario integrity fixture contains 36 scenarios per
+  environment/family and 36 per development/validation/challenge split. It
+  covers 17 task types, 9 hazard types, 8 protected-object types, 18 constraint
+  dimensions, 9 temporal behaviors, and all 7 applicable first-party fault
+  channels. Challenge outcomes were used only for structural integrity and
+  label-invariance tests, never to select or tune agent behavior.
+- Split/family/manifests and compatibility tests joined the full suite, which
+  passed all 501 tests. Branch coverage passed at 82.02% over 6,973 statements
+  and 2,116 branches. Ruff lint/format, strict mypy, compilation, and
+  `git diff --check` passed; audit, distribution smoke, and artifact
+  verification are recorded after the terminal matrix.
+
 ## Contract and schema ledger
 
 | Concern | Starting version | Phase 4B version |
 | --- | --- | --- |
-| Scientific identity | 7 | 15 |
+| Scientific identity | 7 | 16 |
 | Episode record | legacy aggregate | v3 plus `action-record-v1` |
 | Policy memory | metadata hint only | `policy-memory-v1` |
 | Tool schema registry | none | `tool-schema-registry-v1` |
@@ -286,17 +326,21 @@ splits (next).
 | Monitor composition | declared names only | `monitor-composition-v1` |
 | Oversight treatment | `record` / `gate` | `oversight-treatment-v1` |
 | Counterfactual evaluator | none | `counterfactual-evaluation-v1` |
-| Scenario manifest/families | manifest v2 | pending |
+| Scenario manifest/families | manifest v2 | `scenario-manifest-v3` plus `scenario-family-v1` |
+| Scenario splits | implicit repeated indices | `scenario-split-v1` with disjoint reserved namespaces |
+| Scenario coverage | none | `scenario-coverage-v1` JSON and CSV |
 
 ## Known baseline limitations
 
-- `corrupted_memory` is not stateful.
-- Schema drift has one rename mechanism.
-- Monitor modes are not experimental treatments.
-- `monitor_gated` couples agent and oversight and can overwrite proposals.
-- No pure intervention scorer exists.
-- Scenario manifests do not declare family coverage or isolated split
-  namespaces.
+- The deterministic first-party agents remain synthetic benchmark policies, not
+  frontier model integrations.
+- Contract-v1 external environments without `pure_counterfactual_v1` receive
+  explicit unavailable counterfactual scores.
+- Scenario families are parameterized synthetic distributions; this checkpoint
+  establishes isolation and coverage contracts but does not claim empirical
+  deployment representativeness.
+- Split isolation prevents identifier-based shortcuts but cannot prove that a
+  future learned policy has not memorized semantically similar external data.
 
 ## Phase 5A handoff
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -11,7 +12,7 @@ from tool_agent_shift_benchmark.core.scenarios import (
     ScenarioSpec,
     read_scenario_manifest,
 )
-from tool_agent_shift_benchmark.core.serialization import canonical_dumps, read_json, write_json
+from tool_agent_shift_benchmark.core.serialization import canonical_bytes, canonical_dumps, read_json, write_json
 from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
 
 
@@ -120,7 +121,38 @@ def test_explicit_v1_manifest_migrates_and_incomplete_legacy_data_fails() -> Non
 
     migrated = ScenarioSpec.from_dict(legacy)
 
-    assert migrated.schema_version == 2
+    assert migrated.schema_version == 3
+    assert migrated.family.name == "file_ops_legacy_template"
     assert migrated.seed_stream_algorithm == "legacy-explicit-seed-v1"
     with pytest.raises(ScenarioManifestError, match="not reconstructible"):
         ScenarioSpec.from_dict({"schema_version": 1, "scenario_id": "incomplete"})
+
+
+def test_hashed_v2_manifest_is_validated_and_migrated() -> None:
+    current = FileOpsEnvironment(seed=97, scenario_index=3).scenario_spec
+    payload = {
+        "schema_version": 2,
+        "contract": "scenario-manifest-v2",
+        "generator_name": "deterministic_synthetic_scenarios",
+        "generator_version": "2.1.0",
+        "environment": current.environment,
+        "scenario_id": current.scenario_id,
+        "scenario_index": current.scenario_index,
+        "scenario_seed": current.scenario_seed,
+        "seed_stream_algorithm": current.seed_stream_algorithm,
+        "public_task_description": dict(current.public_task_description),
+        "policy_visible_state": dict(current.policy_visible_state),
+        "hidden_evaluator_state": dict(current.hidden_evaluator_state),
+        "constraints": dict(current.constraints),
+        "transition_parameters": dict(current.transition_parameters),
+    }
+    payload["content_hash"] = hashlib.sha256(canonical_bytes(payload)).hexdigest()
+
+    migrated = ScenarioSpec.from_dict(payload)
+
+    assert migrated.schema_version == 3
+    assert migrated.contract == "scenario-manifest-v3"
+    assert migrated.split == "legacy"
+    tampered = {**payload, "scenario_seed": 98}
+    with pytest.raises(ScenarioManifestError, match="hash mismatch"):
+        ScenarioSpec.from_dict(tampered)

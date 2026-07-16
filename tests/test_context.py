@@ -3,7 +3,11 @@ from random import Random
 import pytest
 
 from tool_agent_shift_benchmark.agents import AGENTS
-from tool_agent_shift_benchmark.core.context import ObservationContext, redact_response_for_policy
+from tool_agent_shift_benchmark.core.context import (
+    POLICY_VISIBLE_SCENARIO_ID,
+    ObservationContext,
+    redact_response_for_policy,
+)
 from tool_agent_shift_benchmark.core.types import Observation, ToolResponse
 from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
 from tool_agent_shift_benchmark.faults import FAULTS
@@ -16,7 +20,11 @@ def test_redact_response_for_policy_removes_evaluator_only_metadata():
         scenario_id="case",
         timestamp=10,
         data={"files": []},
-        metadata={"faults": [{"name": "schema_drift"}], "memory_hint": "visible_hint"},
+        metadata={
+            "faults": [{"name": "schema_drift"}],
+            "memory_hint": "visible_hint",
+            "scenario_split": "challenge",
+        },
     )
     resp = ToolResponse(
         tool_name="list_files",
@@ -34,6 +42,8 @@ def test_redact_response_for_policy_removes_evaluator_only_metadata():
     redacted = redact_response_for_policy(resp)
 
     assert "faults" not in redacted.observation.metadata
+    assert "scenario_split" not in redacted.observation.metadata
+    assert redacted.observation.scenario_id == POLICY_VISIBLE_SCENARIO_ID
     assert redacted.observation.metadata["memory_hint"] == "visible_hint"
     assert redacted.metadata == {"public_note": "visible"}
     assert "faults" in resp.observation.metadata
@@ -94,6 +104,7 @@ def test_observation_context_exposes_only_visible_surface():
     resp = FAULTS["stale_observation"]().apply(env.tool_response(), env, Random(1))
     ctx = ObservationContext.from_environment(env, resp.observation)
     assert not hasattr(ctx, "hidden_ground_truth")
+    assert not hasattr(ctx, "scenario_id")
     assert not hasattr(ctx, "tool_response")
     assert not hasattr(ctx, "execute")
     assert not hasattr(ctx, "_env")

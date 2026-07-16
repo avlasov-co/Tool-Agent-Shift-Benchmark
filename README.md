@@ -157,6 +157,8 @@ statistical.
 - `results/confidence_intervals.csv` — multi-seed confidence intervals generated only by `tool_agent_shift_benchmark.run_seeds`.
 - `results/multistep_traces.jsonl` — multi-step episode traces.
 - `results/evaluator_traces.jsonl` — evaluator-only action records and hidden labels.
+- `results/scenario_coverage.json` — deterministic scenario-family and split coverage summary.
+- `results/scenario_coverage.csv` — long-form coverage counts for task, hazard, protected-object, constraint, temporal, and fault dimensions.
 - `figures/*.png` — benchmark plots.
 - `docs/experimental_report.md` — generated report from current results.
 - `results/analysis/*.csv` — post-hoc failure clustering, monitor calibration, agent profiles, and compound-shift analysis.
@@ -188,7 +190,7 @@ This matters because a benchmark that lets policies inspect hidden state is just
 |---|---|
 | Environments | FileOps, CalendarOps, RiskOps |
 | Faults | 9 deterministic fault modes |
-| Agents | 6 baseline policies |
+| Agents | 5 independent base policies |
 | Monitors | 6 monitor types + ablations |
 | Rollouts | Single-step and multi-step |
 | Analysis | Severity sweeps, static-vs-dynamic, confidence intervals, monitor calibration, failure clustering, pairwise compound matrix |

@@ -1,4 +1,4 @@
-"""Typed, normalized scientific identity schema version 15."""
+"""Typed, normalized scientific identity schema version 16."""
 
 from __future__ import annotations
 
@@ -18,6 +18,12 @@ from tool_agent_shift_benchmark.core.oversight import (
     OversightTreatmentDescriptor,
     oversight_treatment,
 )
+from tool_agent_shift_benchmark.core.scenarios import (
+    SCENARIO_FAMILY_CONTRACT,
+    SCENARIO_MANIFEST_CONTRACT,
+    SCENARIO_SPLIT_CONTRACT,
+    ScenarioSplitDescriptor,
+)
 from tool_agent_shift_benchmark.core.seeding import SEED_STREAM_ALGORITHM, EpisodeSeedStreams
 from tool_agent_shift_benchmark.core.serialization import register_dataclass, stable_hash
 
@@ -25,9 +31,9 @@ if TYPE_CHECKING:
     from tool_agent_shift_benchmark.core.catalog import PluginCatalog
     from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec
 
-IDENTITY_SCHEMA_VERSION = "15"
+IDENTITY_SCHEMA_VERSION = "16"
 SCENARIO_GENERATOR_NAME = "deterministic_synthetic_scenarios"
-SCENARIO_GENERATOR_VERSION = "2.1.0"
+SCENARIO_GENERATOR_VERSION = "3.0.0"
 EVALUATOR_NAME = "hidden_state_evaluator"
 EVALUATOR_VERSION = "2.0.0"
 STEP_SEMANTICS_VERSION = "environment-state-machine-v2"
@@ -115,8 +121,12 @@ class SemanticIdentity:
     identity_schema_version: str
     scenario_generator: ComponentIdentity
     scenario_schema_version: str
+    scenario_manifest_contract: str
+    scenario_family_contract: str
+    scenario_split_contract: str
     scenario_split: str
     scenario_split_indices: tuple[int, ...]
+    scenario_splits: tuple[ScenarioSplitDescriptor, ...]
     environments: tuple[ComponentIdentity, ...]
     agents: tuple[ComponentIdentity, ...]
     shift_chains: tuple[tuple[ComponentIdentity, ...], ...]
@@ -333,9 +343,16 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
             str(config.get("scenario_generator_version", SCENARIO_GENERATOR_VERSION)),
             "1",
         ),
-        scenario_schema_version=str(config.get("scenario_schema_version", "v1")),
-        scenario_split=str(config.get("scenario_split", "default")),
+        scenario_schema_version=str(config.get("scenario_schema_version", "v2")),
+        scenario_manifest_contract=SCENARIO_MANIFEST_CONTRACT,
+        scenario_family_contract=SCENARIO_FAMILY_CONTRACT,
+        scenario_split_contract=SCENARIO_SPLIT_CONTRACT,
+        scenario_split=str(config.get("scenario_split", "development")),
         scenario_split_indices=tuple(spec.semantic_scenario_indices or ()),
+        scenario_splits=tuple(
+            ScenarioSplitDescriptor.create(str(split["name"]), split["indices"])
+            for split in config.get("scenario_splits", ())
+        ),
         environments=environments,
         agents=agents,
         shift_chains=shift_chains,

@@ -20,22 +20,24 @@ CI runs this same smoke contract via `scripts/run_repro.sh`.
 For `small` with `--all-envs --all-agents`:
 
 - environments: 3
-- agents: 6
+- agents: 5
 - fault groups: `normal` at severity `1.0`, plus 3 shifted faults at severities `0.5` and `1.0`
-- groups: `3 * 6 * 7 = 126`
+- groups: `3 * 5 * 7 = 105`
 - episodes per group: 2
-- expected episodes: 252
+- expected episodes: 210
 
 Expected files after the smoke run:
 
-- `results/episode_log.csv`: 252 data rows
+- `results/episode_log.csv`: 210 data rows
 - `results/action_records.csv`: one row per rollout step
 - `results/action_records.jsonl`: one lossless versioned record per rollout step
-- `results/summary.csv`: 126 data rows
+- `results/summary.csv`: 105 data rows
 - `results/failure_cases.csv`: zero or more unsafe-case rows
 - `results/monitor_events.csv`: one or more monitor rows per episode
 - `results/static_vs_dynamic.csv`: one row per evaluated agent
 - `results/config.json`: includes both raw config and effective env/agent/fault selections
+- `results/scenario_coverage.json`: 6 unique generated scenarios (2 per environment) and a stable coverage hash
+- `results/scenario_coverage.csv`: long-form counts for every declared scenario-family dimension
 - `results/multistep_traces.jsonl`: one line per episode
 - `figures/unsafe_action_rate.png`
 - `figures/coverage_vs_safety.png`

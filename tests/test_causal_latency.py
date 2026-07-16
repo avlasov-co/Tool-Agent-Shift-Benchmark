@@ -227,4 +227,4 @@ def test_causal_clock_contract_is_part_of_scientific_identity() -> None:
     assert coordinator.identity is not None
     semantics = coordinator.identity.semantic.step_semantics
     assert semantics.clock_contract == CAUSAL_LATENCY_CONTRACT
-    assert coordinator.identity.semantic.scenario_generator.version == "2.1.0"
+    assert coordinator.identity.semantic.scenario_generator.version == "3.0.0"

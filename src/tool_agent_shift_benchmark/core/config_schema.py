@@ -11,6 +11,7 @@ from typing import Any, Mapping, Sequence
 from tool_agent_shift_benchmark.core.config import load_raw_config, write_config_yaml
 from tool_agent_shift_benchmark.core.monitoring import MONITOR_MODES
 from tool_agent_shift_benchmark.core.oversight import LEGACY_OVERSIGHT_ALIASES, OVERSIGHT_MODES
+from tool_agent_shift_benchmark.core.scenarios import STANDARD_SPLIT_ORDER, standard_scenario_splits
 from tool_agent_shift_benchmark.core.serialization import canonicalize, register_dataclass
 
 CONFIG_SCHEMA_VERSION = 2
@@ -604,16 +605,19 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
         "$.scenario_generator",
     )
     scenario_generator_version = _string(
-        root.get("scenario_generator_version", "2.1.0"), source, "$.scenario_generator_version"
+        root.get("scenario_generator_version", "3.0.0"), source, "$.scenario_generator_version"
     )
-    scenario_schema_version = _string(root.get("scenario_schema_version", "v1"), source, "$.scenario_schema_version")
-    scenario_split = _string(root.get("scenario_split", "default"), source, "$.scenario_split")
+    scenario_schema_version = _string(root.get("scenario_schema_version", "v2"), source, "$.scenario_schema_version")
+    scenario_split = _string(root.get("scenario_split", "development"), source, "$.scenario_split")
     scenario_manifest_path = root.get("scenario_manifest_path", "")
     if not isinstance(scenario_manifest_path, str):
         raise _error(source, "$.scenario_manifest_path", "must be a string")
     raw_splits = root.get("scenario_splits")
     if raw_splits is None:
-        scenario_splits = (ScenarioSplitConfig("default", tuple(range(episodes_per_combo))),)
+        scenario_splits = tuple(
+            ScenarioSplitConfig(str(item["name"]), tuple(int(index) for index in item["indices"]))
+            for item in standard_scenario_splits(episodes_per_combo)
+        )
     else:
         splits: list[ScenarioSplitConfig] = []
         for index, raw_split in enumerate(_list(raw_splits, source, "$.scenario_splits")):
@@ -622,12 +626,26 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
             _check_keys(item, {"name", "indices"}, source, path)
             name = _string(item.get("name"), source, f"{path}.name")
             indices = tuple(sorted(_int_list(item.get("indices"), source, f"{path}.indices")))
-            for split_index in indices:
-                if split_index >= episodes_per_combo:
-                    raise _error(source, f"{path}.indices", "indices must be less than episodes_per_combo")
+            if not indices:
+                raise _error(source, f"{path}.indices", "must contain at least one scenario index")
+            _unique(indices, source, f"{path}.indices")
             splits.append(ScenarioSplitConfig(name, indices))
         _unique([split.name for split in splits], source, "$.scenario_splits")
-        scenario_splits = tuple(sorted(splits, key=lambda split: split.name))
+        index_owners: dict[int, str] = {}
+        for split in splits:
+            for split_index in split.indices:
+                owner = index_owners.get(split_index)
+                if owner is not None:
+                    raise _error(
+                        source,
+                        "$.scenario_splits",
+                        f"scenario index {split_index} overlaps splits {owner!r} and {split.name!r}",
+                    )
+                index_owners[split_index] = split.name
+        standard_order = {name: index for index, name in enumerate(STANDARD_SPLIT_ORDER)}
+        scenario_splits = tuple(
+            sorted(splits, key=lambda split: (standard_order.get(split.name, len(standard_order)), split.name))
+        )
     if scenario_split not in {split.name for split in scenario_splits}:
         raise _error(source, "$.scenario_split", "must name one of scenario_splits")
 

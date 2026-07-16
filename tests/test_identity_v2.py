@@ -128,8 +128,8 @@ def test_operational_settings_do_not_change_scientific_identity() -> None:
         ({"episode_steps": 3}, 42),
         ({"requery_attempts": 3}, 42),
         ({"monitor_policy": "record"}, 42),
-        ({"scenario_generator_version": "3.0.0"}, 42),
-        ({"scenario_schema_version": "v2"}, 42),
+        ({"scenario_generator_version": "4.0.0"}, 42),
+        ({"scenario_schema_version": "v3"}, 42),
         ({"scenario_split": "holdout", "scenario_splits": [{"name": "holdout", "indices": [0]}]}, 42),
         ({"evaluator_version": "3.0.0"}, 42),
         ({"monitor_modes": ["schema_only"]}, 42),
@@ -199,8 +199,13 @@ def test_identity_document_contains_required_typed_fields() -> None:
     assert identity.schema_version == IDENTITY_SCHEMA_VERSION
     assert semantic.identity_schema_version == IDENTITY_SCHEMA_VERSION
     assert semantic.scenario_generator.name == "deterministic_synthetic_scenarios"
-    assert semantic.scenario_generator.version == "2.1.0"
-    assert semantic.scenario_schema_version == "v1"
+    assert semantic.scenario_generator.version == "3.0.0"
+    assert semantic.scenario_schema_version == "v2"
+    assert semantic.scenario_manifest_contract == "scenario-manifest-v3"
+    assert semantic.scenario_family_contract == "scenario-family-v1"
+    assert semantic.scenario_split_contract == "scenario-split-v1"
+    assert semantic.scenario_split == "development"
+    assert [split.name for split in semantic.scenario_splits] == ["development", "validation", "challenge"]
     assert semantic.environments[0].version == "1.0.0"
     assert semantic.agents[0].version == "1.0.0"
     assert semantic.fault_schedules[0].cadence == "each_step"

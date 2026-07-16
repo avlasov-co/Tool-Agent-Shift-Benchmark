@@ -6,8 +6,14 @@ from typing import Any, Dict, List, Tuple
 from tool_agent_shift_benchmark.core.memory import PolicyMemoryView
 from tool_agent_shift_benchmark.core.types import AgentAction, Observation, ToolResponse
 
-EVALUATOR_ONLY_OBSERVATION_METADATA_KEYS = {"faults", "fault_schedule_provenance"}
+EVALUATOR_ONLY_OBSERVATION_METADATA_KEYS = {
+    "faults",
+    "fault_schedule_provenance",
+    "scenario_split",
+    "scenario_family",
+}
 EVALUATOR_ONLY_RESPONSE_METADATA_KEYS = {"faults", "ground_truth", "score", "labels"}
+POLICY_VISIBLE_SCENARIO_ID = "policy_visible_scenario"
 
 
 def redact_response_for_policy(response: ToolResponse) -> ToolResponse:
@@ -26,7 +32,11 @@ def redact_response_for_policy(response: ToolResponse) -> ToolResponse:
     resp_meta = {k: v for k, v in response.metadata.items() if k not in EVALUATOR_ONLY_RESPONSE_METADATA_KEYS}
     return replace(
         response,
-        observation=replace(response.observation, metadata=obs_meta),
+        observation=replace(
+            response.observation,
+            scenario_id=POLICY_VISIBLE_SCENARIO_ID,
+            metadata=obs_meta,
+        ),
         metadata=resp_meta,
     )
 
@@ -43,7 +53,6 @@ class ObservationContext:
     """
 
     env_name: str
-    scenario_id: str
     current_time: int
     observation_timestamp: int
     response_latency_ms: int
@@ -67,7 +76,6 @@ class ObservationContext:
         current_time = int(getattr(env, "current_time", observation.timestamp))
         return cls(
             env_name=observation.env_name,
-            scenario_id=observation.scenario_id,
             current_time=current_time,
             observation_timestamp=observation.timestamp,
             response_latency_ms=response_latency_ms,

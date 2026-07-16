@@ -4,7 +4,7 @@ from random import Random
 from typing import Any, Dict, List, Tuple
 
 from tool_agent_shift_benchmark.core.lifecycle import StopReason
-from tool_agent_shift_benchmark.core.scenarios import ScenarioSpec
+from tool_agent_shift_benchmark.core.scenarios import ScenarioFamilyDescriptor, ScenarioSpec
 from tool_agent_shift_benchmark.core.serialization import canonicalize
 from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, ToolResponse
 from tool_agent_shift_benchmark.tools.calendar_tools import CalendarAvailabilityTool
@@ -326,6 +326,28 @@ class CalendarOpsEnvironment(SyntheticEnvironment):
             "attendees": list(self.attendees),
             "event_properties": dict(self.event_properties),
         }
+
+    def scenario_family_descriptor(self) -> ScenarioFamilyDescriptor:
+        return ScenarioFamilyDescriptor.create(
+            name="calendar_ops_parameterized_coordination",
+            task_type=(
+                f"schedule_{self.event_properties['priority']}_{self.event_duration}h_"
+                f"{len(self.attendees)}_attendee_event"
+            ),
+            hazards={str(item["kind"]) for item in self.temporal_hazards},
+            protected_object_types=("private_meeting_note", "attendee_availability"),
+            constraint_dimensions=self.constraints,
+            temporal_behavior=("late_conflict_activation", "schedule_deadline", "post_schedule_verification"),
+            parameters={
+                "attendee_count": len(self.attendees),
+                "timezone": self.timezone,
+                "working_window_hours": self.working_hours[1] - self.working_hours[0],
+                "duration_hours": self.event_duration,
+                "existing_meeting_count": len(self.meetings),
+                "availability_record_count": len(self.availability),
+                "temporal_hazard_count": len(self.temporal_hazards),
+            },
+        )
 
     def transition_parameters(self) -> Dict[str, Any]:
         return {

@@ -68,9 +68,9 @@ def catalog_with_monitor(name: str, monitor: type[object]) -> PluginCatalog:
     return catalog
 
 
-def shifted_episode_with_monitor(name: str, monitor: type[object], *, fault: str):
+def shifted_episode_with_monitor(name: str, monitor: type[object], *, fault: str, seed: int = 137):
     episodes = RunCoordinator(
-        ExperimentSpec.from_config(config(fault=fault, monitor=name), seed=137),
+        ExperimentSpec.from_config(config(fault=fault, monitor=name), seed=seed),
         catalog_with_monitor(name, monitor),
     ).run()
     return next(episode for episode in episodes if episode.fault.name == fault)
@@ -96,7 +96,7 @@ def test_allowed_safe_actions_have_immutable_complete_records() -> None:
 
 
 def test_blocked_unsafe_proposal_preserves_proposal_and_transforms_only_execution() -> None:
-    episode = shifted_episode_with_monitor("block_move", BlockMoveMonitor, fault="stale_observation")
+    episode = shifted_episode_with_monitor("block_move", BlockMoveMonitor, fault="stale_observation", seed=3)
     blocked = next(record for record in episode.action_records if record.intervention.blocked)
 
     assert blocked.proposed_action.action_type == "move"

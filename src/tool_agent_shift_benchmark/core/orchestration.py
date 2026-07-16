@@ -51,6 +51,9 @@ from tool_agent_shift_benchmark.core.requery import (
     ToolAttemptRecord,
 )
 from tool_agent_shift_benchmark.core.scenarios import (
+    SCENARIO_FAMILY_CONTRACT,
+    SCENARIO_MANIFEST_CONTRACT,
+    SCENARIO_SPLIT_CONTRACT,
     ScenarioManifestError,
     ScenarioSpec,
     read_scenario_manifest,
@@ -162,7 +165,7 @@ class ExperimentSpec:
             if raw_chains
             else tuple((x,) for x in raw_shifts)
         )
-        selected_split = str(config.get("scenario_split", "default"))
+        selected_split = str(config.get("scenario_split", "development"))
         split_indices = next(
             (
                 tuple(int(index) for index in split["indices"])
@@ -361,6 +364,12 @@ class ExperimentPlanner:
             scenario = getattr(environment_object, "scenario_spec", None)
             if not isinstance(scenario, ScenarioSpec):
                 raise ScenarioManifestError(f"environment {environment!r} did not produce a versioned ScenarioSpec")
+            scenario = scenario.with_split(self.identity.semantic.scenario_split)
+        if scenario.split != self.identity.semantic.scenario_split:
+            raise ScenarioManifestError(
+                "scenario manifest split mismatch: "
+                f"expected {self.identity.semantic.scenario_split!r}, got {scenario.split!r}"
+            )
         expected = (environment, scenario_id, scenario_index, streams.scenario_generation)
         actual = (
             scenario.environment,
@@ -391,9 +400,8 @@ class ExperimentPlanner:
                     treatments.append(treatment)
                     seen_treatments.add(treatment)
         for env in self.spec.environments:
-            for index in range(self.spec.episodes_per_combo):
-                if self.spec.semantic_scenario_indices is not None and index not in self.spec.semantic_scenario_indices:
-                    continue
+            scenario_indices = self.spec.semantic_scenario_indices or tuple(range(self.spec.episodes_per_combo))
+            for index in scenario_indices:
                 for agent in self.spec.agents:
                     for monitor_mode in self.spec.monitor_modes:
                         for oversight_mode in self.spec.oversight_modes:
@@ -1183,8 +1191,8 @@ class EpisodeRunner:
         configured = self.spec.config
         return {
             "name": str(configured.get("scenario_generator", "deterministic_synthetic_scenarios")),
-            "version": str(configured.get("scenario_generator_version", "2.1.0")),
-            "scenario_schema_version": str(configured.get("scenario_schema_version", "v1")),
+            "version": str(configured.get("scenario_generator_version", "3.0.0")),
+            "scenario_schema_version": str(configured.get("scenario_schema_version", "v2")),
             "environment_version": generator.version,
         }
 
@@ -1333,6 +1341,9 @@ class RunCoordinator:
                         "episode_record_version": EPISODE_RECORD_VERSION,
                         "action_record_contract": ACTION_RECORD_CONTRACT,
                         "counterfactual_evaluation_contract": COUNTERFACTUAL_EVALUATION_CONTRACT,
+                        "scenario_manifest_contract": SCENARIO_MANIFEST_CONTRACT,
+                        "scenario_family_contract": SCENARIO_FAMILY_CONTRACT,
+                        "scenario_split_contract": SCENARIO_SPLIT_CONTRACT,
                         "completed_episode_ids": sorted(completed or set()),
                         "completed_scenario_pair_ids": sorted(
                             {
@@ -1357,6 +1368,9 @@ class RunCoordinator:
                     "episode_record_version": EPISODE_RECORD_VERSION,
                     "action_record_contract": ACTION_RECORD_CONTRACT,
                     "counterfactual_evaluation_contract": COUNTERFACTUAL_EVALUATION_CONTRACT,
+                    "scenario_manifest_contract": SCENARIO_MANIFEST_CONTRACT,
+                    "scenario_family_contract": SCENARIO_FAMILY_CONTRACT,
+                    "scenario_split_contract": SCENARIO_SPLIT_CONTRACT,
                     "completed_episode_ids": sorted((completed or set()) | {e.episode_id for e in episodes}),
                     "completed_scenario_pair_ids": sorted(
                         {

@@ -11,6 +11,15 @@ from tool_agent_shift_benchmark.core.config import load_config
 from tool_agent_shift_benchmark.core.counterfactual import COUNTERFACTUAL_EVALUATION_CONTRACT
 from tool_agent_shift_benchmark.core.episode import Episode
 from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec, RunCoordinator
+from tool_agent_shift_benchmark.core.scenarios import (
+    SCENARIO_COVERAGE_CONTRACT,
+    SCENARIO_FAMILY_CONTRACT,
+    SCENARIO_MANIFEST_CONTRACT,
+    SCENARIO_SPLIT_CONTRACT,
+    ScenarioSpec,
+    scenario_coverage_rows,
+    scenario_coverage_summary,
+)
 from tool_agent_shift_benchmark.core.serialization import canonical_dumps, write_csv, write_json, write_jsonl
 from tool_agent_shift_benchmark.environments.calendar_ops import CalendarOpsEnvironment
 from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
@@ -170,6 +179,7 @@ def run_eval(
         operational_request=effective_config,
         orchestration_errors=[e.to_dict() for e in coordinator.errors],
         competence_report=competence_report,
+        scenario_specs=coordinator.scenario_specs,
     )
     return episodes
 
@@ -184,6 +194,7 @@ def write_outputs(
     operational_request=None,
     orchestration_errors=None,
     competence_report=None,
+    scenario_specs: tuple[ScenarioSpec, ...] = (),
 ) -> None:
     Path("results").mkdir(exist_ok=True)
     # A single-seed run invalidates previous multi-seed artifacts. Leaving stale
@@ -195,6 +206,9 @@ def write_outputs(
     write_csv("results/summary.csv", aggregate(episodes))
     write_csv("results/static_vs_dynamic.csv", _static_dynamic_rows(episodes))
     write_csv("results/within_scenario_deltas.csv", within_scenario_deltas(episodes))
+    coverage = scenario_coverage_summary(scenario_specs)
+    write_json("results/scenario_coverage.json", coverage)
+    write_csv("results/scenario_coverage.csv", scenario_coverage_rows(coverage))
     write_jsonl(
         "results/multistep_traces.jsonl",
         (
@@ -371,6 +385,11 @@ def write_outputs(
             "episode_record_version": EPISODE_RECORD_VERSION,
             "action_record_contract": ACTION_RECORD_CONTRACT,
             "counterfactual_evaluation_contract": COUNTERFACTUAL_EVALUATION_CONTRACT,
+            "scenario_manifest_contract": SCENARIO_MANIFEST_CONTRACT,
+            "scenario_family_contract": SCENARIO_FAMILY_CONTRACT,
+            "scenario_split_contract": SCENARIO_SPLIT_CONTRACT,
+            "scenario_coverage_contract": SCENARIO_COVERAGE_CONTRACT,
+            "scenario_coverage_hash": coverage["coverage_hash"],
             "identity": identity,
             "config": config,
             "normalized_config": config,

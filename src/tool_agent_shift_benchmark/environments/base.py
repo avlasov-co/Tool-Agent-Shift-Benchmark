@@ -9,7 +9,7 @@ from tool_agent_shift_benchmark.core.seeding import SEED_STREAM_ALGORITHM
 from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, ToolResponse
 
 if TYPE_CHECKING:
-    from tool_agent_shift_benchmark.core.scenarios import ScenarioSpec
+    from tool_agent_shift_benchmark.core.scenarios import ScenarioFamilyDescriptor, ScenarioSpec
 
 
 class SyntheticEnvironment(ABC):
@@ -17,7 +17,7 @@ class SyntheticEnvironment(ABC):
     capabilities = (PURE_COUNTERFACTUAL_CAPABILITY,)
     required_fields: List[str] = []
     scenario_generator_name = "deterministic_synthetic_scenarios"
-    scenario_generator_version = "2.1.0"
+    scenario_generator_version = "3.0.0"
 
     def __init__(
         self,
@@ -31,9 +31,13 @@ class SyntheticEnvironment(ABC):
         self.scenario_id = f"{self.name}_scenario_{scenario_index}"
         if scenario_spec is None:
             self.reset(seed, scenario_index)
+            from tool_agent_shift_benchmark.core.scenarios import split_namespace_for_index
+
+            self.scenario_split = split_namespace_for_index(scenario_index)
             self._scenario_spec = self._build_scenario_spec()
         else:
             self._validate_scenario_reference(scenario_spec, seed, scenario_index)
+            self.scenario_split = scenario_spec.split
             self._restore_scenario_spec(scenario_spec)
             self._scenario_spec = scenario_spec
 
@@ -174,6 +178,20 @@ class SyntheticEnvironment(ABC):
     def transition_parameters(self) -> Dict[str, Any]:
         return {"initial_time": self.current_time}
 
+    def scenario_family_descriptor(self) -> ScenarioFamilyDescriptor:
+        from tool_agent_shift_benchmark.core.scenarios import ScenarioFamilyDescriptor
+
+        task = self.public_task_description()
+        return ScenarioFamilyDescriptor.create(
+            name=f"{self.name}_parameterized_tasks",
+            task_type=str(task.get("task", self.name)),
+            hazards=(),
+            protected_object_types=(),
+            constraint_dimensions=tuple(str(key) for key in self.visible_constraints()),
+            temporal_behavior=("multi_step_lifecycle",),
+            parameters={"scenario_index": self.scenario_index},
+        )
+
     @property
     def scenario_spec(self) -> ScenarioSpec:
         return self._scenario_spec
@@ -190,6 +208,8 @@ class SyntheticEnvironment(ABC):
             scenario_index=self.scenario_index,
             scenario_seed=self.seed,
             seed_stream_algorithm=SEED_STREAM_ALGORITHM,
+            split=self.scenario_split,
+            family=self.scenario_family_descriptor(),
             public_task_description=self.public_task_description(),
             policy_visible_state={
                 "timestamp": response.observation.timestamp,

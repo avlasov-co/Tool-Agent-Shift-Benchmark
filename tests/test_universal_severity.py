@@ -55,10 +55,10 @@ def test_every_fault_has_auditable_zero_low_medium_and_maximum_behavior(
     assert DETAIL_FIELDS[fault_name] in effect["details"]
     assert environment.hidden_ground_truth() == ground_truth
     if severity == 0.0:
-        assert redact_response_for_policy(shifted).to_dict() == clean.to_dict()
+        assert redact_response_for_policy(shifted).to_dict() == redact_response_for_policy(clean).to_dict()
         assert effect["no_op"] is True
     elif fault_name == "normal":
-        assert redact_response_for_policy(shifted).to_dict() == clean.to_dict()
+        assert redact_response_for_policy(shifted).to_dict() == redact_response_for_policy(clean).to_dict()
         assert effect["realized_magnitude"] == 0.0
     else:
         assert float(effect["realized_magnitude"]) > 0.0

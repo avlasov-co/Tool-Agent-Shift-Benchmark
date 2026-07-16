@@ -2,6 +2,32 @@
 
 Each immutable generated scenario expands into a matched clean episode and its declared shifted treatments. Every treatment runs the same multi-step environment lifecycle and agent initialization. Before each policy-visible tool call, the runner evaluates the current fault schedule, composes active faults on an internal clean response, advances the simulated clock by response latency, redacts evaluator provenance, and builds an `ObservationContext`. An agent may return an environment action, abstain, or request a bounded requery through the same scheduled channel. Monitors inspect only the same visible context, action, and shifted observation. Execution and scoring use hidden ground truth after the decision. Metrics preserve scenario-pair identity and aggregate outcomes by environment, agent, fault, configured severity, monitor composition, and oversight mode.
 
+## Scenario families and isolated splits
+
+`scenario-manifest-v3` binds each generated scenario to an immutable
+`scenario-family-v1` descriptor. FileOps uses a parameterized resource-lifecycle
+family; CalendarOps uses a parameterized coordination family; RiskOps uses a
+parameterized market-lifecycle family. Each descriptor declares its task type,
+hazards, protected-object types, constraint dimensions, temporal behaviors,
+applicable faults, and generation parameters. The run writes their observed
+distributions under `scenario-coverage-v1` in both JSON and long-form CSV.
+
+`scenario-split-v1` reserves non-overlapping index namespaces of one million
+indices: development begins at `0`, validation at `1,000,000`, and challenge at
+`2,000,000`. A run selects one split; custom split manifests are accepted only
+when all names and indices are unique and no index overlaps another split.
+Split descriptors, selected split, generator contract, and manifest hashes are
+scientific-identity inputs.
+
+Authoritative split, scenario, and family labels are evaluator-side. Before a
+tool response reaches a policy, the scenario ID is replaced with the constant
+`policy_visible_scenario`, split/family metadata is removed, and
+`ObservationContext` omits scenario identity entirely. First-party agents are
+tested for decision invariance under adversarial label substitution and for the
+absence of scenario-ID, split-ID, challenge-label, or fixed-seed branches.
+Challenge outcomes are reserved for evaluation and structural split tests; they
+must not be used to choose agent behavior or tune policies.
+
 ## Monitor ablations
 
 `monitor-composition-v1` defines five ordered experimental treatments:
@@ -55,13 +81,13 @@ Configured fault severity must be finite and within `[0, 1]`. `0.0` is policy-eq
 | Fault | Intermediate behavior | Maximum endpoint and exact summary |
 |---|---|---|
 | `normal` | No perturbation at any value | Realized magnitude `0`; reason `normal_channel` |
-| `schema_drift` | Schema marker plus severity-quantized field renames | Primary payload and lifecycle renamed; `renamed_fields` and `rename_fraction` |
+| `schema_drift` | Severity selects additive, widening, alias, nested-move, unit-change, required-removal, and breaking-type deltas | All seven declared families; source/target schema, typed delta, and compatibility class |
 | `stale_observation` | `ceil(10 × severity)` ms staleness; stale value edits begin at `0.75` | 10 ms plus environment-specific stale values; `staleness_ms` and `altered_values` |
 | `latency_spike` | Deterministic maximum draw multiplied by severity | Full 500–550 ms draw; `added_latency_ms` and `maximum_latency_ms` |
 | `missing_field` | A severity fraction of deterministic candidate paths is removed | All candidates removed; `removed_paths`, counts, and candidate count |
-| `conflicting_tool_output` | A severity fraction of top-level fields differs across sources | Second source omits all candidate fields; `conflicting_fields` and `conflict_fraction` |
-| `corrupted_memory` | One to three ordered misleading claims | Three claims; `corrupted_claims` and `corruption_amount` |
-| `constraint_shift` | Proportional numeric deltas plus declared thresholded categorical changes | Maximum environment-specific relaxation; exact `constraint_deltas` |
+| `conflicting_tool_output` | Named source snapshots disagree on a severity-selected set of paths with asymmetric reliability | All candidate disagreements plus source and snapshot provenance |
+| `corrupted_memory` | Severity selects one through five deterministic deletion, substitution, staleness, source-confusion, and confidence corruptions | All five corruption families with target and before/after hashes |
+| `constraint_shift` | A lifecycle- and time-bound visible constraint revision with proportional numeric and categorical changes | Maximum environment-specific revision with visible before/after constraints and exact deltas |
 | ordered `shift_chains` | Composes any declared fault components at the scheduled severity, preserving exact order | Component effects plus input/output and policy-visible intermediate hashes |
 
 `compound_shift` remains readable as a deprecated compatibility alias for the
