@@ -52,9 +52,11 @@ submodules remain useful for development but are not the primary user surface.
 
 `tasb plugins list` lists built-in and statically discovered entry-point
 metadata, including scoped discovery errors; `tasb plugins validate` checks
-catalog metadata without importing unselected implementations. `tasb plan
---config <config>` resolves the Cartesian matrix and stable seed policy,
-loading only explicitly selected plugins without executing episodes. `tasb run
+catalog metadata without importing entry-point implementations. Selection
+creates an isolated factory; the selected implementation is imported and
+validated only inside its bounded child when planning or execution actually
+needs an instance. `tasb plan --config <config>` resolves the Cartesian matrix
+and stable seed policy. `tasb run
 --config <config> --workers N` executes serially by default or with
 deterministic parallel scheduling. `tasb inspect-run <run>` prints the
 self-describing manifest, and `tasb render-architecture` regenerates the

@@ -19,8 +19,8 @@
 
 ## Current checkpoint
 
-Checkpoints 36–40 are complete. Checkpoint 41 — trust tiers and isolation — is
-next.
+Checkpoints 36–41 are complete. Terminal release validation and the final
+security review are next.
 
 ## Checkpoint evidence
 
@@ -160,18 +160,17 @@ commit identifiers will be recorded here before every checkpoint commit.
   data, entry-point kind/name/implementation identity, and external trust tier
   without importing the referenced module.
 - Catalog construction, name listing, descriptor listing, catalog
-  serialization, and unselected whole-catalog validation do not call
-  `EntryPoint.load`. Planner validation loads only plugins explicitly named by
-  the resolved experiment. A successfully loaded implementation is cached and
-  passes the same factory validator as built-ins and programmatic
-  registrations.
+  serialization, whole-catalog validation, selected validation, and selected
+  `get` do not call `EntryPoint.load`. Selection creates a cached
+  `IsolatedPluginFactory`; the implementation import and the same v2 factory
+  validator run inside the bounded child only when the factory is instantiated.
 - Discovery stores malformed/missing/incompatible metadata and duplicate names
-  as deterministic per-kind/name errors. Import failures are wrapped with the
-  requested kind, name, implementation identifier, and original error, then
-  cached. Unrelated built-ins and valid plugins remain usable. CLI listing
-  reports invalid discovered entries without importing or hiding them.
+  as deterministic per-kind/name errors. Selected import and implementation
+  failures are structured child-process failures and never trigger
+  `EntryPoint.load`; unrelated built-ins and valid plugins remain usable. CLI
+  listing reports invalid discovered entries without importing or hiding them.
 - Added six lazy-discovery cases covering a raising import trap, zero-load
-  metadata validation, exactly-once explicit loading, cached import failure,
+  metadata validation, non-importing explicit selection, isolated import failure,
   incompatible contract, implementation mismatch, missing static metadata,
   and order-independent duplicates. The pre-existing entry-point integration
   test now uses the v2 static descriptor/trust format.
@@ -179,10 +178,69 @@ commit identifiers will be recorded here before every checkpoint commit.
   81.92% over 7,577 statements and 2,294 branches. Ruff lint/format, strict
   mypy, and `git diff --check` pass.
 
+### Checkpoint 41 — trust tiers and bounded isolation
+
+- Restricted and untrusted descriptors must declare
+  `bounded_subprocess_v1`; trusted descriptors must remain `in_process`.
+  Programmatic restricted registrations and statically discovered entry points
+  both resolve to the same non-importing `IsolatedPluginFactory`. The child
+  imports and validates the declared `module:qualname`, instantiates one
+  stateful plugin instance, and exposes its public contract through a dynamic
+  proxy. No restricted implementation executes in the runner process.
+- Added `plugin-rpc-v1`, a strict JSON-lines protocol with typed encodings for
+  observations, responses, actions, decisions, monitor/execution records,
+  memory, scenario manifests, shift contexts, fault channel descriptors, and
+  counterfactual scores. Pickle, general object import, and arbitrary parent
+  callbacks are not part of the wire contract. Agent/monitor callbacks are
+  restricted to the five visible `ObservationContext` operations; isolated
+  environment adapters remain opaque public-method handles.
+- Each instance starts with an allowlisted environment, private temporary cwd,
+  isolated Python mode, deterministic hash seed, no parent credentials, a
+  startup timeout, per-call timeout, request/response output cap, child-captured
+  stdout/stderr cap, and deterministic termination. On POSIX, available CPU,
+  address-space, file-size, open-file, and process limits are applied. Python
+  audit hooks deny ordinary socket/process operations, limit reads to runtime,
+  benchmark, plugin distribution, and workspace roots, and limit writes to the
+  workspace.
+- Added `plugin-isolation-manifest-v1`. Static descriptors bind the selected
+  mode in experiment identity/run manifests; completed episode metadata records
+  actual timeout/output/policy/resource-limit results without nondeterministic
+  process IDs. Unsupported resource controls are listed rather than claimed.
+- Startup/call timeouts, child output overflow, hard process exits, malformed
+  JSON, response identity/schema errors, unsupported typed values, and remote
+  plugin exceptions produce distinct structured orchestration failures. Each
+  error includes the full public planned episode, infrastructure action record,
+  and isolation detail. Terminal transport failures terminate the child.
+- Aggregation now accepts orchestration errors and emits rows even when every
+  episode in a group failed. `episodes`/`planned_episodes`, completed and failed
+  counts, failure/evaluable rates, `unsafe_or_failed_rate`, and
+  `safe_completion_rate` use the planned denominator. Infrastructure failures
+  are not fabricated as unsafe actions and cannot disappear or make task
+  success/safe completion look better. Run config records planned, completed,
+  and failed counts separately.
+- Added ten isolation/integration tests covering a successful visible-context callback and
+  child PID, an infinite loop, excessive Python output, hard exit, raw malformed
+  protocol output, denied `/etc/passwd` read with allowed private-workspace
+  write, parent credential/environment stripping, denied Python socket access,
+  all-failed aggregate denominator retention, and a restricted custom
+  environment whose scenario and remote public policy adapter complete an
+  ordinary episode. All terminal failures complete within the explicit bound
+  and retain their planned identity.
+- The focused isolation suite and the full 535-test compiled suite pass. Branch
+  coverage passes at 78.37% over 8,428 statements and 2,610 branches. The worker
+  process is intentionally launched with a sanitized environment, so the parent
+  coverage process does not inject instrumentation into it; adversarial worker
+  behavior is nevertheless exercised end to end. Ruff lint, format-check,
+  strict mypy, and `git diff --check` pass.
+
 ## Terminal validation
 
-Pending Checkpoints 36–41.
+Pending final audit, branch coverage, clean-wheel smoke, artifact verification,
+and security review.
 
 ## Phase 5B handoff
 
-Pending terminal validation and final security review.
+See `phase-5b-handoff.md`. The handoff prioritizes OS-enforced containment,
+authenticated plugin provenance, capability-specific evaluator/reporter wire
+contracts, cross-platform resource-policy evidence, and isolation performance
+without weakening fail-closed behavior.

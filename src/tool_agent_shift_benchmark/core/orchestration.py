@@ -28,6 +28,7 @@ from tool_agent_shift_benchmark.core.identity import (
     PlannedEpisodeIdentity,
     build_experiment_identity,
 )
+from tool_agent_shift_benchmark.core.isolation import ISOLATION_MANIFEST_CONTRACT, PluginIsolationError
 from tool_agent_shift_benchmark.core.lifecycle import STEP_LIFECYCLE_CONTRACT, StateTransition
 from tool_agent_shift_benchmark.core.memory import (
     POLICY_MEMORY_CONTRACT,
@@ -572,6 +573,37 @@ class EpisodeRunner:
             "trust_level": component.trust_level,
             "capabilities": list(component.capabilities),
             "isolation_mode": component.isolation_mode,
+        }
+
+    @classmethod
+    def _isolation_record(cls, instance: object, component: ComponentIdentity) -> dict[str, Any]:
+        runtime = getattr(instance, "isolation_manifest", None)
+        if isinstance(runtime, Mapping):
+            selected = {
+                key: value
+                for key, value in runtime.items()
+                if key
+                in {
+                    "contract",
+                    "mode",
+                    "cwd_policy",
+                    "environment_policy",
+                    "network_policy",
+                    "filesystem_policy",
+                    "resource_limits",
+                    "timeouts",
+                    "output_limit_bytes",
+                }
+            }
+        else:
+            selected = {
+                "contract": ISOLATION_MANIFEST_CONTRACT,
+                "mode": component.isolation_mode,
+                "enforcement": "trusted_in_process" if component.isolation_mode == "in_process" else "unavailable",
+            }
+        return {
+            "component": cls._descriptor_dict(component),
+            "runtime": selected,
         }
 
     def _mismatch(
@@ -1178,6 +1210,16 @@ class EpisodeRunner:
             "episode_record_version": EPISODE_RECORD_VERSION,
             "counterfactual_evaluation_contract": COUNTERFACTUAL_EVALUATION_CONTRACT,
             "monitor_mode": item.identity.monitor_mode,
+            "plugin_isolation": {
+                "contract": ISOLATION_MANIFEST_CONTRACT,
+                "components": [
+                    self._isolation_record(env_obj, item.identity.environment),
+                    self._isolation_record(agent_obj, item.identity.agent),
+                    *(self._isolation_record(shift_objs[name], descriptors[name]) for name in sorted(shift_objs)),
+                    self._isolation_record(monitor, item.identity.monitor),
+                    self._isolation_record(evaluator, item.identity.evaluator),
+                ],
+            },
             "monitor_composition": (
                 monitor_composition(item.identity.monitor_mode)
                 if self.spec.monitor == "composite"
@@ -1289,10 +1331,11 @@ class EpisodeScheduler:
             except Exception as exc:
                 if attempt <= self.retry_attempts and not isinstance(exc, IdentityMismatchError):
                     continue
+                phase = exc.phase if isinstance(exc, (IdentityMismatchError, PluginIsolationError)) else "episode"
                 failure_record = ActionRecord.infrastructure_failure(
                     error_type=type(exc).__name__,
                     message=str(exc),
-                    phase=exc.phase if isinstance(exc, IdentityMismatchError) else "episode",
+                    phase=phase,
                 )
                 if isinstance(exc, IdentityMismatchError):
                     error = OrchestrationError(
@@ -1306,15 +1349,18 @@ class EpisodeScheduler:
                         exc.actual,
                         exc.plugin_descriptor,
                         failure_record.to_dict(),
+                        item.to_dict(),
                     )
                 else:
                     error = OrchestrationError(
                         item.episode_id,
-                        "episode",
+                        phase,
                         type(exc).__name__,
                         str(exc),
                         attempt,
                         action_record=failure_record.to_dict(),
+                        planned_episode=item.to_dict(),
+                        failure_details=exc.details if isinstance(exc, PluginIsolationError) else None,
                     )
                 self.errors.append(error)
                 if self.failure_policy == "fail_fast":

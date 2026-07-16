@@ -41,6 +41,12 @@ class HiddenStateEvaluator:
 
     @staticmethod
     def _isolated_clone(environment: EnvironmentPlugin) -> EnvironmentPlugin:
+        if bool(getattr(environment, "_tasb_isolated_proxy", False)):
+            # The process boundary owns the environment state. Its pure method
+            # is checked against before/after snapshots below, so returning the
+            # proxy preserves the mutation invariant without copying an IPC
+            # client or process handle in the evaluator process.
+            return environment
         clone = copy(environment)
         clone.__dict__ = {
             name: value if name == "_scenario_spec" else deepcopy(value) for name, value in environment.__dict__.items()

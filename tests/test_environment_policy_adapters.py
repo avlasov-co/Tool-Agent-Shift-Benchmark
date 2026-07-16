@@ -5,7 +5,7 @@ from dataclasses import replace
 
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
 from tool_agent_shift_benchmark.core.context import ObservationContext
-from tool_agent_shift_benchmark.core.contracts import PluginDescriptor
+from tool_agent_shift_benchmark.core.contracts import PluginDescriptor, TrustLevel
 from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec, RunCoordinator
 from tool_agent_shift_benchmark.core.policy_adapter import ENVIRONMENT_POLICY_ADAPTER_CONTRACT
 from tool_agent_shift_benchmark.environments.calendar_ops import CalendarOpsEnvironment
@@ -103,3 +103,50 @@ def test_new_plugin_environment_runs_without_central_dispatch_changes() -> None:
     assert episode.decision.action.action_type == "inspect_files"
     assert adapter_trace["environment_name"] == SyntheticInventoryEnvironment.name
     assert adapter_trace["action_schema"]["synthetic_plugin"] is True
+
+
+def test_restricted_plugin_environment_runs_through_remote_policy_adapter() -> None:
+    descriptor = PluginDescriptor.for_factory(
+        "environment",
+        SyntheticInventoryEnvironment.name,
+        SyntheticInventoryEnvironment,
+        version=SyntheticInventoryEnvironment.version,
+        trust_level=TrustLevel.EXTERNAL_RESTRICTED,
+        metadata={
+            "isolation": {
+                "startup_timeout_seconds": 3.0,
+                "call_timeout_seconds": 1.0,
+                "output_limit_bytes": 100_000,
+            }
+        },
+    )
+    catalog = PluginCatalog(include_external=False)
+    catalog.register(descriptor, SyntheticInventoryEnvironment)
+    config = {
+        "schema_version": 2,
+        "environments": [SyntheticInventoryEnvironment.name],
+        "agents": ["naive"],
+        "faults": ["normal"],
+        "episodes_per_combo": 1,
+        "episode_steps": 1,
+        "plugin_references": [
+            {
+                "kind": "environment",
+                "name": SyntheticInventoryEnvironment.name,
+                "version": SyntheticInventoryEnvironment.version,
+                "contract_version": "2",
+                "entry_point": descriptor.implementation_identifier,
+            }
+        ],
+    }
+
+    episode = RunCoordinator(ExperimentSpec.from_config(config, seed=19), catalog).run()[0]
+
+    assert episode.env_name == SyntheticInventoryEnvironment.name
+    assert episode.metadata["step_trace"][0]["policy_adapter"]["environment_name"] == episode.env_name
+    environment_manifest = next(
+        item
+        for item in episode.metadata["plugin_isolation"]["components"]
+        if item["component"]["kind"] == "environment"
+    )
+    assert environment_manifest["runtime"]["mode"] == "bounded_subprocess_v1"

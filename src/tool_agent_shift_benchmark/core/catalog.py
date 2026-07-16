@@ -17,6 +17,7 @@ from tool_agent_shift_benchmark.core.contracts import (
     validate_plugin_factory,
 )
 from tool_agent_shift_benchmark.core.evaluator import HiddenStateEvaluator
+from tool_agent_shift_benchmark.core.isolation import IsolatedPluginFactory, entry_point_import_root
 from tool_agent_shift_benchmark.environments.calendar_ops import CalendarOpsEnvironment
 from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
 from tool_agent_shift_benchmark.environments.risk_ops import RiskOpsEnvironment
@@ -168,8 +169,15 @@ class PluginCatalog:
         key = (descriptor.kind, descriptor.name)
         if self._has_identifier(key):
             raise ValueError(f"duplicate {descriptor.kind} plugin identifier: {descriptor.name}")
-        validate_plugin_factory(descriptor, factory)
-        self._items[descriptor.kind][descriptor.name] = factory
+        if descriptor.trust_level in ISOLATED_TRUST_LEVELS:
+            selected_factory = IsolatedPluginFactory(
+                descriptor,
+                import_root=entry_point_import_root(factory, descriptor.implementation_identifier),
+            )
+        else:
+            validate_plugin_factory(descriptor, factory)
+            selected_factory = factory
+        self._items[descriptor.kind][descriptor.name] = selected_factory
         self._descriptors[key] = descriptor
 
     def _add_builtin(self, kind: str, name: str, factory: Any) -> None:
@@ -232,21 +240,13 @@ class PluginCatalog:
         registration = self._pending.get(key)
         if registration is None:
             raise KeyError(f"unknown {kind} plugin: {name}")
-        try:
-            factory = registration.entry_point.load()
-        except Exception as exc:
-            error = PluginImportError(
-                f"failed to import requested {kind} plugin {name} "
-                f"from {registration.descriptor.implementation_identifier}: {type(exc).__name__}: {exc}"
-            )
-            self._import_errors[key] = error
-            raise error from exc
-        try:
-            validate_plugin_factory(registration.descriptor, factory)
-        except (TypeError, ValueError) as exc:
-            error = PluginImportError(f"invalid requested {kind} plugin {name}: {exc}")
-            self._import_errors[key] = error
-            raise error from exc
+        factory = IsolatedPluginFactory(
+            registration.descriptor,
+            import_root=entry_point_import_root(
+                registration.entry_point,
+                registration.descriptor.implementation_identifier,
+            ),
+        )
         self._items[kind][name] = factory
         self._descriptors[key] = registration.descriptor
         del self._pending[key]
@@ -310,7 +310,7 @@ class PluginCatalog:
                         f"{descriptor.contract_version}"
                     )
                 factory = self._items[descriptor.kind].get(descriptor.name)
-                if factory is not None:
+                if factory is not None and not getattr(factory, "_tasb_isolated_factory", False):
                     validate_plugin_factory(descriptor, factory)
             return
         for kind, names in sorted(selections.items()):
@@ -320,7 +320,9 @@ class PluginCatalog:
                 descriptor = self.descriptor(kind, name)
                 if descriptor.contract_version != CONTRACT_VERSION:
                     raise ValueError(f"incompatible contract version for {kind}:{name}: {descriptor.contract_version}")
-                validate_plugin_factory(descriptor, self.get(kind, name))
+                factory = self.get(kind, name)
+                if not getattr(factory, "_tasb_isolated_factory", False):
+                    validate_plugin_factory(descriptor, factory)
 
     def as_dict(self) -> list[dict[str, Any]]:
         return [descriptor.to_dict() for descriptor in self.descriptors()]

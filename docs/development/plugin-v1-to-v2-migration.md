@@ -64,8 +64,10 @@ descriptor `kind` and `name` must match the entry-point group/name, and its
 `implementation_identifier` must exactly match the entry-point value.
 
 `plugin-discovery-v1` lists and validates this static data without importing
-the implementation. Import occurs only when configuration explicitly selects
-the plugin. Installed entry-point plugins must declare `external_restricted`
+the implementation. Selection creates a non-importing isolated factory;
+import, factory validation, and instantiation occur inside its child process
+only when the selected plugin is actually instantiated. Installed entry-point
+plugins must declare `external_restricted`
 or `untrusted_isolated`; reviewed `local_trusted` code uses explicit
 programmatic registration. Contract-v1 packages receive a scoped
 incompatible-contract error and must be upgraded or explicitly adapted in
@@ -77,5 +79,11 @@ Use `local_trusted` only for reviewed code the caller explicitly chooses to run
 with ordinary process authority. Installed third-party packages should use
 `external_restricted`; unknown/adversarial code should use
 `untrusted_isolated`. Restricted and untrusted descriptors cannot declare
-`in_process` execution. Isolation is bounded process containment and is not a
-general kernel sandbox; see `docs/security/plugin-threat-model.md`.
+`in_process` execution and must use `bounded_subprocess_v1`. Optional descriptor
+metadata under `isolation` may set validated bounds for startup/call time,
+output, memory, CPU, file size, open files, and process count. The worker
+receives an allowlisted environment and private cwd; do not depend on parent
+environment variables, credentials, current directory, interactive stdin,
+arbitrary Python objects, or unrestricted network/filesystem access. Isolation
+is bounded process containment and is not a general kernel sandbox; see
+`docs/security/plugin-threat-model.md`.

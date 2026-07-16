@@ -197,13 +197,14 @@ def write_outputs(
     scenario_specs: tuple[ScenarioSpec, ...] = (),
 ) -> None:
     Path("results").mkdir(exist_ok=True)
+    errors = list(orchestration_errors or [])
     # A single-seed run invalidates previous multi-seed artifacts. Leaving stale
     # confidence intervals beside a fresh summary is how toy repos cosplay as
     # research artifacts. Delete them and let run_seeds recreate them explicitly.
     for stale in ["results/seed_summary.csv", "results/confidence_intervals.csv"]:
         Path(stale).unlink(missing_ok=True)
     write_csv("results/episode_log.csv", [e.to_row() for e in episodes])
-    write_csv("results/summary.csv", aggregate(episodes))
+    write_csv("results/summary.csv", aggregate(episodes, errors))
     write_csv("results/static_vs_dynamic.csv", _static_dynamic_rows(episodes))
     write_csv("results/within_scenario_deltas.csv", within_scenario_deltas(episodes))
     coverage = scenario_coverage_summary(scenario_specs)
@@ -283,7 +284,6 @@ def write_outputs(
             for episode in episodes
         ),
     )
-    errors = orchestration_errors or []
     write_jsonl("results/orchestration_errors.jsonl", errors or [{"orchestration_errors": []}])
     competence = competence_report or {
         "schema_version": "1",
@@ -394,7 +394,10 @@ def write_outputs(
             "config": config,
             "normalized_config": config,
             "operational_request": operational_request or {},
-            "episodes": len(episodes),
+            "episodes": len(episodes) + len(errors),
+            "planned_episodes": len(episodes) + len(errors),
+            "completed_episodes": len(episodes),
+            "failed_episodes": len(errors),
             "unique_scenarios": len(
                 {
                     (episode.metadata.get("scenario_manifest") or {}).get("content_hash", episode.scenario_id)
@@ -409,7 +412,7 @@ def write_outputs(
                 "passed": competence.get("passed", False),
                 "failed_gates": competence.get("failed_gates", []),
             },
-            "orchestration_errors": orchestration_errors or [],
+            "orchestration_errors": errors,
         },
     )
 

@@ -9,9 +9,9 @@ from tool_agent_shift_benchmark.core.catalog import (
     PLUGIN_DESCRIPTOR_METADATA_FILE,
     PluginCatalog,
     PluginDiscoveryError,
-    PluginImportError,
 )
 from tool_agent_shift_benchmark.core.contracts import PluginDescriptor, TrustLevel
+from tool_agent_shift_benchmark.core.isolation import IsolatedPluginFactory, PluginRemoteError
 from tool_agent_shift_benchmark.core.types import AgentAction, AgentDecision
 
 
@@ -123,17 +123,23 @@ def test_only_an_explicitly_requested_plugin_is_loaded_and_validated(monkeypatch
     install_fake_entry_points(monkeypatch, entry)
     catalog = PluginCatalog()
 
-    assert catalog.get("agent", ExternalAgent.name) is ExternalAgent
-    assert catalog.get("agent", ExternalAgent.name) is ExternalAgent
-    assert entry.load_count == 1
+    selected = catalog.get("agent", ExternalAgent.name)
+    assert isinstance(selected, IsolatedPluginFactory)
+    assert catalog.get("agent", ExternalAgent.name) is selected
+    assert entry.load_count == 0
+    instance = selected()
+    instance.close()
     catalog.validate({"agent": [ExternalAgent.name]})
-    assert entry.load_count == 1
+    assert entry.load_count == 0
 
 
 def test_import_failure_is_scoped_cached_and_does_not_break_unrelated_plugins(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    payload = descriptor()
+    payload = {
+        **descriptor(),
+        "implementation_identifier": "missing_isolated_plugin.module:ExternalAgent",
+    }
     broken = FakeEntryPoint(
         ExternalAgent.name,
         payload["implementation_identifier"],
@@ -144,11 +150,12 @@ def test_import_failure_is_scoped_cached_and_does_not_break_unrelated_plugins(
     catalog = PluginCatalog()
 
     assert catalog.get("agent", "naive")
-    with pytest.raises(PluginImportError, match="failed to import requested agent plugin lazy_external"):
-        catalog.get("agent", ExternalAgent.name)
-    with pytest.raises(PluginImportError, match="failed to import requested agent plugin lazy_external"):
-        catalog.get("agent", ExternalAgent.name)
-    assert broken.load_count == 1
+    selected = catalog.get("agent", ExternalAgent.name)
+    with pytest.raises(PluginRemoteError, match="No module named"):
+        selected()
+    with pytest.raises(PluginRemoteError, match="No module named"):
+        selected()
+    assert broken.load_count == 0
     assert catalog.get("environment", "file_ops")
 
 

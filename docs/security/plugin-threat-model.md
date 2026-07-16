@@ -15,8 +15,8 @@ identity, canonical artifacts, and complete failure denominators.
 | --- | --- | --- |
 | `builtin_trusted` | code shipped in this distribution | validated, in-process |
 | `local_trusted` | explicitly registered reviewed local code | validated, in-process |
-| `external_restricted` | installed third-party package | validated, bounded subprocess |
-| `untrusted_isolated` | adversarial or unknown implementation | validated, stricter bounded subprocess |
+| `external_restricted` | installed third-party package | validated, mandatory bounded subprocess |
+| `untrusted_isolated` | adversarial or unknown implementation | validated, mandatory bounded subprocess; no added provenance trust |
 
 Trust is declared in the validated plugin descriptor and recorded with the
 implementation identifier, configuration hash, capabilities, and actual
@@ -53,15 +53,38 @@ isolation mode. A tier never silently downgrades to in-process execution.
   serialization thaws only into fresh JSON-shaped values.
 - `plugin-discovery-v1` reads static descriptor fields or the packaged
   `tasb_plugin_descriptors.json` file without importing implementations.
-  Import and instantiation happen only for an explicitly requested plugin;
-  malformed entries remain scoped errors and do not disable unrelated names.
+  Import and instantiation happen inside the child only when an explicitly
+  requested factory is actually instantiated; malformed entries remain scoped
+  errors and do not disable unrelated names.
 - Restricted/untrusted execution uses a structured bounded subprocess protocol
-  with a sanitized environment, controlled temporary cwd, startup and per-call
-  timeouts, output limits, deterministic termination, and supported resource
-  limits. Protocol, crash, and limit failures become structured orchestration
-  failures.
+  (`plugin-rpc-v1`) with typed JSON values rather than pickle. It uses an
+  allowlisted environment, private temporary cwd, startup and per-call
+  timeouts, parent- and child-side output limits, process-group termination on
+  POSIX, and available `RLIMIT_CPU`, `RLIMIT_AS`, `RLIMIT_FSIZE`,
+  `RLIMIT_NOFILE`, and `RLIMIT_NPROC` controls. The startup result records
+  applied and unavailable limits rather than assuming support.
+- The child installs a Python audit-hook filesystem/network/process policy.
+  Read access is limited to the Python runtime/environment, benchmark package,
+  configured plugin import root, and private workspace; writes are limited to
+  the workspace. An import root can be a shared site-packages directory, so
+  other installed packages may be readable. Socket construction and
+  process-spawn audit events are denied.
+  Normal Python stdout/stderr is captured and bounded; raw writes that corrupt
+  stdout fail strict protocol parsing.
+- Agents and monitors can invoke only five parent-side callbacks on the exact
+  `ObservationContext` supplied for that call. No arbitrary parent object,
+  environment, evaluator, or callable is serialized. Environment policy
+  adapters returned by isolated environments remain opaque remote handles with
+  only their public adapter methods.
+- Plugin startup/call timeouts, output overflow, hard exits, malformed JSON,
+  message-identity mismatches, invalid typed values, and remote exceptions are
+  distinct structured orchestration failures. The process is terminated after
+  terminal transport failures.
 - Checkpoints, manifests, and analysis retain failed planned episodes and record
-  descriptor/version/implementation/isolation information.
+  descriptor/version/implementation/isolation information. Summary rows record
+  planned, completed, and infrastructure-failed counts plus
+  `unsafe_or_failed_rate` and `safe_completion_rate`; failures are not silently
+  removed or fabricated as unsafe actions.
 
 ## Trust boundaries
 
@@ -82,13 +105,33 @@ isolation mode. A tier never silently downgrades to in-process execution.
 ## Out of scope and honest limitations
 
 The subprocess boundary is defense in depth, not a general-purpose secure
-container. On platforms without kernel-enforced namespaces, seccomp/sandbox
-profiles, or equivalent controls, Python-level network denial and resource
-limits cannot contain hostile native extensions, direct syscalls, child-process
-escape, all filesystem reads, or kernel vulnerabilities. Package installation
-and publisher authenticity are supply-chain concerns outside runtime contract
-validation. Plugins granted `builtin_trusted` or `local_trusted` can exercise
-ordinary process authority and must be reviewed accordingly.
+container. It does not create a container, VM, mount namespace, seccomp policy,
+macOS sandbox profile, Windows AppContainer, or OS firewall rule. The audit hook
+and monkeypatches govern ordinary Python operations; hostile native extensions,
+FFI, direct syscalls, memory-safety bugs, inherited runtime file descriptors,
+and kernel vulnerabilities may bypass them. The Python environment, import
+roots, and dependencies remain readable so Python imports work; the boundary
+does not promise that only one distribution's files are visible. A plugin may
+consume resources below configured limits, and `RLIMIT_AS` behavior differs by
+OS.
+
+On POSIX, the parent starts a new session and terminates the process group; on
+platforms without `killpg`, it can terminate only the direct worker. Unsupported
+resource limits are reported in the isolation manifest. Network denial is
+best-effort Python enforcement, not kernel egress isolation. The two isolated
+trust labels currently use the same execution mechanism and configurable bound
+ranges; `untrusted_isolated` is a provenance/risk declaration, not a claim of a
+stronger kernel boundary.
+
+The typed wire contract covers current environment, agent, shift, and monitor
+runtime values. An isolated evaluator that requires a live environment object,
+and reporters requiring undeclared record types, fail closed with a protocol
+violation; they do not fall back to in-process execution. Phase 5B should add a
+capability-specific evaluator/reporting protocol rather than serializing live
+objects. Package installation, wheel integrity, dependency review, publisher
+authenticity, and static metadata signing remain supply-chain concerns outside
+runtime descriptor validation. `builtin_trusted` and `local_trusted` plugins
+retain ordinary process authority and must be reviewed.
 
 ## Required adversarial evidence
 

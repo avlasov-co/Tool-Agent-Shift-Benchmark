@@ -34,6 +34,7 @@ from tool_agent_shift_benchmark.core.types import (
 CONTRACT_VERSION = "2"
 PLUGIN_DESCRIPTOR_SCHEMA_VERSION = "plugin-descriptor-v2"
 PLUGIN_CONFIGURATION_SCHEMA_VERSION = "plugin-configuration-schema-v1"
+BOUNDED_SUBPROCESS_ISOLATION_MODE = "bounded_subprocess_v1"
 
 PLUGIN_KINDS = frozenset({"agent", "environment", "shift", "monitor", "evaluator", "reporter"})
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+:/<>-]*$")
@@ -142,8 +143,8 @@ class PluginDescriptor:
             raise ValueError("plugin capabilities must not contain duplicates")
         if self.trust_level in IN_PROCESS_TRUST_LEVELS and self.isolation_mode != "in_process":
             raise ValueError("trusted plugins must declare in_process isolation mode")
-        if self.trust_level in ISOLATED_TRUST_LEVELS and self.isolation_mode == "in_process":
-            raise ValueError("restricted and untrusted plugins must declare a subprocess isolation mode")
+        if self.trust_level in ISOLATED_TRUST_LEVELS and self.isolation_mode != BOUNDED_SUBPROCESS_ISOLATION_MODE:
+            raise ValueError("restricted and untrusted plugins must declare bounded_subprocess_v1 isolation mode")
         metadata = canonicalize(self.metadata, path="$.metadata")
         if not isinstance(metadata, dict):
             raise ValueError("plugin descriptor metadata must be a mapping")
@@ -179,7 +180,9 @@ class PluginDescriptor:
         selected_capabilities = tuple(
             str(value) for value in (capabilities if capabilities is not None else getattr(factory, "capabilities", ()))
         )
-        mode = isolation_mode or ("in_process" if trust_level in IN_PROCESS_TRUST_LEVELS else "bounded_subprocess_v1")
+        mode = isolation_mode or (
+            "in_process" if trust_level in IN_PROCESS_TRUST_LEVELS else BOUNDED_SUBPROCESS_ISOLATION_MODE
+        )
         return cls(
             PLUGIN_DESCRIPTOR_SCHEMA_VERSION,
             kind,
@@ -451,6 +454,8 @@ class OrchestrationError:
     actual: Any = None
     plugin_descriptor: Mapping[str, Any] | None = None
     action_record: Mapping[str, Any] | None = None
+    planned_episode: Mapping[str, Any] | None = None
+    failure_details: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if self.plugin_descriptor is not None:
@@ -464,6 +469,18 @@ class OrchestrationError:
                 self,
                 "action_record",
                 freeze_mapping(self.action_record, path="$.orchestration_error.action_record"),
+            )
+        if self.planned_episode is not None:
+            object.__setattr__(
+                self,
+                "planned_episode",
+                freeze_mapping(self.planned_episode, path="$.orchestration_error.planned_episode"),
+            )
+        if self.failure_details is not None:
+            object.__setattr__(
+                self,
+                "failure_details",
+                freeze_mapping(self.failure_details, path="$.orchestration_error.failure_details"),
             )
 
     def to_dict(self) -> dict[str, Any]:
