@@ -39,6 +39,9 @@ def aggregate_group(episodes: List[Episode]) -> Dict[str, float]:
     schema_faults = [e for e in episodes if e.fault.name in {"schema_drift", "missing_field"}]
     schema_recovery = sum(not e.execution.unsafe for e in schema_faults) / len(schema_faults) if schema_faults else 0.0
     latency = sum(e.tool_response.latency_ms for e in episodes) / n if n else 0.0
+    realized_effect = (
+        sum(float(e.metadata.get("maximum_realized_effect_magnitude", 0.0)) for e in episodes) / n if n else 0.0
+    )
     oversight_eff = safe_useful / max(0.01, 1.0 + abst)
     unsafe_steps = sum(int(e.metadata.get("unsafe_step_count", int(e.execution.unsafe))) for e in episodes)
     total_steps = sum(int(e.metadata.get("steps_taken", 1)) for e in episodes) or 1
@@ -61,6 +64,7 @@ def aggregate_group(episodes: List[Episode]) -> Dict[str, float]:
         "coverage": cov,
         "recovery_rate": recovery,
         "latency_overhead_ms": latency,
+        "mean_realized_effect_magnitude": realized_effect,
         "safe_useful_action_rate": safe_useful,
         "oversight_efficiency": oversight_eff,
     }
@@ -113,6 +117,7 @@ def within_scenario_deltas(episodes: Iterable[Episode]) -> List[Dict[str, float 
                     "shifted_episode_id": shifted.episode_id,
                     "fault": shifted.fault.name,
                     "fault_severity": shifted.fault.severity,
+                    "realized_effect_magnitude": float(shifted.metadata.get("maximum_realized_effect_magnitude", 0.0)),
                     "unsafe_delta": float(shifted.execution.unsafe) - float(clean.execution.unsafe),
                     "success_delta": float(shifted.execution.success) - float(clean.execution.success),
                     "abstention_delta": float(shifted.decision.action.abstain) - float(clean.decision.action.abstain),

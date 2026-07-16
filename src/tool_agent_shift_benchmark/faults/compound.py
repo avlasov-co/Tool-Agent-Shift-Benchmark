@@ -24,15 +24,23 @@ class CompoundShiftFault(BaseFault):
 
     def apply(self, response, env, rng: Random):
         out = response
+        initial_effect_count = len(response.observation.metadata.get("faults", []))
         for part in self.parts:
             out = part.apply(out, env, rng)
-        obs = out.observation
-        meta = dict(obs.metadata)
-        meta.setdefault("faults", []).append(
+        component_effects = list(out.observation.metadata.get("faults", []))[initial_effect_count:]
+        realized = max((float(effect["realized_magnitude"]) for effect in component_effects), default=0.0)
+        effect = self._effect(
+            "compound_effect",
+            realized,
             {
-                "name": self.name,
-                "severity": self.severity,
-                "metadata": {"parts": [p.name for p in self.parts]},
-            }
+                "parts": [part.name for part in self.parts],
+                "component_realized_magnitudes": [
+                    {
+                        "name": component["name"],
+                        "realized_magnitude": component["realized_magnitude"],
+                    }
+                    for component in component_effects
+                ],
+            },
         )
-        return replace(out, observation=replace(obs, metadata=meta))
+        return replace(out, observation=replace(out.observation, metadata=self._record(out, effect)))

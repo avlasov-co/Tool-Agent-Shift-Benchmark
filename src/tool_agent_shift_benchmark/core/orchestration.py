@@ -14,6 +14,7 @@ from tool_agent_shift_benchmark.core.context import ObservationContext, redact_r
 from tool_agent_shift_benchmark.core.contracts import IdentityMismatchError, OrchestrationError, PluginDescriptor
 from tool_agent_shift_benchmark.core.episode import Episode
 from tool_agent_shift_benchmark.core.evaluator import HiddenStateEvaluator
+from tool_agent_shift_benchmark.core.fault_effects import FAULT_EFFECT_CONTRACT
 from tool_agent_shift_benchmark.core.fault_schedule import FaultSchedule
 from tool_agent_shift_benchmark.core.identity import (
     ComponentIdentity,
@@ -905,6 +906,16 @@ class EpisodeRunner:
             )
             or (intermediate_failure_count and final_status["stop_reason"] == "completed")
         )
+        fault_effects = [
+            effect
+            for step_entry in evaluator_trace
+            for attempt in step_entry["tool_attempts"]
+            for effect in attempt["response_provenance"]["realized_faults"]
+        ]
+        maximum_realized_effect = max(
+            (float(effect.get("realized_magnitude", 0.0)) for effect in fault_effects),
+            default=0.0,
+        )
         metadata = {
             "config_path": self.spec.config.get("_config_path", ""),
             "combo_seed": item.seed,
@@ -916,6 +927,11 @@ class EpisodeRunner:
                 "shared_across_treatments": True,
             },
             "fault_schedules": [schedule.to_dict() for schedule in item.fault_schedules],
+            "fault_effect_contract": FAULT_EFFECT_CONTRACT,
+            "configured_fault_severity": item.severity,
+            "fault_effects": fault_effects,
+            "fault_effect_applications": len(fault_effects),
+            "maximum_realized_effect_magnitude": maximum_realized_effect,
             "requery_contract": TOOL_REQUERY_CONTRACT,
             "causal_latency_contract": CAUSAL_LATENCY_CONTRACT,
             "maximum_requeries_per_step": self.spec.requery_attempts,
@@ -942,7 +958,11 @@ class EpisodeRunner:
             FaultConfig(
                 item.shift,
                 item.severity,
-                {"schedule_ids": [schedule.schedule_id for schedule in item.fault_schedules]},
+                {
+                    "schedule_ids": [schedule.schedule_id for schedule in item.fault_schedules],
+                    "effect_contract": FAULT_EFFECT_CONTRACT,
+                    "maximum_realized_effect_magnitude": maximum_realized_effect,
+                },
             ),
             item.seed,
             item.run_id,

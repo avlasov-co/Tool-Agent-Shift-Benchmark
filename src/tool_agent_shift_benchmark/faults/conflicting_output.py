@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from random import Random
 
 from .base import BaseFault, clone_response
@@ -10,30 +11,23 @@ class ConflictingOutputFault(BaseFault):
 
     def apply(self, response, env, rng: Random):
         data = dict(response.observation.data)
-        conflict = {"source_a": dict(data), "source_b": {}}
-        if response.observation.env_name == "file_ops":
-            conflict["source_b"] = {"files": []}
-        elif response.observation.env_name == "calendar_ops":
-            conflict["source_b"] = {
-                "availability": [
-                    {
-                        "attendee": "alice",
-                        "start": 10,
-                        "end": 11,
-                        "timezone": "UTC+01:00",
-                    }
-                ]
-            }
-        elif response.observation.env_name == "risk_ops":
-            conflict["source_b"] = {
-                "market_state": {
-                    "synthetic_price": 100,
-                    "volatility": 0.99,
-                    "snapshot_id": "conflict",
-                },
-                "exposure": data.get("exposure"),
-            }
-        data["conflicting_views"] = conflict
-        meta = dict(response.observation.metadata)
-        meta.setdefault("faults", []).append({"name": self.name, "metadata": {"conflict": True}})
-        return clone_response(response, data=data, metadata=meta)
+        source_keys = sorted(data)
+        affected_count = (
+            0 if self.severity == 0.0 else min(len(source_keys), math.ceil(self.severity * len(source_keys)))
+        )
+        conflicting_fields = source_keys[:affected_count]
+        if affected_count:
+            source_b = {key: value for key, value in data.items() if key not in conflicting_fields}
+            data["conflicting_views"] = {"source_a": dict(data), "source_b": source_b}
+        magnitude = affected_count / len(source_keys) if source_keys else 0.0
+        effect = self._effect(
+            "conflicting_output",
+            magnitude,
+            {
+                "conflicting_fields": conflicting_fields,
+                "conflicting_field_count": affected_count,
+                "candidate_field_count": len(source_keys),
+                "conflict_fraction": magnitude,
+            },
+        )
+        return clone_response(response, data=data, metadata=self._record(response, effect))

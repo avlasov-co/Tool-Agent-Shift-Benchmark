@@ -63,7 +63,9 @@ response.
   the bounded per-step requery budget changes policy semantics, and to v6 when
   causal millisecond clocks change execution meaning. Stored earlier identity
   records remain legacy provenance rather than scheduled, requery-capable,
-  causal-clock experimental units.
+  causal-clock experimental units. Identity v7 additionally binds the
+  configured-versus-realized `fault-effect-v1` semantics and built-in fault
+  component version 2.0.0.
 - Generator changes cannot silently change replay meaning because manifests are
   authoritative after planning and their hashes are verified.
 - Parallelism and filtering operate on already materialized scenario/treatment

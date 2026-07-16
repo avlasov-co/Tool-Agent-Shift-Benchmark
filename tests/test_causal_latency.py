@@ -223,7 +223,7 @@ def test_causal_clock_contract_is_part_of_scientific_identity() -> None:
     coordinator = RunCoordinator(ExperimentSpec.from_config(latency_config(), seed=89))
     coordinator.run()
 
-    assert IDENTITY_SCHEMA_VERSION == "6"
+    assert int(IDENTITY_SCHEMA_VERSION) >= 6
     assert coordinator.identity is not None
     semantics = coordinator.identity.semantic.step_semantics
     assert semantics.clock_contract == CAUSAL_LATENCY_CONTRACT

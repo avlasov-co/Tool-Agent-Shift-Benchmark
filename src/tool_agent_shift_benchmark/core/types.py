@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any, Dict, List, Optional
 
@@ -25,8 +26,13 @@ class FaultConfig:
 
     def __post_init__(self) -> None:
         _require_non_empty("fault name", self.name)
-        if self.severity < 0:
-            raise ValueError("severity must be non-negative")
+        if (
+            not isinstance(self.severity, (int, float))
+            or isinstance(self.severity, bool)
+            or not math.isfinite(self.severity)
+            or not 0.0 <= self.severity <= 1.0
+        ):
+            raise ValueError("severity must be finite and in [0, 1]")
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

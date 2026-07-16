@@ -1,26 +1,55 @@
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 from random import Random
 from typing import Any
 
+from tool_agent_shift_benchmark.core.fault_effects import FAULT_EFFECT_CONTRACT, FaultEffect
 from tool_agent_shift_benchmark.core.types import ToolResponse
 
 
 class BaseFault:
     name = "normal"
+    version = "2.0.0"
+    capabilities = (FAULT_EFFECT_CONTRACT,)
 
     def __init__(self, severity: float = 1.0):
-        self.severity = max(0.0, float(severity))
+        if not isinstance(severity, (int, float)) or isinstance(severity, bool):
+            raise ValueError("fault severity must be numeric")
+        normalized = float(severity)
+        if not math.isfinite(normalized) or not 0.0 <= normalized <= 1.0:
+            raise ValueError("fault severity must be finite and in [0, 1]")
+        self.severity = normalized
 
-    def _record(self, response: ToolResponse, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _effect(
+        self,
+        effect_type: str,
+        realized_magnitude: float,
+        details: dict[str, Any] | None = None,
+    ) -> FaultEffect:
+        return FaultEffect(
+            FAULT_EFFECT_CONTRACT,
+            self.name,
+            self.severity,
+            float(realized_magnitude),
+            effect_type,
+            realized_magnitude == 0.0,
+            details or {},
+        )
+
+    def _record(self, response: ToolResponse, effect: FaultEffect) -> dict[str, Any]:
         meta = dict(response.observation.metadata)
-        meta.setdefault("faults", []).append({"name": self.name, "severity": self.severity, "metadata": metadata or {}})
+        effects = list(meta.get("faults", []))
+        effects.append(effect.to_dict())
+        meta["faults"] = effects
         return meta
 
+    def _record_only(self, response: ToolResponse, effect: FaultEffect) -> ToolResponse:
+        return replace(response, observation=replace(response.observation, metadata=self._record(response, effect)))
+
     def apply(self, response: ToolResponse, env: object, rng: Random) -> ToolResponse:
-        obs = response.observation
-        return replace(response, observation=replace(obs, metadata=self._record(response)))
+        return self._record_only(response, self._effect("no_fault", 0.0, {"reason": "normal_channel"}))
 
 
 def clone_response(

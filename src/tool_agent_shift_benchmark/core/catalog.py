@@ -53,7 +53,7 @@ class PluginCatalog:
         for name, value in BUILTIN_ENVIRONMENTS.items():
             self._add("environment", name, value)
         for name, value in FAULTS.items():
-            self._add("shift", name, value)
+            self._add("shift", name, value, version=str(getattr(value, "version", "1.0.0")))
         for name, value in BUILTIN_MONITORS.items():
             self._add("monitor", name, value)
 

@@ -1,4 +1,4 @@
-"""Typed, normalized scientific identity schema version 6."""
+"""Typed, normalized scientific identity schema version 7."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from tool_agent_shift_benchmark.core.catalog import PluginCatalog
     from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec
 
-IDENTITY_SCHEMA_VERSION = "6"
+IDENTITY_SCHEMA_VERSION = "7"
 SCENARIO_GENERATOR_NAME = "deterministic_synthetic_scenarios"
 SCENARIO_GENERATOR_VERSION = "2.1.0"
 EVALUATOR_NAME = "hidden_state_evaluator"
@@ -107,6 +107,7 @@ class SemanticIdentity:
     shift_chains: tuple[tuple[ComponentIdentity, ...], ...]
     configured_severities: tuple[float, ...]
     fault_schedules: tuple[FaultScheduleIdentity, ...]
+    fault_effect_contract: str
     oversight_treatment: str
     monitor: ComponentIdentity
     monitor_modes: tuple[str, ...]
@@ -254,6 +255,7 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
         )
     )
     severities = tuple(sorted(float(severity) for severity in spec.severities))
+    from tool_agent_shift_benchmark.core.fault_effects import FAULT_EFFECT_CONTRACT
     from tool_agent_shift_benchmark.core.fault_schedule import FAULT_SCHEDULE_CONTRACT, FaultSchedule
     from tool_agent_shift_benchmark.core.requery import TOOL_REQUERY_CONTRACT
     from tool_agent_shift_benchmark.core.timing import CAUSAL_LATENCY_CONTRACT
@@ -309,6 +311,7 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
         shift_chains=shift_chains,
         configured_severities=severities,
         fault_schedules=schedules,
+        fault_effect_contract=FAULT_EFFECT_CONTRACT,
         oversight_treatment=spec.monitor_policy,
         monitor=_component(catalog, "monitor", spec.monitor),
         monitor_modes=tuple(sorted(str(mode) for mode in config.get("monitor_modes", ()))),

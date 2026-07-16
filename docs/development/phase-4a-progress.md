@@ -18,7 +18,7 @@
 
 ## Current checkpoint
 
-Checkpoint 25 — causal latency — complete; preparing Checkpoint 26.
+Checkpoint 26 — universal severity contract — complete; preparing final validation and Phase 4B handoff.
 
 ## Checkpoint evidence
 
@@ -295,6 +295,44 @@ diagnostic checks remain visible here.
   Compilation, strict mypy, Ruff lint/format, and `git diff --check` passed
   after mechanical formatting.
 
+### Checkpoint 26 — universal severity contract
+
+- Added immutable `FaultEffect` records under `fault-effect-v1`. Every fault
+  application now records fault name, configured application severity,
+  normalized realized magnitude, effect type, explicit no-op status, and a
+  canonical deterministic detail mapping. Fault provenance remains evaluator-
+  only and is removed before policy or monitor exposure.
+- All fault constructors and serialized `FaultConfig` records now reject
+  booleans, non-numeric values, non-finite values, and values outside `[0, 1]`;
+  the previous `BaseFault` severity clamp was removed. Built-in fault components
+  advanced to version `2.0.0` and declare the effect contract capability.
+- Severity `0.0` preserves the complete policy-visible tool response for every
+  fault, including compound faults. The automatically matched zero-severity
+  treatment produces the same observations, visible response hashes, actions,
+  execution, and trajectory length as its clean pair while retaining evaluator
+  provenance that its realized magnitude was zero.
+- Defined deterministic intermediate and maximum behavior for every fault:
+  quantized schema renames; bounded timestamp staleness and stale-value edits;
+  proportional added milliseconds; deterministic removed-field paths;
+  conflict fractions; bounded corrupted-memory claims; proportional/thresholded
+  constraint deltas; and composed component effects. `normal` is explicitly a
+  zero-effect channel at every configured severity.
+- Episode metadata now separates treatment-level configured severity from all
+  per-call realized effects, retains the canonical effect list, and reports
+  application count and maximum realized magnitude. Episode/analysis rows add
+  configured and realized fields; aggregate metrics add mean realized effect;
+  within-pair deltas retain the treatment realized magnitude.
+- Scientific identity advanced to schema `7` and records
+  `fault-effect-v1`; fault component version changes therefore alter semantic
+  identity. Identity-v2 through identity-v6 episode records remain readable.
+- Tests exercise zero, `0.25`, `0.5`, and `1.0` for all nine faults in all three
+  environments; prove deterministic monotonic realized magnitude; inspect every
+  exact summary family and maximum endpoint; prove hidden state preservation;
+  reject negative, over-one, boolean, string, NaN, and infinity severities; and
+  verify episode/analysis/identity propagation. Focused severity tests passed
+  (158 tests); the full suite passed (362 tests). Compilation, strict mypy,
+  Ruff lint/format, and `git diff --check` passed after mechanical formatting.
+
 ## Contract versions
 
 - Starting identity schema: `2`.
@@ -303,10 +341,12 @@ diagnostic checks remain visible here.
 - Starting plugin contract: `1`.
 - Starting canonical serialization schema: `1`.
 - Starting scenario semantic label: `v1` (not a complete manifest schema).
-- Current identity and planned-identity schema: `6`.
+- Current identity and planned-identity schema: `7`.
 - Current fault-schedule contract: `fault-schedule-v2`.
 - Current tool-requery contract: `tool-requery-v1`.
 - Current causal-latency contract: `causal-latency-v1`.
+- Current fault-effect contract: `fault-effect-v1`.
+- Current built-in fault component version: `2.0.0`.
 - Current scenario generator: `deterministic_synthetic_scenarios@2.1.0`.
 - Current scenario-manifest contract: `scenario-manifest-v2`.
 - Current step-lifecycle contract: `environment-state-machine-v2`.
