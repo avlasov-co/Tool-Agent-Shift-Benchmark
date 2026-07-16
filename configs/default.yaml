@@ -1,3 +1,9 @@
+schema_version: 2
+monitor_policy: record
+migration:
+  source_schema_version: unversioned-v1
+  decisions:
+    - "monitor_policy was absent; selected 'record' to preserve the legacy file-runner behavior"
 episodes_per_combo: 3
 episode_steps: 2
 fault_severities: [0.5, 1.0]

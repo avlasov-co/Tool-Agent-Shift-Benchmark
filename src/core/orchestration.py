@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from pathlib import Path
 from random import Random
 from typing import Any
@@ -41,6 +42,7 @@ OPERATIONAL_SELECTOR_KEYS = frozenset(
         "resume_episode_ids",
     }
 )
+LEGACY_FORMAT_KEYS = frozenset({"schema_version", "migration", "fault_schedules", "scenario_splits"})
 
 
 class UnknownEpisodeSelectionError(ValueError):
@@ -76,8 +78,14 @@ class ExperimentSpec:
     partition_index: int | None = None
     partition_count: int | None = None
     replay_episode_ids: tuple[str, ...] = ()
+    semantic_scenario_indices: tuple[int, ...] | None = None
+    legacy_source_config: dict[str, Any] = dataclass_field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        if self.workers <= 0:
+            raise ValueError("workers must be positive")
+        if any(index < 0 for index in self.scenario_indices):
+            raise ValueError("scenario_indices must be non-negative")
         if self.selection_offset < 0:
             raise ValueError("selection_offset must be non-negative")
         if self.selection_limit is not None and self.selection_limit < 0:
@@ -96,7 +104,12 @@ class ExperimentSpec:
             raise ValueError("episode_ids and replay_episode_ids cannot be combined")
 
     @classmethod
-    def from_config(cls, config: dict[str, Any], seed: int = 42, **overrides: Any) -> "ExperimentSpec":
+    def from_config(cls, config: dict[str, Any], seed: int | None = None, **overrides: Any) -> "ExperimentSpec":
+        from src.core.config_schema import parse_config_data
+
+        internal = {key: value for key, value in config.items() if key.startswith("_")}
+        public = {key: value for key, value in config.items() if not key.startswith("_")}
+        config = {**parse_config_data(public).to_dict(), **internal}
         raw_shifts = tuple(str(x) for x in (config.get("faults") or ("normal",)))
         raw_chains = config.get("shift_chains")
         chains = (
@@ -104,9 +117,26 @@ class ExperimentSpec:
             if raw_chains
             else tuple((x,) for x in raw_shifts)
         )
+        selected_split = str(config.get("scenario_split", "default"))
+        split_indices = next(
+            (
+                tuple(int(index) for index in split["indices"])
+                for split in config.get("scenario_splits", [])
+                if split["name"] == selected_split
+            ),
+            None,
+        )
+        worker_value = overrides.get("workers")
+        scenario_index_values = overrides.get("scenario_indices")
+        episode_id_values = overrides.get("episode_ids")
+        offset_value = overrides.get("selection_offset")
+        limit_value = overrides.get("selection_limit")
+        partition_index_value = overrides.get("partition_index")
+        partition_count_value = overrides.get("partition_count")
+        replay_id_values = overrides.get("replay_episode_ids")
         return cls(
             config=dict(config),
-            seed=seed,
+            seed=int(config.get("seed", 42) if seed is None else seed),
             environments=tuple(overrides.get("environments") or config.get("environments") or ("file_ops",)),
             agents=tuple(overrides.get("agents") or config.get("agents") or ("naive",)),
             shifts=raw_shifts,
@@ -114,35 +144,44 @@ class ExperimentSpec:
             severities=tuple(float(x) for x in config.get("fault_severities", (1.0,))),
             episodes_per_combo=int(config.get("episodes_per_combo", 3)),
             episode_steps=int(config.get("episode_steps", 1)),
-            workers=int(overrides.get("workers", config.get("workers", 1))),
+            workers=int(config.get("workers", 1) if worker_value is None else worker_value),
             monitor_policy=str(config.get("monitor_policy", "gate")),
             failure_policy=str(config.get("failure_policy", "continue")),
             retry_attempts=int(config.get("retry_attempts", 0)),
             monitor=str(config.get("monitor", "composite")),
             artifact_policy=str(config.get("artifact_policy", "bundle")),
             scenario_indices=tuple(
-                int(x) for x in (overrides.get("scenario_indices") or config.get("scenario_indices") or ())
+                int(x)
+                for x in (
+                    config.get("scenario_indices", ()) if scenario_index_values is None else scenario_index_values
+                )
             ),
-            episode_ids=tuple(str(x) for x in (overrides.get("episode_ids") or config.get("episode_ids") or ())),
-            selection_offset=int(overrides.get("selection_offset", config.get("selection_offset", 0))),
+            episode_ids=tuple(
+                str(x) for x in (config.get("episode_ids", ()) if episode_id_values is None else episode_id_values)
+            ),
+            selection_offset=int(config.get("selection_offset", 0) if offset_value is None else offset_value),
             selection_limit=(
                 int(value)
-                if (value := overrides.get("selection_limit", config.get("selection_limit"))) is not None
+                if (value := config.get("selection_limit") if limit_value is None else limit_value) is not None
                 else None
             ),
             partition_index=(
                 int(value)
-                if (value := overrides.get("partition_index", config.get("partition_index"))) is not None
+                if (value := config.get("partition_index") if partition_index_value is None else partition_index_value)
+                is not None
                 else None
             ),
             partition_count=(
                 int(value)
-                if (value := overrides.get("partition_count", config.get("partition_count"))) is not None
+                if (value := config.get("partition_count") if partition_count_value is None else partition_count_value)
+                is not None
                 else None
             ),
             replay_episode_ids=tuple(
-                str(x) for x in (overrides.get("replay_episode_ids") or config.get("replay_episode_ids") or ())
+                str(x) for x in (config.get("replay_episode_ids", ()) if replay_id_values is None else replay_id_values)
             ),
+            semantic_scenario_indices=split_indices,
+            legacy_source_config=dict(public),
         )
 
     def identity_config_v1(self) -> dict[str, Any]:
@@ -153,7 +192,9 @@ class ExperimentSpec:
         Identity v2 replaces this compatibility helper in Checkpoint 6.
         """
 
-        return {key: value for key, value in self.config.items() if key not in OPERATIONAL_SELECTOR_KEYS}
+        excluded = OPERATIONAL_SELECTOR_KEYS | LEGACY_FORMAT_KEYS
+        source = self.legacy_source_config or self.config
+        return {key: value for key, value in source.items() if key not in excluded}
 
     def digest(self) -> str:
         return str(build_experiment_identity(self, PluginCatalog()).config_digest)
@@ -239,6 +280,11 @@ class ExperimentPlanner:
                         if shift == "normal" and severity != 1.0:
                             continue
                         for index in range(self.spec.episodes_per_combo):
+                            if (
+                                self.spec.semantic_scenario_indices is not None
+                                and index not in self.spec.semantic_scenario_indices
+                            ):
+                                continue
                             scenario_id = f"{env}_scenario_{index}"
                             identity = {
                                 "run": self.run_id,

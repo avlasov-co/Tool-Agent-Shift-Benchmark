@@ -3,13 +3,14 @@ from __future__ import annotations
 import argparse
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 from src.analysis.run_analysis import run_analysis
 from src.analysis.run_pairwise_compounds import write_pairwise_compound_matrix
 from src.core.catalog import PluginCatalog
-from src.core.config import load_config
-from src.core.config_schema import validate_config
+from src.core.config import dump_config_yaml, load_config, load_raw_config, write_config_yaml
+from src.core.config_schema import migrate_config_data, validate_config
 from src.core.episode import Episode
 from src.core.orchestration import ExperimentPlanner, ExperimentSpec
 from src.core.run_artifacts import (
@@ -74,9 +75,9 @@ def _run_command(args: argparse.Namespace) -> None:
             command=["tasb", "run"],
             extra_metadata={
                 "config": args.config,
-                "seed": args.seed,
+                "seed": args.seed if args.seed is not None else load_config(args.config)["seed"],
                 "episodes": len(episodes),
-                "workers": args.workers,
+                "workers": args.workers if args.workers is not None else load_config(args.config)["workers"],
                 "plugin_catalog": catalog.as_dict(),
                 "contract_version": "1",
             },
@@ -211,10 +212,19 @@ def _replay_command(args: argparse.Namespace) -> None:
 
 
 def _validate_config_command(args: argparse.Namespace) -> None:
-    warnings = validate_config(args.path, pairwise=args.pairwise)
-    for warning in warnings:
-        print(f"warning: {warning}")
-    print(f"config valid: {args.path}")
+    validate_config(args.path, pairwise=args.pairwise)
+    print(f"config valid (schema v2): {args.path}")
+
+
+def _migrate_config_command(args: argparse.Namespace) -> None:
+    model, decisions = migrate_config_data(load_raw_config(args.path), source=args.path)
+    for decision in decisions:
+        print(f"migration decision: {decision}", file=sys.stderr)
+    if args.output:
+        output = write_config_yaml(args.output, model.to_dict())
+        print(f"migrated config written to {output}")
+    else:
+        print(dump_config_yaml(model.to_dict()), end="")
 
 
 def _verify_release_command(args: argparse.Namespace) -> None:
@@ -234,18 +244,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     run = sub.add_parser("run", help="run benchmark evaluation")
     run.add_argument("--config", default="configs/small.yaml")
-    run.add_argument("--seed", type=int, default=42)
+    run.add_argument("--seed", type=int)
     run.add_argument("--env")
     run.add_argument("--agent")
     run.add_argument("--all-envs", action="store_true")
     run.add_argument("--all-agents", action="store_true")
     run.add_argument("--run-name")
     run.add_argument("--overwrite", action="store_true")
-    run.add_argument("--workers", type=int, default=1)
+    run.add_argument("--workers", type=int)
     run.add_argument("--resume", action="store_true")
     run.add_argument("--scenario-index", type=int, action="append")
     run.add_argument("--episode-id", action="append")
-    run.add_argument("--offset", type=int, default=0)
+    run.add_argument("--offset", type=int)
     run.add_argument("--limit", type=int)
     run.add_argument("--partition-index", type=int)
     run.add_argument("--partition-count", type=int)
@@ -286,6 +296,17 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--pairwise", action="store_true")
     validate.set_defaults(func=_validate_config_command)
 
+    config = sub.add_parser("config", help="validate or migrate versioned configuration")
+    config_sub = config.add_subparsers(dest="config_command", required=True)
+    config_validate = config_sub.add_parser("validate", help="validate a schema-v2 config")
+    config_validate.add_argument("path")
+    config_validate.add_argument("--pairwise", action="store_true")
+    config_validate.set_defaults(func=_validate_config_command)
+    config_migrate = config_sub.add_parser("migrate", help="migrate a legacy v1 config deterministically")
+    config_migrate.add_argument("path")
+    config_migrate.add_argument("--output")
+    config_migrate.set_defaults(func=_migrate_config_command)
+
     verify = sub.add_parser("verify-release", help="run release verifier")
     verify.set_defaults(func=_verify_release_command)
 
@@ -302,11 +323,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     plan = sub.add_parser("plan", help="resolve an experiment without running it")
     plan.add_argument("--config", default="configs/small.yaml")
-    plan.add_argument("--seed", type=int, default=42)
+    plan.add_argument("--seed", type=int)
     plan.add_argument("--run-name")
     plan.add_argument("--scenario-index", type=int, action="append")
     plan.add_argument("--episode-id", action="append")
-    plan.add_argument("--offset", type=int, default=0)
+    plan.add_argument("--offset", type=int)
     plan.add_argument("--limit", type=int)
     plan.add_argument("--partition-index", type=int)
     plan.add_argument("--partition-count", type=int)

@@ -13,6 +13,7 @@ from src.run_eval import run_eval
 
 def base_config() -> dict[str, object]:
     return {
+        "schema_version": 2,
         "environments": ["file_ops"],
         "agents": ["naive"],
         "faults": ["schema_drift"],
@@ -38,7 +39,7 @@ def test_equivalent_yaml_and_directories_have_the_same_identity(tmp_path: Path) 
     second_path = second_dir / "experiment.yaml"
     first_path.write_text(
         """\
-schema_version: 1
+schema_version: 2
 environments: [file_ops]
 agents: [naive]
 faults: [schema_drift]
@@ -52,6 +53,7 @@ monitor_policy: gate
     )
     second_path.write_text(
         """\
+schema_version: 2
 monitor_policy: gate
 episode_steps: 2
 episodes_per_combo: 2
@@ -126,7 +128,7 @@ def test_operational_settings_do_not_change_scientific_identity() -> None:
         ({"monitor_policy": "record"}, 42),
         ({"scenario_generator_version": "2.0.0"}, 42),
         ({"scenario_schema_version": "v2"}, 42),
-        ({"scenario_split": "holdout"}, 42),
+        ({"scenario_split": "holdout", "scenario_splits": [{"name": "holdout", "indices": [0]}]}, 42),
         ({"evaluator_version": "2.0.0"}, 42),
         ({"monitor_modes": ["schema_only"]}, 42),
         ({"policy_resources": {"policy": "a" * 64}}, 42),
@@ -209,6 +211,7 @@ def test_normalized_identity_is_saved_in_run_manifest(tmp_path: Path, monkeypatc
     config_path.write_text(
         """\
 environments: [file_ops]
+schema_version: 2
 agents: [naive]
 faults: [normal]
 fault_severities: [1.0]

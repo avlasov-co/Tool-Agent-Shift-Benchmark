@@ -364,10 +364,15 @@ def run_audit(
         lambda: _wheel_inspection(wheel_dir),
     )
     wheel = next(iter(sorted(wheel_dir.glob("*.whl"))), None)
-    venv_dir = runner.output_dir / "wheel-venv"
+    venv_dir = runner.output_dir / f"wheel-venv-{time.time_ns()}"
     if wheel is None:
         runner.skip("isolated_installation", "skipped because package build produced no wheel")
         runner.skip("cli_smoke", "skipped because package build produced no wheel")
+        runner.skip("cli_validate_config_alias_smoke", "skipped because package build produced no wheel")
+        runner.skip("cli_config_validate_smoke", "skipped because package build produced no wheel")
+        runner.skip("cli_config_migrate_smoke", "skipped because package build produced no wheel")
+        runner.skip("cli_config_validate_migrated_smoke", "skipped because package build produced no wheel")
+        runner.skip("cli_plan_smoke", "skipped because package build produced no wheel")
     else:
         runner.run_command(
             "isolated_installation",
@@ -381,6 +386,44 @@ def run_audit(
             timeout_seconds=timeout_seconds,
         )
         runner.run_command("cli_smoke", [str(venv_dir / "bin" / "tasb"), "--help"], env=common_env)
+        runner.run_command(
+            "cli_validate_config_alias_smoke",
+            [str(venv_dir / "bin" / "tasb"), "validate-config", "configs/small.yaml"],
+            env=common_env,
+        )
+        runner.run_command(
+            "cli_config_validate_smoke",
+            [str(venv_dir / "bin" / "tasb"), "config", "validate", "configs/small.yaml"],
+            env=common_env,
+        )
+        legacy_config = runner.output_dir / "legacy-config-smoke.yaml"
+        migrated_config = runner.output_dir / "migrated-config-smoke.yaml"
+        legacy_config.write_text(
+            "episodes_per_combo: 1\nenvironments: [file_ops]\nagents: [naive]\nfaults: [normal]\n",
+            encoding="utf-8",
+        )
+        runner.run_command(
+            "cli_config_migrate_smoke",
+            [
+                str(venv_dir / "bin" / "tasb"),
+                "config",
+                "migrate",
+                str(legacy_config),
+                "--output",
+                str(migrated_config),
+            ],
+            env=common_env,
+        )
+        runner.run_command(
+            "cli_config_validate_migrated_smoke",
+            [str(venv_dir / "bin" / "tasb"), "config", "validate", str(migrated_config)],
+            env=common_env,
+        )
+        runner.run_command(
+            "cli_plan_smoke",
+            [str(venv_dir / "bin" / "tasb"), "plan", "--config", "configs/small.yaml"],
+            env=common_env,
+        )
     runner.run_callable(
         "release_metadata_consistency",
         "compare pyproject and changelog version",

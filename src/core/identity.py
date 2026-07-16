@@ -65,6 +65,7 @@ class SemanticIdentity:
     scenario_generator: ComponentIdentity
     scenario_schema_version: str
     scenario_split: str
+    scenario_split_indices: tuple[int, ...]
     environments: tuple[ComponentIdentity, ...]
     agents: tuple[ComponentIdentity, ...]
     shift_chains: tuple[tuple[ComponentIdentity, ...], ...]
@@ -161,7 +162,9 @@ def _normalize_resources(value: Any) -> tuple[ResourceIdentity, ...]:
     for name, digest in value.items():
         if not isinstance(name, str) or not name:
             raise ValueError("policy resource names must be non-empty strings")
-        normalized = str(digest).lower()
+        if not isinstance(digest, str):
+            raise ValueError(f"policy resource {name!r} must be a SHA-256 string")
+        normalized = digest.lower()
         if len(normalized) != 64 or any(character not in "0123456789abcdef" for character in normalized):
             raise ValueError(f"policy resource {name!r} must use a 64-character SHA-256 hash")
         resources.append(ResourceIdentity(name, normalized))
@@ -221,6 +224,7 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
         ),
         scenario_schema_version=str(config.get("scenario_schema_version", "v1")),
         scenario_split=str(config.get("scenario_split", "default")),
+        scenario_split_indices=tuple(spec.semantic_scenario_indices or ()),
         environments=environments,
         agents=agents,
         shift_chains=shift_chains,

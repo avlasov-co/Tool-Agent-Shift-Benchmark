@@ -28,6 +28,8 @@ def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
 def test_cli_parser_accepts_core_commands() -> None:
     parser = build_parser()
     assert parser.parse_args(["validate-config", "configs/small.yaml"]).command == "validate-config"
+    assert parser.parse_args(["config", "validate", "configs/small.yaml"]).config_command == "validate"
+    assert parser.parse_args(["config", "migrate", "legacy.yaml"]).config_command == "migrate"
     assert parser.parse_args(["run", "--config", "configs/small.yaml", "--all-envs"]).command == "run"
     assert parser.parse_args(["report", "--html"]).command == "report"
 
@@ -36,6 +38,7 @@ def test_config_validation_rejects_unknown_agent() -> None:
     with pytest.raises(ConfigValidationError):
         validate_config_data(
             {
+                "schema_version": 2,
                 "environments": ["file_ops"],
                 "agents": ["imaginary_agent"],
                 "faults": ["normal"],

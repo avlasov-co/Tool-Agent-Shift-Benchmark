@@ -15,7 +15,9 @@
 
 ## Current checkpoint
 
-Checkpoint 8 complete and pending commit: strict canonical serialization.
+Phase 2 complete: Checkpoints 5 through 9 are committed with strict typed
+configuration schema v2, deterministic legacy migration, normalized run
+provenance, and installed-wheel CLI validation.
 
 ## Checkpoint evidence
 
@@ -96,6 +98,43 @@ Checkpoint 8 complete and pending commit: strict canonical serialization.
 - Compatibility readers accept JSON-shaped legacy values but apply the same
   finite/type validation. Unsupported legacy data now fails explicitly.
 
+### Checkpoint 9 — configuration schema v2
+
+- Replaced permissive configuration parsing with a PyYAML `SafeLoader` that
+  rejects duplicate keys and reports malformed YAML with source, line, and
+  column. There is no tiny-parser or JSON-fallback path.
+- Added typed schema version `2` with default rejection of unknown keys and
+  strict validation for components, plugin references and contract versions,
+  workers/counts, all selector forms, monitor/oversight modes, ordered shift
+  chains, finite bounded severities, effective fault schedules, artifact and
+  retry policy, scenario splits, resources, logging, progress, and batching.
+- Syntax/schema validation uses a static first-party name registry plus
+  declared external references. It does not construct `PluginCatalog`, inspect
+  entry points, or execute external plugin code. Runtime catalog validation
+  remains a separate planner boundary.
+- Added `tasb config validate` and deterministic `tasb config migrate`, while
+  retaining `tasb validate-config` as a compatibility alias. Migration accepts
+  schema-v1 or unversioned-v1 input, rejects unknown and conflicting values,
+  records its source version and decisions, and is stable and idempotent.
+- The one legacy ambiguity resolved automatically is an absent
+  `monitor_policy`: migration selects `record` and records that decision to
+  preserve the historical file-runner behavior. Conflicting `faults` and
+  `shift_chains` require an explicit user resolution.
+- Migrated all six shipped configurations to schema v2 with recorded migration
+  metadata. Validation includes the pairwise constraints for
+  `compound_matrix.yaml`.
+- Every run now saves the effective normalized configuration separately from
+  its operational request. CLI/API overrides for seed, components, workers,
+  and selectors are reflected exactly; omitted CLI seed/worker/pagination flags
+  defer to the normalized configuration rather than replacing it with parser
+  defaults.
+- Scenario split indices are normalized as an order-insensitive membership set;
+  the selected split is semantic and controls the canonical matrix. Operational
+  scenario filters remain post-identity selectors.
+- Audit wheel installation now uses a fresh isolated environment per audit and
+  smokes help, both validation commands, legacy migration plus validation of
+  the migrated result, and deterministic planning from the installed artifact.
+
 ## Identity field matrix
 
 | Field group | Scientific identity | Normalization |
@@ -116,8 +155,10 @@ Checkpoint 8 complete and pending commit: strict canonical serialization.
 - Identity schema: `2`.
 - Plugin contract schema: `1` (recorded per component).
 - Scenario schema default: `v1` (semantic and configurable).
-- Artifact/config schemas remain at their Phase 1 versions until Checkpoints 8
-  and 9.
+- Configuration schema: `2`; legacy source schemas: explicit `1` and
+  `unversioned-v1` through the migration command only.
+- Artifact schemas retain their Phase 1 versions; their JSON encoding uses
+  canonical serialization schema `1`.
 - Episode planned-identity schema: `2`; schema-v1 compatibility reads validate
   the stored legacy ID.
 - Canonical serialization schema: `1`.
@@ -128,6 +169,12 @@ Checkpoint 8 complete and pending commit: strict canonical serialization.
 - Treat IDs emitted by the broken filtered implementation as non-canonical;
   document and retain them as legacy provenance rather than silently mapping
   them to a potentially different semantic episode.
+- New execution and planning require config schema v2. Legacy configs are not
+  silently reinterpreted; users must run `tasb config migrate` and review the
+  recorded migration decision.
+- Historical file-runner configs with no oversight policy migrate to
+  `monitor_policy: record`; newly authored v2 configs default explicitly to
+  `gate` when the field is omitted.
 
 ## Validation log
 
@@ -170,9 +217,33 @@ Checkpoint 8 complete and pending commit: strict canonical serialization.
 - Checkpoint 8 pre-commit audit passed every executable/source/package check;
   it recorded only the expected in-progress dirty tree and unchanged absent
   evidence corpus.
+- Checkpoint 9 focused config/identity/authoritative-ID/serialization/
+  reproducibility suite: 93 passed.
+- Checkpoint 9 full suite: 151 passed. Branch coverage: 81.39% against the 73%
+  floor.
+- Checkpoint 9 Ruff lint/format, strict mypy, compilation, and
+  `git diff --check`: passed.
+- Checkpoint 9 pre-commit diagnostic audit passed junk detection, compilation,
+  all tests, branch coverage, schema-v2 config validation, deterministic
+  planning, package build, wheel inspection, fresh isolated installation,
+  installed CLI help, both validation surfaces, legacy migration/readback,
+  installed planning, and release metadata. It recorded only the expected
+  in-progress dirty tree and the unchanged absent checked-in structured
+  evidence corpus.
 
-## Remaining work
+## Phase 3 handoff
 
-- Complete and commit Checkpoints 5, 6, 7, 8, and 9 sequentially.
-- Run the final installed-wheel, audit, deterministic identity, compatibility,
-  and focused leakage review gates.
+- Start from the clean Checkpoint 9 commit and retain identity schema `2`,
+  planned-identity schema `2`, config schema `2`, plugin contract `1`, and
+  canonical serialization schema `1` as explicit compatibility boundaries.
+- Do not revive selector-derived legacy IDs, permissive serializers, automatic
+  v1 config loading, or schema validation that discovers plugin entry points.
+- Preserve the legacy episode reader and config migration until a separately
+  planned deprecation. Any schema bump must include a typed reader/migration and
+  cross-process identity fixtures.
+- The outstanding repository audit finding remains the absent checked-in
+  `results/episodes.jsonl`. Resolve it only through a named, recorded,
+  provenance-backed evidence run and an explicit evidence-release decision;
+  do not restore or regenerate a corpus merely to make the check green.
+- Add the supported Python 3.10–3.14 matrix to CI and exercise migration plus
+  installed-wheel identity fixtures there before release claims.

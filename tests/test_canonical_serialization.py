@@ -195,6 +195,7 @@ from src.core.catalog import PluginCatalog
 from src.core.orchestration import ExperimentPlanner, ExperimentSpec, RunCoordinator
 from src.core.serialization import canonical_dumps
 config = {
+    'schema_version': 2,
     'environments': ['file_ops'],
     'agents': ['naive'],
     'faults': ['normal'],

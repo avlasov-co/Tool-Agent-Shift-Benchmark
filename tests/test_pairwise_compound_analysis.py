@@ -24,6 +24,7 @@ def test_pairwise_compound_matrix_writes_rows(tmp_path: Path) -> None:
     config = tmp_path / "compound_matrix.yaml"
     config.write_text(
         """
+schema_version: 2
 episodes_per_combo: 1
 seed: 7
 fault_severities: [1.0]

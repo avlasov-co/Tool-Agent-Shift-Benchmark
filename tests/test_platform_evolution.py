@@ -28,15 +28,37 @@ def catalog_with_agent(agent):
     return catalog
 
 
+def config_v2(config):
+    normalized = {"schema_version": 2, **config}
+    references = []
+    builtins = {"naive", "retry", "validate_then_act", "monitor_gated", "conservative", "offline_llm_fixture"}
+    for agent in normalized.get("agents", []):
+        if agent not in builtins:
+            references.append(
+                {
+                    "kind": "agent",
+                    "name": agent,
+                    "version": "test",
+                    "contract_version": "1",
+                    "entry_point": f"tests:{agent}",
+                }
+            )
+    if references:
+        normalized["plugin_references"] = references
+    return normalized
+
+
 def test_custom_agent_gets_only_policy_visible_state():
     catalog = catalog_with_agent(VisibleOnlyAgent)
     spec = ExperimentSpec.from_config(
-        {
-            "environments": ["file_ops"],
-            "agents": ["visible_only"],
-            "faults": ["schema_drift"],
-            "episodes_per_combo": 1,
-        },
+        config_v2(
+            {
+                "environments": ["file_ops"],
+                "agents": ["visible_only"],
+                "faults": ["schema_drift"],
+                "episodes_per_combo": 1,
+            }
+        ),
         seed=3,
     )
     episode = RunCoordinator(spec, catalog).run()[0]
@@ -86,6 +108,7 @@ def test_entry_point_plugin_is_discovered_and_invalid_contract_is_rejected(monke
 
 def test_resume_skips_completed_episode_specs_without_duplicates():
     config = {
+        "schema_version": 2,
         "environments": ["file_ops"],
         "agents": ["naive"],
         "faults": ["normal"],
@@ -115,13 +138,15 @@ def test_retryable_plugin_failure_is_not_an_unsafe_episode():
 
     catalog = catalog_with_agent(FlakyAgent)
     spec = ExperimentSpec.from_config(
-        {
-            "environments": ["file_ops"],
-            "agents": ["flaky"],
-            "faults": ["normal"],
-            "episodes_per_combo": 1,
-            "retry_attempts": 1,
-        },
+        config_v2(
+            {
+                "environments": ["file_ops"],
+                "agents": ["flaky"],
+                "faults": ["normal"],
+                "episodes_per_combo": 1,
+                "retry_attempts": 1,
+            }
+        ),
         seed=4,
     )
     result = RunCoordinator(spec, catalog).run()
@@ -137,12 +162,14 @@ def test_failure_policy_distinguishes_orchestration_errors_from_episode_results(
             raise RuntimeError("broken plugin")
 
     catalog = catalog_with_agent(BrokenAgent)
-    base = {
-        "environments": ["file_ops"],
-        "agents": ["broken"],
-        "faults": ["normal"],
-        "episodes_per_combo": 1,
-    }
+    base = config_v2(
+        {
+            "environments": ["file_ops"],
+            "agents": ["broken"],
+            "faults": ["normal"],
+            "episodes_per_combo": 1,
+        }
+    )
     coordinator = RunCoordinator(ExperimentSpec.from_config({**base, "failure_policy": "continue"}), catalog)
     assert coordinator.run() == []
     assert coordinator.errors[0].error_type == "RuntimeError"
@@ -165,12 +192,14 @@ def test_run_manifest_checksums_cover_bundle_files(tmp_path, monkeypatch):
 
 def test_structured_episode_round_trip():
     spec = ExperimentSpec.from_config(
-        {
-            "environments": ["file_ops"],
-            "agents": ["naive"],
-            "faults": ["normal"],
-            "episodes_per_combo": 1,
-        },
+        config_v2(
+            {
+                "environments": ["file_ops"],
+                "agents": ["naive"],
+                "faults": ["normal"],
+                "episodes_per_combo": 1,
+            }
+        ),
         seed=9,
     )
     episode = RunCoordinator(spec).run()[0]

@@ -59,36 +59,37 @@ def _static_dynamic_rows(episodes: List[Episode]):
 
 def run_eval(
     config_path: str,
-    seed: int,
+    seed: int | None,
     env: str | None = None,
     agent: str | None = None,
     all_envs: bool = False,
     all_agents: bool = False,
-    workers: int = 1,
+    workers: int | None = None,
     existing_episodes: List[Episode] | None = None,
     checkpoint_path: str | None = None,
     scenario_indices=None,
     episode_ids=None,
-    selection_offset: int = 0,
+    selection_offset: int | None = None,
     selection_limit: int | None = None,
     partition_index: int | None = None,
     partition_count: int | None = None,
     replay_episode_ids=None,
 ) -> List[Episode]:
-    config = load_config(config_path)
-    config.setdefault("schema_version", "1")
-    # Compatibility wrapper preserves historical CSV benchmark semantics;
-    # new ExperimentSpec consumers default to monitor gating.
-    config.setdefault("monitor_policy", "record")
-    env_names = list(ENVS) if all_envs else ([env] if env else config.get("environments", ["file_ops"]))
-    agent_names = list(AGENTS) if all_agents else ([agent] if agent else config.get("agents", ["naive"]))
-    config = {
-        **config,
+    source_config = load_config(config_path)
+    env_names = list(ENVS) if all_envs else ([env] if env else source_config.get("environments", ["file_ops"]))
+    agent_names = list(AGENTS) if all_agents else ([agent] if agent else source_config.get("agents", ["naive"]))
+    selected_config = {
+        **source_config,
+        "environments": env_names,
+        "agents": agent_names,
+    }
+    runtime_config = {
+        **selected_config,
         "_config_path": config_path,
         "_working_directory": str(Path.cwd()),
     }
     spec = ExperimentSpec.from_config(
-        config,
+        runtime_config,
         seed=seed,
         environments=env_names,
         agents=agent_names,
@@ -102,6 +103,20 @@ def run_eval(
         replay_episode_ids=replay_episode_ids,
     )
     coordinator = RunCoordinator(spec)
+    normalized_config = {
+        **source_config,
+        "environments": list(spec.environments),
+        "agents": list(spec.agents),
+        "seed": spec.seed,
+        "workers": spec.workers,
+        "scenario_indices": list(spec.scenario_indices),
+        "episode_ids": list(spec.episode_ids),
+        "selection_offset": spec.selection_offset,
+        "selection_limit": spec.selection_limit,
+        "partition_index": spec.partition_index,
+        "partition_count": spec.partition_count,
+        "replay_episode_ids": list(spec.replay_episode_ids),
+    }
     existing_episodes = existing_episodes or []
     episodes = coordinator.run({e.episode_id for e in existing_episodes}, checkpoint_path=checkpoint_path)
     episodes = sorted(existing_episodes + episodes, key=lambda e: e.episode_id)
@@ -110,27 +125,29 @@ def run_eval(
         raise RuntimeError("planner did not provide a run ID")
     if coordinator.identity is None:
         raise RuntimeError("planner did not provide an identity document")
-    fault_names = spec.shifts
-    fault_severities = spec.severities
-
     effective_config = {
-        **config,
-        "effective_environments": env_names,
-        "effective_agents": agent_names,
-        "effective_faults": fault_names,
-        "effective_fault_severities": fault_severities,
+        "source_config_path": config_path,
         "all_envs": all_envs,
         "all_agents": all_agents,
         "requested_env": env,
         "requested_agent": agent,
+        "workers": spec.workers,
+        "scenario_indices": list(spec.scenario_indices),
+        "episode_ids": list(spec.episode_ids),
+        "selection_offset": spec.selection_offset,
+        "selection_limit": spec.selection_limit,
+        "partition_index": spec.partition_index,
+        "partition_count": spec.partition_count,
+        "replay_episode_ids": list(spec.replay_episode_ids),
     }
     write_outputs(
         episodes,
-        effective_config,
-        seed,
+        normalized_config,
+        spec.seed,
         run_id,
         identity=coordinator.identity.to_dict(),
         config_digest=coordinator.identity.config_digest,
+        operational_request=effective_config,
         orchestration_errors=[e.to_dict() for e in coordinator.errors],
     )
     return episodes
@@ -143,6 +160,7 @@ def write_outputs(
     run_id: str,
     identity=None,
     config_digest: str | None = None,
+    operational_request=None,
     orchestration_errors=None,
 ) -> None:
     Path("results").mkdir(exist_ok=True)
@@ -245,6 +263,8 @@ def write_outputs(
             "config_digest": config_digest,
             "identity": identity,
             "config": config,
+            "normalized_config": config,
+            "operational_request": operational_request or {},
             "episodes": len(episodes),
             "orchestration_errors": orchestration_errors or [],
         },

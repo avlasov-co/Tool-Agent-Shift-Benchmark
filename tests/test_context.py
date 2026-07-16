@@ -135,6 +135,19 @@ def test_run_eval_redacts_evaluator_fault_labels_from_policy_inputs(tmp_path, mo
             return AgentDecision(self.name, AgentAction("abstain", abstain=True, reason="spy_done"), 0.5)
 
     monkeypatch.setitem(run_eval_module.AGENTS, "spy", SpyAgent)
+    config_path = tmp_path / "configs" / "small.yaml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8")
+        + """\
+plugin_references:
+  - kind: agent
+    name: spy
+    version: 1.0.0
+    contract_version: '1'
+    entry_point: tests.test_context:SpyAgent
+""",
+        encoding="utf-8",
+    )
     episodes = run_eval("configs/small.yaml", 42, env="file_ops", agent="spy")
     assert episodes
     assert any(e.tool_response.observation.metadata.get("faults") for e in episodes if e.fault.name != "normal")
@@ -155,9 +168,13 @@ def test_single_seed_run_records_effective_config_and_clears_stale_ci(tmp_path, 
     (tmp_path / "results" / "seed_summary.csv").write_text("stale\n", encoding="utf-8")
 
     episodes = run_eval("configs/small.yaml", 42, all_envs=True, all_agents=True)
-    cfg = json.loads((tmp_path / "results" / "config.json").read_text(encoding="utf-8"))["config"]
+    payload = json.loads((tmp_path / "results" / "config.json").read_text(encoding="utf-8"))
+    cfg = payload["config"]
     assert len(episodes) == 252
-    assert cfg["effective_environments"] == ["file_ops", "calendar_ops", "risk_ops"]
-    assert "conservative" in cfg["effective_agents"]
+    assert cfg["environments"] == ["file_ops", "calendar_ops", "risk_ops"]
+    assert "conservative" in cfg["agents"]
+    assert payload["normalized_config"] == cfg
+    assert payload["operational_request"]["all_envs"] is True
+    assert payload["operational_request"]["all_agents"] is True
     assert not (tmp_path / "results" / "confidence_intervals.csv").exists()
     assert not (tmp_path / "results" / "seed_summary.csv").exists()

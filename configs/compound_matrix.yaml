@@ -2,6 +2,12 @@
 # This is intentionally small enough for release validation but broad enough to
 # show fault-interaction behavior across all synthetic environments.
 
+schema_version: 2
+monitor_policy: record
+migration:
+  source_schema_version: unversioned-v1
+  decisions:
+    - "monitor_policy was absent; selected 'record' to preserve the legacy file-runner behavior"
 episodes_per_combo: 2
 seed: 42
 fault_severities: [0.5, 1.0]

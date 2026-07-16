@@ -14,7 +14,8 @@ from src.environments.file_ops import FileOpsEnvironment
 
 
 def base_config(agent: str = "naive", environment: str = "file_ops") -> dict[str, object]:
-    return {
+    config: dict[str, object] = {
+        "schema_version": 2,
         "environments": [environment],
         "agents": [agent],
         "faults": ["normal"],
@@ -24,6 +25,30 @@ def base_config(agent: str = "naive", environment: str = "file_ops") -> dict[str
         "monitor": "composite",
         "monitor_policy": "gate",
     }
+    references = []
+    if agent not in {"naive", "retry", "validate_then_act", "monitor_gated", "conservative", "offline_llm_fixture"}:
+        references.append(
+            {
+                "kind": "agent",
+                "name": agent,
+                "version": "test",
+                "contract_version": "1",
+                "entry_point": f"tests:{agent}",
+            }
+        )
+    if environment not in {"file_ops", "calendar_ops", "risk_ops"}:
+        references.append(
+            {
+                "kind": "environment",
+                "name": environment,
+                "version": "test",
+                "contract_version": "1",
+                "entry_point": f"tests:{environment}",
+            }
+        )
+    if references:
+        config["plugin_references"] = references
+    return config
 
 
 def test_planner_identity_is_preserved_in_completed_runtime_records() -> None:

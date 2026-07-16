@@ -17,7 +17,7 @@ def _read_rows(path: str):
 
 def run_seeds(config_path: str, all_envs: bool = False, all_agents: bool = False):
     cfg = load_config(config_path)
-    seeds = [int(s) for s in cfg.get("seeds", [42, 43, 44])]
+    seeds = [int(s) for s in (cfg.get("seeds") or [42, 43, 44])]
     seed_rows = []
     for seed in seeds:
         run_eval(config_path, seed=seed, all_envs=all_envs, all_agents=all_agents)

@@ -18,6 +18,7 @@ from src.core.orchestration import (
 
 def base_config(episodes: int = 5) -> dict[str, object]:
     return {
+        "schema_version": 2,
         "environments": ["file_ops"],
         "agents": ["naive"],
         "faults": ["normal"],
@@ -97,6 +98,8 @@ def test_pagination_and_worker_partitions_are_post_identity_selectors() -> None:
     [
         ({"selection_offset": -1}, "selection_offset"),
         ({"selection_limit": -1}, "selection_limit"),
+        ({"workers": 0}, "workers"),
+        ({"scenario_indices": [-1]}, "scenario_indices"),
         ({"partition_index": 0}, "provided together"),
         ({"partition_index": 2, "partition_count": 2}, "partition_index"),
         ({"episode_ids": ["ep_a"], "replay_episode_ids": ["ep_a"]}, "cannot be combined"),
@@ -140,9 +143,38 @@ def test_selectors_embedded_in_config_are_operational() -> None:
         "selection_limit": 1,
     }
     selected = planner(selected_config)
+    explicitly_cleared = planner(selected_config, scenario_indices=[], episode_ids=[], selection_limit=None)
 
     assert selected.run_id == complete.run_id
     assert [item.episode_id for item in selected.plan()] == [target]
+    assert explicitly_cleared.run_id == complete.run_id
+    assert explicitly_cleared.plan() == complete.plan()[0:1]
+
+
+def test_cli_omitted_selectors_defer_to_normalized_config(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    config = {**base_config(), "seed": 11, "selection_offset": 1, "selection_limit": 2}
+    config_path = tmp_path / "configured-selection.yaml"
+    config_path.write_text(
+        """\
+schema_version: 2
+environments: [file_ops]
+agents: [naive]
+faults: [normal]
+episodes_per_combo: 5
+seed: 11
+selection_offset: 1
+selection_limit: 2
+""",
+        encoding="utf-8",
+    )
+    args = build_parser().parse_args(["plan", "--config", str(config_path)])
+
+    plan_command(args)
+    payload = json.loads(capsys.readouterr().out)
+    expected = planner(config).plan()
+
+    assert payload["identity"]["operational"]["selection_offset"] == 1
+    assert [item["episode_id"] for item in payload["matrix"]] == [item.episode_id for item in expected]
 
 
 def test_cli_and_python_planning_apply_identical_selectors(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -151,6 +183,7 @@ def test_cli_and_python_planning_apply_identical_selectors(tmp_path: Path, capsy
         "\n".join(
             [
                 "environments: [file_ops]",
+                "schema_version: 2",
                 "agents: [naive]",
                 "faults: [normal]",
                 "episodes_per_combo: 5",
