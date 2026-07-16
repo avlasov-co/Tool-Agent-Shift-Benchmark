@@ -131,7 +131,7 @@ def test_operational_settings_do_not_change_scientific_identity() -> None:
         ({"scenario_generator_version": "3.0.0"}, 42),
         ({"scenario_schema_version": "v2"}, 42),
         ({"scenario_split": "holdout", "scenario_splits": [{"name": "holdout", "indices": [0]}]}, 42),
-        ({"evaluator_version": "2.0.0"}, 42),
+        ({"evaluator_version": "3.0.0"}, 42),
         ({"monitor_modes": ["schema_only"]}, 42),
         ({"policy_resources": {"policy": "a" * 64}}, 42),
         ({}, 43),
@@ -210,6 +210,7 @@ def test_identity_document_contains_required_typed_fields() -> None:
     assert semantic.fault_composition_contract == "fault-composition-v1"
     assert semantic.action_record_contract == "action-record-v1"
     assert semantic.episode_record_version == "3"
+    assert semantic.counterfactual_evaluation_contract == "counterfactual-evaluation-v1"
     assert semantic.monitor_composition_contract == "monitor-composition-v1"
     assert semantic.monitor_modes == ("full_composite_monitor",)
     assert semantic.monitor_compositions[0].components == (
@@ -229,6 +230,7 @@ def test_identity_document_contains_required_typed_fields() -> None:
     assert semantic.scenario_seed_streams.root_seed == 42
     assert semantic.scenario_seed_streams.algorithm == "sha256-domain-separated-63-v1"
     assert semantic.evaluator.name == "hidden_state_evaluator"
+    assert semantic.evaluator.version == "2.0.0"
 
 
 def test_normalized_identity_is_saved_in_run_manifest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

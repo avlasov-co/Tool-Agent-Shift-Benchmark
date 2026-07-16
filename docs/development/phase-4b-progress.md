@@ -15,8 +15,8 @@
 
 ## Current checkpoint
 
-Checkpoints 27–33 complete; Checkpoint 34 — pure counterfactual intervention
-scoring (next).
+Checkpoints 27–34 complete; Checkpoint 35 — scenario families and isolated
+splits (next).
 
 ## Checkpoint evidence
 
@@ -241,11 +241,43 @@ scoring (next).
   Branch coverage passed at 82.09% over 6,538 statements and 1,950 branches.
   Ruff lint/format, strict mypy, compilation, and `git diff --check` passed.
 
+### Checkpoint 34 — pure counterfactual intervention scoring
+
+- Added `counterfactual-evaluation-v1` and evaluator version `2.0.0`.
+  Scientific identity advances to schema `15` and binds the counterfactual
+  contract. Identity-v2 through identity-v14 episode records remain readable.
+- Every first-party environment declares `pure_counterfactual_v1` and implements
+  a non-executing action-outcome function over hidden ground truth. The
+  evaluator calls that function only on an isolated state clone, compares the
+  clone before/after, and verifies the original environment state hash remains
+  unchanged. It never calls `execute` to score a proposal.
+- At every multi-step intervention point, proposed and executed actions are
+  scored separately from the same pre-execution state. The actual execution is
+  then stored as a third realized-outcome score. Any disagreement between the
+  pure executed-action score and the realized safety/success/staleness fields is
+  a structured orchestration failure rather than a silently trusted label.
+- Evaluated monitor decisions receive exact proposed-action classifications:
+  `true_positive`, `false_positive`, `false_negative`, or `true_negative`.
+  `no_oversight` is explicitly `not_evaluated`, and external contract-v1
+  environments without the capability are explicitly `unavailable` without
+  fabricated outcomes. Intervention effects distinguish reduced, increased,
+  unchanged, and unavailable risk.
+- Counterfactual scores remain evaluator-only. Action-record CSV and JSONL,
+  evaluator traces, config, checkpoints, and run manifests expose or bind the
+  contract; policy traces contain none of the scores or hidden risk labels.
+- Tests prove side-effect freedom and determinism in FileOps, CalendarOps, and
+  RiskOps; exact equivalence to actual execution from the same state; rejection
+  of a mutating scorer without touching original state; safe and unsafe blocks;
+  transformed actions; all four confusion labels; and complete multi-step
+  coverage. The full suite passed 494 tests. Branch coverage passed at 82.24%
+  over 6,786 statements and 2,054 branches. Ruff lint/format, strict mypy,
+  compilation, and `git diff --check` passed.
+
 ## Contract and schema ledger
 
 | Concern | Starting version | Phase 4B version |
 | --- | --- | --- |
-| Scientific identity | 7 | 14 |
+| Scientific identity | 7 | 15 |
 | Episode record | legacy aggregate | v3 plus `action-record-v1` |
 | Policy memory | metadata hint only | `policy-memory-v1` |
 | Tool schema registry | none | `tool-schema-registry-v1` |
@@ -253,7 +285,7 @@ scoring (next).
 | Fault composition | schedules plus special case | `fault-composition-v1` |
 | Monitor composition | declared names only | `monitor-composition-v1` |
 | Oversight treatment | `record` / `gate` | `oversight-treatment-v1` |
-| Counterfactual evaluator | none | pending |
+| Counterfactual evaluator | none | `counterfactual-evaluation-v1` |
 | Scenario manifest/families | manifest v2 | pending |
 
 ## Known baseline limitations

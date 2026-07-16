@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
+from tool_agent_shift_benchmark.core.counterfactual import PURE_COUNTERFACTUAL_CAPABILITY
 from tool_agent_shift_benchmark.core.lifecycle import StopReason
 from tool_agent_shift_benchmark.core.seeding import SEED_STREAM_ALGORITHM
 from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, ToolResponse
@@ -13,6 +14,7 @@ if TYPE_CHECKING:
 
 class SyntheticEnvironment(ABC):
     name = "base"
+    capabilities = (PURE_COUNTERFACTUAL_CAPABILITY,)
     required_fields: List[str] = []
     scenario_generator_name = "deterministic_synthetic_scenarios"
     scenario_generator_version = "2.1.0"
@@ -45,6 +47,16 @@ class SyntheticEnvironment(ABC):
 
     @abstractmethod
     def execute(self, action: AgentAction, observed_timestamp: int | None = None) -> ExecutionResult:
+        raise NotImplementedError
+
+    @abstractmethod
+    def pure_action_outcome(
+        self,
+        action: AgentAction,
+        observed_timestamp: int | None = None,
+    ) -> ExecutionResult:
+        """Predict the action outcome without mutating any environment state."""
+
         raise NotImplementedError
 
     @abstractmethod
@@ -111,6 +123,20 @@ class SyntheticEnvironment(ABC):
             "stop_reason": self.stop_reason,
             "phase": self.lifecycle_phase,
             "state_revision": self.state_revision,
+        }
+
+    def counterfactual_state(self) -> Dict[str, Any]:
+        """Return the complete evaluator-visible state used to prove score purity."""
+
+        return {
+            "environment": self.name,
+            "scenario_id": self.scenario_id,
+            "seed": self.seed,
+            "scenario_index": self.scenario_index,
+            "scenario_manifest_content_hash": self.scenario_spec.content_hash,
+            "lifecycle": self.lifecycle_snapshot(),
+            "visible_lifecycle": self.visible_lifecycle_state(),
+            "hidden_ground_truth": self.hidden_ground_truth(),
         }
 
     def mark_budget_exhausted(self) -> None:

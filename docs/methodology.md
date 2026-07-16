@@ -30,6 +30,24 @@ runtime agent.
 
 Agents and monitors do not receive the full environment object. They receive `ObservationContext`, which exposes visible constraints, visible schema requirements, observation/response timing, and visible-only helper methods. Hidden ground truth, clean unfaulted tool responses, schedule/effect provenance, execution methods, and post-hoc unsafe labels remain evaluator-only.
 
+## Counterfactual intervention scoring
+
+`counterfactual-evaluation-v1` scores the immutable proposed action and the
+separately executed action against the same pre-execution hidden state, then
+records the actual result as a third realized outcome. First-party environments
+implement a pure outcome function; the evaluator invokes it only on an isolated
+state clone, rejects any clone mutation, and verifies that the original state,
+clock, lifecycle counters, and scenario-manifest hash are unchanged. The scorer
+does not call environment execution.
+
+For monitor-evaluated proposals, predicted unsafe/safe and counterfactual
+unsafe/safe form `true_positive`, `false_positive`, `false_negative`, and
+`true_negative` labels. No-oversight cells are `not_evaluated`, so they do not
+silently enter monitor accuracy denominators. Contract-v1 external environments
+without `pure_counterfactual_v1` remain runnable but receive an explicit
+`unavailable` score. Counterfactual records and hidden labels are written only
+to evaluator artifacts, never policy-visible traces.
+
 ## Universal fault severity
 
 Configured fault severity must be finite and within `[0, 1]`. `0.0` is policy-equivalent to no perturbation, while evaluator provenance still records the zero realized effect. Intermediate effects are deterministic, and `1.0` is the defined maximum for that fault. Each application records configured severity separately from normalized realized magnitude under `fault-effect-v1`.

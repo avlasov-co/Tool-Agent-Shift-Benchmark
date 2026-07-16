@@ -216,8 +216,11 @@ oversight_modes: [record_only]
     assert first_jsonl["action_record"]["contract"] == "action-record-v1"
     assert checkpoint_payload["episode_record_version"] == "3"
     assert checkpoint_payload["action_record_contract"] == "action-record-v1"
+    assert checkpoint_payload["counterfactual_evaluation_contract"] == "counterfactual-evaluation-v1"
     assert manifest["episode_record_version"] == "3"
     assert manifest["action_record_contract"] == "action-record-v1"
+    assert manifest["counterfactual_evaluation_contract"] == "counterfactual-evaluation-v1"
+    assert action_rows[0]["execution_equivalent"] == "True"
     assert replay["proposed_action_type"]
     assert replay["executed_action_type"]
     assert replay["intervention_type"] == "recorded_only"

@@ -156,6 +156,7 @@ def snapshot_outputs(
         "identity_schema_version": identity_payload.get("schema_version", "1"),
         "episode_record_version": config_payload.get("episode_record_version", "2"),
         "action_record_contract": config_payload.get("action_record_contract", "legacy"),
+        "counterfactual_evaluation_contract": config_payload.get("counterfactual_evaluation_contract", "unavailable"),
         "normalized_semantic_identity": identity_payload.get("semantic"),
         "operational_settings": identity_payload.get("operational"),
         "legacy_run_id": identity_payload.get("legacy_run_id"),

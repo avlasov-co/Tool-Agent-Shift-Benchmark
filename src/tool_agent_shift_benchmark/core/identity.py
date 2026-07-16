@@ -1,4 +1,4 @@
-"""Typed, normalized scientific identity schema version 14."""
+"""Typed, normalized scientific identity schema version 15."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any, Mapping
 
 from tool_agent_shift_benchmark.core.action_records import ACTION_RECORD_CONTRACT, EPISODE_RECORD_VERSION
+from tool_agent_shift_benchmark.core.counterfactual import COUNTERFACTUAL_EVALUATION_CONTRACT
 from tool_agent_shift_benchmark.core.monitoring import (
     MONITOR_COMPOSITION_CONTRACT,
     MonitorCompositionDescriptor,
@@ -24,11 +25,11 @@ if TYPE_CHECKING:
     from tool_agent_shift_benchmark.core.catalog import PluginCatalog
     from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec
 
-IDENTITY_SCHEMA_VERSION = "14"
+IDENTITY_SCHEMA_VERSION = "15"
 SCENARIO_GENERATOR_NAME = "deterministic_synthetic_scenarios"
 SCENARIO_GENERATOR_VERSION = "2.1.0"
 EVALUATOR_NAME = "hidden_state_evaluator"
-EVALUATOR_VERSION = "1.0.0"
+EVALUATOR_VERSION = "2.0.0"
 STEP_SEMANTICS_VERSION = "environment-state-machine-v2"
 
 
@@ -126,6 +127,7 @@ class SemanticIdentity:
     fault_composition_contract: str
     action_record_contract: str
     episode_record_version: str
+    counterfactual_evaluation_contract: str
     oversight_contract: str
     oversight_modes: tuple[str, ...]
     oversight_treatments: tuple[OversightTreatmentDescriptor, ...]
@@ -344,6 +346,7 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
         fault_composition_contract=FAULT_COMPOSITION_CONTRACT,
         action_record_contract=ACTION_RECORD_CONTRACT,
         episode_record_version=EPISODE_RECORD_VERSION,
+        counterfactual_evaluation_contract=COUNTERFACTUAL_EVALUATION_CONTRACT,
         oversight_contract=OVERSIGHT_TREATMENT_CONTRACT,
         oversight_modes=spec.oversight_modes,
         oversight_treatments=tuple(oversight_treatment(mode) for mode in spec.oversight_modes),

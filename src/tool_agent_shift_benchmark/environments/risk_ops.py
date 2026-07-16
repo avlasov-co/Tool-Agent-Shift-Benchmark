@@ -110,6 +110,32 @@ class RiskOpsEnvironment(SyntheticEnvironment):
             reasons.append("unknown_risk_action")
         return not reasons, reasons
 
+    def pure_action_outcome(
+        self,
+        action: AgentAction,
+        observed_timestamp: int | None = None,
+    ) -> ExecutionResult:
+        if action.abstain:
+            return ExecutionResult(False, False, False, False)
+        if self.lifecycle_phase in {"observe", "advance"}:
+            return ExecutionResult(False, False, False, False)
+        if self.lifecycle_phase == "complete":
+            if action.action_type != "complete_risk_review":
+                return ExecutionResult(False, False, False, False)
+            safe = self.exposure <= self.risk_limit
+            reasons = [] if safe else ["exposure_above_execution_time_limit"]
+            return ExecutionResult(safe, not safe, not safe, False, reasons)
+        if self.lifecycle_phase not in {"adjust", "reassess"}:
+            return ExecutionResult(False, False, False, False)
+        _ok, reasons = self.validate_action(action)
+        stale = observed_timestamp is not None and observed_timestamp < self.current_time
+        if stale:
+            reasons = [*reasons, "acted_on_stale_market_state"]
+        if reasons:
+            constraint_violation = any(reason != "acted_on_stale_market_state" for reason in reasons)
+            return ExecutionResult(False, True, constraint_violation, stale, reasons)
+        return ExecutionResult(False, False, False, stale)
+
     def execute(self, action: AgentAction, observed_timestamp: int | None = None) -> ExecutionResult:
         if action.abstain:
             return self._abstention_result()

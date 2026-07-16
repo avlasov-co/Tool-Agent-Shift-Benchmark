@@ -8,6 +8,7 @@ from tool_agent_shift_benchmark.agents import AGENTS
 from tool_agent_shift_benchmark.core.action_records import ACTION_RECORD_CONTRACT, EPISODE_RECORD_VERSION
 from tool_agent_shift_benchmark.core.competence import run_clean_competence_preflight
 from tool_agent_shift_benchmark.core.config import load_config
+from tool_agent_shift_benchmark.core.counterfactual import COUNTERFACTUAL_EVALUATION_CONTRACT
 from tool_agent_shift_benchmark.core.episode import Episode
 from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec, RunCoordinator
 from tool_agent_shift_benchmark.core.serialization import canonical_dumps, write_csv, write_json, write_jsonl
@@ -204,38 +205,50 @@ def write_outputs(
     write_jsonl(
         "results/episodes.jsonl", (episode.to_dict() for episode in sorted(episodes, key=lambda e: e.episode_id))
     )
-    action_record_rows = [
-        {
-            "episode_id": episode.episode_id,
-            "agent_name": episode.agent_name,
-            "environment": episode.env_name,
-            "fault": episode.fault.name,
-            "oversight_mode": episode.metadata.get("oversight_mode", "hard_gate"),
-            "monitor_mode": episode.metadata.get("monitor_mode", "full_composite_monitor"),
-            "sequence": record.sequence,
-            "status": record.status,
-            "proposed_action_type": record.proposed_action.action_type if record.proposed_action else "",
-            "proposed_target": (record.proposed_action.target if record.proposed_action else None) or "",
-            "executed_action_type": record.executed_action.action_type if record.executed_action else "",
-            "executed_target": (record.executed_action.target if record.executed_action else None) or "",
-            "intervention_type": record.intervention.intervention_type if record.intervention else "",
-            "monitor_name": record.monitor_decision.monitor_name if record.monitor_decision else "",
-            "monitor_allow_action": record.monitor_decision.allow_action if record.monitor_decision else "",
-            "execution_success": record.execution_result.success if record.execution_result else "",
-            "execution_unsafe": record.execution_result.unsafe if record.execution_result else "",
-            "stop_reason": record.stop_reason,
-            "policy_explanation_json": canonical_dumps(
-                record.policy_explanation.to_dict() if record.policy_explanation else {}
-            ),
-            "intervention_json": canonical_dumps(record.intervention.to_dict() if record.intervention else {}),
-            "execution_result_json": canonical_dumps(
-                record.execution_result.to_dict() if record.execution_result else {}
-            ),
-            "evaluator_labels_json": canonical_dumps(record.evaluator_labels),
-        }
-        for episode in episodes
-        for record in episode.action_records
-    ]
+    action_record_rows = []
+    for episode in episodes:
+        for record in episode.action_records:
+            counterfactual = record.evaluator_labels.get("counterfactual", {})
+            proposed_score = counterfactual.get("proposed_action", {})
+            executed_score = counterfactual.get("executed_action", {})
+            realized_score = counterfactual.get("realized_outcome", {})
+            action_record_rows.append(
+                {
+                    "episode_id": episode.episode_id,
+                    "agent_name": episode.agent_name,
+                    "environment": episode.env_name,
+                    "fault": episode.fault.name,
+                    "oversight_mode": episode.metadata.get("oversight_mode", "hard_gate"),
+                    "monitor_mode": episode.metadata.get("monitor_mode", "full_composite_monitor"),
+                    "sequence": record.sequence,
+                    "status": record.status,
+                    "proposed_action_type": record.proposed_action.action_type if record.proposed_action else "",
+                    "proposed_target": (record.proposed_action.target if record.proposed_action else None) or "",
+                    "executed_action_type": record.executed_action.action_type if record.executed_action else "",
+                    "executed_target": (record.executed_action.target if record.executed_action else None) or "",
+                    "intervention_type": record.intervention.intervention_type if record.intervention else "",
+                    "monitor_name": record.monitor_decision.monitor_name if record.monitor_decision else "",
+                    "monitor_allow_action": record.monitor_decision.allow_action if record.monitor_decision else "",
+                    "proposed_action_unsafe": proposed_score.get("unsafe", ""),
+                    "executed_action_unsafe": executed_score.get("unsafe", ""),
+                    "realized_unsafe": realized_score.get("unsafe", ""),
+                    "proposed_action_risk_label": counterfactual.get("proposed_action_risk_label", ""),
+                    "intervention_effect": counterfactual.get("intervention_effect", ""),
+                    "execution_equivalent": counterfactual.get("execution_equivalent", ""),
+                    "execution_success": record.execution_result.success if record.execution_result else "",
+                    "execution_unsafe": record.execution_result.unsafe if record.execution_result else "",
+                    "stop_reason": record.stop_reason,
+                    "policy_explanation_json": canonical_dumps(
+                        record.policy_explanation.to_dict() if record.policy_explanation else {}
+                    ),
+                    "intervention_json": canonical_dumps(record.intervention.to_dict() if record.intervention else {}),
+                    "execution_result_json": canonical_dumps(
+                        record.execution_result.to_dict() if record.execution_result else {}
+                    ),
+                    "counterfactual_json": canonical_dumps(counterfactual),
+                    "evaluator_labels_json": canonical_dumps(record.evaluator_labels),
+                }
+            )
     write_csv("results/action_records.csv", action_record_rows)
     write_jsonl(
         "results/action_records.jsonl",
@@ -327,6 +340,7 @@ def write_outputs(
     for e in episodes:
         for sequence, m in enumerate(e.monitor_decisions):
             record = e.action_records[sequence] if sequence < len(e.action_records) else None
+            counterfactual = record.evaluator_labels.get("counterfactual", {}) if record else {}
             monitor_rows.append(
                 {
                     "episode_id": e.episode_id,
@@ -340,6 +354,7 @@ def write_outputs(
                     "proposed_action_type": record.proposed_action.action_type if record else "",
                     "executed_action_type": record.executed_action.action_type if record else "",
                     "intervention_type": record.intervention.intervention_type if record else "",
+                    "proposed_action_risk_label": counterfactual.get("proposed_action_risk_label", ""),
                     "allow_action": m.allow_action,
                     "risk_score": m.risk_score,
                     "reasons": ";".join(m.reasons),
@@ -355,6 +370,7 @@ def write_outputs(
             "config_digest": config_digest,
             "episode_record_version": EPISODE_RECORD_VERSION,
             "action_record_contract": ACTION_RECORD_CONTRACT,
+            "counterfactual_evaluation_contract": COUNTERFACTUAL_EVALUATION_CONTRACT,
             "identity": identity,
             "config": config,
             "normalized_config": config,

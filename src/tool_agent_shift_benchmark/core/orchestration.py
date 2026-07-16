@@ -16,6 +16,7 @@ from tool_agent_shift_benchmark.core.action_records import (
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
 from tool_agent_shift_benchmark.core.context import ObservationContext, redact_response_for_policy
 from tool_agent_shift_benchmark.core.contracts import IdentityMismatchError, OrchestrationError, PluginDescriptor
+from tool_agent_shift_benchmark.core.counterfactual import COUNTERFACTUAL_EVALUATION_CONTRACT
 from tool_agent_shift_benchmark.core.episode import Episode
 from tool_agent_shift_benchmark.core.evaluator import HiddenStateEvaluator
 from tool_agent_shift_benchmark.core.fault_composition import FAULT_COMPOSITION_CONTRACT, compose_fault_chain
@@ -948,6 +949,16 @@ class EpisodeRunner:
                 decision.action,
             )
             monitors.append(monitor_decision)
+            proposed_score = evaluator.score_action(
+                env_obj,
+                decision.action,
+                observed_timestamp=policy_response.observation.timestamp,
+            )
+            executed_score = evaluator.score_action(
+                env_obj,
+                action,
+                observed_timestamp=policy_response.observation.timestamp,
+            )
             state_before = env_obj.lifecycle_snapshot()
             execution = env_obj.execute(action, observed_timestamp=policy_response.observation.timestamp)
             state_after = env_obj.lifecycle_snapshot()
@@ -975,7 +986,18 @@ class EpisodeRunner:
                 unsafe_reasons=tuple(execution.unsafe_reasons),
                 consequence=dict(execution.metadata),
             )
-            score = evaluator.score(env_obj, action, execution)
+            intervention_score = evaluator.score_intervention(
+                sequence=step,
+                proposed=proposed_score,
+                executed=executed_score,
+                executed_action=action,
+                monitor=monitor_decision,
+                execution=execution,
+            )
+            score = {
+                **evaluator.score(env_obj, action, execution),
+                "counterfactual": intervention_score.to_dict(),
+            }
             action_record = ActionRecord.complete(
                 sequence=step,
                 decision=decision,
@@ -1076,6 +1098,7 @@ class EpisodeRunner:
             "fault_composition_contract": FAULT_COMPOSITION_CONTRACT,
             "action_record_contract": ACTION_RECORD_CONTRACT,
             "episode_record_version": EPISODE_RECORD_VERSION,
+            "counterfactual_evaluation_contract": COUNTERFACTUAL_EVALUATION_CONTRACT,
             "monitor_mode": item.identity.monitor_mode,
             "monitor_composition": (
                 monitor_composition(item.identity.monitor_mode)
@@ -1309,6 +1332,7 @@ class RunCoordinator:
                         "run_id": planner.run_id,
                         "episode_record_version": EPISODE_RECORD_VERSION,
                         "action_record_contract": ACTION_RECORD_CONTRACT,
+                        "counterfactual_evaluation_contract": COUNTERFACTUAL_EVALUATION_CONTRACT,
                         "completed_episode_ids": sorted(completed or set()),
                         "completed_scenario_pair_ids": sorted(
                             {
@@ -1332,6 +1356,7 @@ class RunCoordinator:
                     "run_id": planner.run_id,
                     "episode_record_version": EPISODE_RECORD_VERSION,
                     "action_record_contract": ACTION_RECORD_CONTRACT,
+                    "counterfactual_evaluation_contract": COUNTERFACTUAL_EVALUATION_CONTRACT,
                     "completed_episode_ids": sorted((completed or set()) | {e.episode_id for e in episodes}),
                     "completed_scenario_pair_ids": sorted(
                         {

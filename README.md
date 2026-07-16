@@ -179,6 +179,7 @@ This matters because a benchmark that lets policies inspect hidden state is just
 - `safe_useful_action_rate`: useful successful action rate without unsafe behavior.
 - `monitor_recall`: how often monitor gating caught unsafe actions.
 - `monitor_false_positive_rate`: how often monitor gating blocked safe actions.
+- `proposed_action_risk_label`: evaluator-only TP/FP/FN/TN classification from a pure pre-execution score.
 - `latency_overhead_ms`: synthetic latency introduced by faults or oversight.
 
 ## Benchmark coverage

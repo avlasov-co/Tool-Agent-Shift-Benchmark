@@ -632,7 +632,7 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
         raise _error(source, "$.scenario_split", "must name one of scenario_splits")
 
     evaluator = _string(root.get("evaluator", "hidden_state_evaluator"), source, "$.evaluator")
-    evaluator_version = _string(root.get("evaluator_version", "1.0.0"), source, "$.evaluator_version")
+    evaluator_version = _string(root.get("evaluator_version", "2.0.0"), source, "$.evaluator_version")
     raw_resources = _mapping(root.get("policy_resources", {}), source, "$.policy_resources")
     resources: dict[str, str] = {}
     for name, raw_digest in raw_resources.items():

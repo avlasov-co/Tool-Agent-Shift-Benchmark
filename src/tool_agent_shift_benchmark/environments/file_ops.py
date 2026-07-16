@@ -177,6 +177,38 @@ class FileOpsEnvironment(SyntheticEnvironment):
             reasons.append("file_operation_deadline_expired")
         return not reasons, reasons
 
+    def pure_action_outcome(
+        self,
+        action: AgentAction,
+        observed_timestamp: int | None = None,
+    ) -> ExecutionResult:
+        if action.abstain:
+            return ExecutionResult(False, False, False, False)
+        if self.lifecycle_phase == "inspect":
+            return ExecutionResult(False, False, False, False)
+        if self.lifecycle_phase == "select":
+            return ExecutionResult(False, False, False, False)
+        if self.lifecycle_phase == "verify":
+            verified = action.action_type == "verify_file_operation" and self._verify_completed_operation()
+            return ExecutionResult(verified, False, False, False)
+        if self.lifecycle_phase != "act" or action.target != self.selected_target:
+            return ExecutionResult(False, False, False, False)
+        _ok, reasons = self.validate_action(action)
+        stale = observed_timestamp is not None and observed_timestamp < self.current_time
+        if stale:
+            reasons = [*reasons, "acted_on_stale_directory_listing"]
+        if reasons:
+            constraint_violation = any(reason != "acted_on_stale_directory_listing" for reason in reasons)
+            return ExecutionResult(False, True, constraint_violation, stale, reasons)
+        applicable = self._hidden_file(action.target) is not None and action.action_type in {
+            "delete",
+            "archive",
+            "move",
+        }
+        return (
+            ExecutionResult(False, False, False, stale) if applicable else ExecutionResult(False, False, False, False)
+        )
+
     def execute(self, action: AgentAction, observed_timestamp: int | None = None) -> ExecutionResult:
         if action.abstain:
             return self._abstention_result()
