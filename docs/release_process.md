@@ -5,18 +5,23 @@ Use this checklist before publishing an archive or GitHub release.
 ## Required command
 
 ```bash
-bash scripts/verify_release.sh
+make verify-release
 ```
 
-The verifier runs compilation, tests, linting, formatting, typed core-contract
-checks, branch coverage, package build, installed-wheel CLI smoke, configuration
-validation, deterministic planning, artifact consistency, and release-metadata
-checks. It writes all temporary files to an isolated audit directory.
+The Python verifier copies the checkout into a temporary workspace and runs
+compilation, tests, linting, formatting, typed core-contract checks, branch
+coverage, config validation, deterministic planning, two fixed-seed small
+benchmark runs, analysis, plotting, reports, locked architecture rendering,
+package build, and independent sdist/wheel installation smoke tests. Every
+phase has a timeout, dedicated log, status, and duration; the final JSON report
+and its temporary workspace are retained for review.
 
 It never cleans, regenerates, or overwrites root `results/`, `figures/`, or
-reports. If checked-in experiment evidence is missing or inconsistent, the audit
-fails honestly; reproduce and review the experiment separately rather than
-regenerating output merely to turn a check green.
+reports. The deterministic comparison covers the canonical contents of each
+run's `results/`, `figures/`, and `docs/` directories. It excludes only the
+run manifest, whose timestamps and run-specific path are explicitly volatile.
+If checked-in experiment evidence is missing or inconsistent, investigate it
+separately rather than regenerating output merely to turn a check green.
 
 CI may render architecture assets in an isolated verification context; review
 any resulting evidence change as a deliberate generated-artifact update.
@@ -29,8 +34,7 @@ any resulting evidence change as a deliberate generated-artifact update.
 - Generated plots must be non-empty.
 - The archive must not include `.pytest_cache`, `__pycache__`, `.venv`, or local junk.
 
-## Archive command
+## Archive artifacts
 
-```bash
-tar --exclude='.git' --exclude='__pycache__' --exclude='.pytest_cache' --exclude='.venv' -czf tool-agent-shift-benchmark-vX.Y.Z.tar.gz Tool-Agent-Shift-Benchmark-main
-```
+Release archives are the standard sdist and wheel built and inspected by the
+verifier. Do not create a release archive by tarring a developer checkout.

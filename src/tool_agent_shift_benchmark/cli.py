@@ -234,7 +234,7 @@ def _list_builtin_configs_command(args: argparse.Namespace) -> None:
 
 
 def _verify_release_command(args: argparse.Namespace) -> None:
-    subprocess.run(["bash", "scripts/verify_release.sh"], check=True)
+    subprocess.run([sys.executable, "-m", "tool_agent_shift_benchmark.release_verification"], check=True)
 
 
 def _clean_command(args: argparse.Namespace) -> None:

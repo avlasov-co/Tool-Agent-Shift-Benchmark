@@ -13,7 +13,7 @@
 
 ## Current checkpoint
 
-Checkpoint 13 — isolated distribution testing — complete.
+Checkpoint 14 — non-destructive release verification — complete.
 
 ## Checkpoint evidence
 
@@ -124,3 +124,34 @@ commit. The final section will retain baseline failures and remaining risks.
   venv executable path fixed it before this checkpoint's successful run.
 - `ruff check`, formatting, focused strict mypy, 156 tests, `pip check`, and
   `git diff --check` passed. CI integration follows in Checkpoint 15.
+
+### Checkpoint 14 — non-destructive release verification
+
+- Replaced the old shell sequence with the packaged Python driver
+  `tool_agent_shift_benchmark.release_verification`; `make verify-release`,
+  `tasb verify-release`, and the compatibility shell wrapper all invoke it.
+  The driver first copies source to a retained temporary workspace and never
+  invokes cleanup, builds, tests, or benchmark generation in the active
+  checkout.
+- Every phase records a command or check description, status, duration,
+  timeout, and dedicated log. The driver prints a readable phase table and
+  writes `release-verification.json`; both the workspace and logs remain on
+  success or failure for review.
+- The isolated workflow creates a fresh venv from the development lock, then
+  verifies compilation, lint/format/type checks, tests, branch coverage,
+  config validation, deterministic planning, two fixed-seed small runs,
+  analysis, plotting, HTML reports, locked Node tooling, architecture rendering,
+  and the independent sdist/wheel smoke driver.
+- The deterministic check compares canonical JSON/JSONL and byte content from
+  each run's `results/`, `figures/`, and `docs/` bundles. It explicitly omits
+  only `run_manifest.json`, whose timestamps and run-specific path are
+  documented volatile fields. The completed verifier compared 31 files exactly.
+- Browser acquisition is version-pinned to the Mermaid CLI's declared
+  `chrome-headless-shell@131.0.6778.204`. A guarded ZIP extraction repair
+  rejects traversal and links, preserves modes, and supplies the verified
+  executable explicitly; this handles a partial macOS extraction from the Node
+  browser installer without accepting archive-path injection.
+- Full release verification passed in
+  `/tmp/tasb-release-verification-zci_1e68`, including architecture rendering
+  and distribution smoke (the final phase took 39.262 seconds). Focused
+  verifier/archive tests, lint, formatting, and `git diff --check` passed.
