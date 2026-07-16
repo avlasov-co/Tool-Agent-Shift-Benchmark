@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
+from tool_agent_shift_benchmark.core.contracts import empty_configuration_schema
 from tool_agent_shift_benchmark.core.counterfactual import PURE_COUNTERFACTUAL_CAPABILITY
 from tool_agent_shift_benchmark.core.lifecycle import StopReason
 from tool_agent_shift_benchmark.core.seeding import SEED_STREAM_ALGORITHM
@@ -14,7 +15,9 @@ if TYPE_CHECKING:
 
 class SyntheticEnvironment(ABC):
     name = "base"
+    version = "1.0.0"
     capabilities = (PURE_COUNTERFACTUAL_CAPABILITY,)
+    configuration_schema = empty_configuration_schema()
     required_fields: List[str] = []
     scenario_generator_name = "deterministic_synthetic_scenarios"
     scenario_generator_version = "3.0.0"

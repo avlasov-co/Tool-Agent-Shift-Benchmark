@@ -131,7 +131,6 @@ def test_operational_settings_do_not_change_scientific_identity() -> None:
         ({"scenario_generator_version": "4.0.0"}, 42),
         ({"scenario_schema_version": "v3"}, 42),
         ({"scenario_split": "holdout", "scenario_splits": [{"name": "holdout", "indices": [0]}]}, 42),
-        ({"evaluator_version": "3.0.0"}, 42),
         ({"monitor_modes": ["schema_only"]}, 42),
         ({"policy_resources": {"policy": "a" * 64}}, 42),
         ({}, 43),
@@ -143,6 +142,11 @@ def test_semantic_changes_alter_run_identity(change: dict[str, object], seed: in
 
     assert changed.run_id != baseline.run_id
     assert changed.config_digest != baseline.config_digest
+
+
+def test_evaluator_version_must_match_the_registered_v2_descriptor() -> None:
+    with pytest.raises(ValueError, match="evaluator_version does not match"):
+        planner({**base_config(), "evaluator_version": "3.0.0"})
 
 
 def test_non_commutative_component_order_changes_identity() -> None:

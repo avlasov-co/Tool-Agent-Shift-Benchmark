@@ -158,7 +158,10 @@ class AlwaysAllowCounterfactualMonitor:
 
 def run_with_monitor(monitor_type, *, fault: str, oversight: str):
     catalog = PluginCatalog(include_external=False)
-    catalog.register(PluginDescriptor("monitor", monitor_type.name, version="test"), monitor_type)
+    catalog.register(
+        PluginDescriptor.for_factory("monitor", monitor_type.name, monitor_type, version="test"),
+        monitor_type,
+    )
     config = {
         "schema_version": 2,
         "environments": ["file_ops"],
@@ -174,7 +177,7 @@ def run_with_monitor(monitor_type, *, fault: str, oversight: str):
                 "kind": "monitor",
                 "name": monitor_type.name,
                 "version": "test",
-                "contract_version": "1",
+                "contract_version": "2",
                 "entry_point": f"tests:{monitor_type.name}",
             }
         ],

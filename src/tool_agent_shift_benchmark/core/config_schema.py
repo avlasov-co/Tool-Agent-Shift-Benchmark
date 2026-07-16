@@ -9,14 +9,13 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from tool_agent_shift_benchmark.core.config import load_raw_config, write_config_yaml
+from tool_agent_shift_benchmark.core.contracts import CONTRACT_VERSION as PLUGIN_CONTRACT_VERSION
 from tool_agent_shift_benchmark.core.monitoring import MONITOR_MODES
 from tool_agent_shift_benchmark.core.oversight import LEGACY_OVERSIGHT_ALIASES, OVERSIGHT_MODES
 from tool_agent_shift_benchmark.core.scenarios import STANDARD_SPLIT_ORDER, standard_scenario_splits
 from tool_agent_shift_benchmark.core.serialization import canonicalize, register_dataclass
 
 CONFIG_SCHEMA_VERSION = 2
-PLUGIN_CONTRACT_VERSION = "1"
-
 BUILTIN_COMPONENTS: dict[str, frozenset[str]] = {
     "environment": frozenset({"file_ops", "calendar_ops", "risk_ops"}),
     "agent": frozenset(
@@ -43,6 +42,7 @@ BUILTIN_COMPONENTS: dict[str, frozenset[str]] = {
         }
     ),
     "monitor": frozenset({"composite"}),
+    "evaluator": frozenset({"hidden_state_evaluator"}),
     "reporter": frozenset(),
 }
 
@@ -650,6 +650,7 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
         raise _error(source, "$.scenario_split", "must name one of scenario_splits")
 
     evaluator = _string(root.get("evaluator", "hidden_state_evaluator"), source, "$.evaluator")
+    _require_known((evaluator,), known["evaluator"], source, "$.evaluator")
     evaluator_version = _string(root.get("evaluator_version", "2.0.0"), source, "$.evaluator_version")
     raw_resources = _mapping(root.get("policy_resources", {}), source, "$.policy_resources")
     resources: dict[str, str] = {}

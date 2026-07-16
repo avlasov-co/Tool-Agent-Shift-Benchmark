@@ -13,7 +13,7 @@ from .schema import SchemaMonitor
 
 
 class CompositeMonitor(BaseMonitor):
-    name = "composite_monitor"
+    name = "composite"
     version = "2.0.0"
     capabilities = (SCHEMA_REGISTRY_CONTRACT,)
 

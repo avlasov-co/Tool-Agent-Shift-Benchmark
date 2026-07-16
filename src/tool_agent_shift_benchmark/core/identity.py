@@ -1,4 +1,4 @@
-"""Typed, normalized scientific identity schema version 16."""
+"""Typed, normalized scientific identity schema version 17."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from tool_agent_shift_benchmark.core.catalog import PluginCatalog
     from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec
 
-IDENTITY_SCHEMA_VERSION = "16"
+IDENTITY_SCHEMA_VERSION = "17"
 SCENARIO_GENERATOR_NAME = "deterministic_synthetic_scenarios"
 SCENARIO_GENERATOR_VERSION = "3.0.0"
 EVALUATOR_NAME = "hidden_state_evaluator"
@@ -45,6 +45,11 @@ class ComponentIdentity:
     name: str
     version: str
     contract_version: str
+    implementation_identifier: str = "legacy_unspecified"
+    configuration_hash: str = "legacy_unspecified"
+    trust_level: str = "legacy_unspecified"
+    capabilities: tuple[str, ...] = ()
+    isolation_mode: str = "legacy_unspecified"
 
 
 @dataclass(frozen=True)
@@ -218,14 +223,34 @@ class PlannedEpisodeIdentity:
 
 def _component(catalog: PluginCatalog, kind: str, name: str) -> ComponentIdentity:
     descriptor = catalog.descriptor(kind, name)
-    return ComponentIdentity(kind, descriptor.name, descriptor.version, descriptor.contract_version)
+    return ComponentIdentity(
+        kind,
+        descriptor.name,
+        descriptor.version,
+        descriptor.contract_version,
+        descriptor.implementation_identifier,
+        descriptor.configuration_hash,
+        descriptor.trust_level.value,
+        descriptor.capabilities,
+        descriptor.isolation_mode,
+    )
 
 
-def _component_key(component: ComponentIdentity) -> tuple[str, str, str, str]:
-    return component.kind, component.name, component.version, component.contract_version
+def _component_key(component: ComponentIdentity) -> tuple[Any, ...]:
+    return (
+        component.kind,
+        component.name,
+        component.version,
+        component.contract_version,
+        component.implementation_identifier,
+        component.configuration_hash,
+        component.trust_level,
+        component.capabilities,
+        component.isolation_mode,
+    )
 
 
-def _chain_key(chain: tuple[ComponentIdentity, ...]) -> tuple[tuple[str, str, str, str], ...]:
+def _chain_key(chain: tuple[ComponentIdentity, ...]) -> tuple[tuple[Any, ...], ...]:
     return tuple(_component_key(component) for component in chain)
 
 
@@ -335,6 +360,13 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
         for schedule in sorted(configured_schedules, key=lambda item: item.schedule_id)
     )
     config = spec.config
+    evaluator = _component(catalog, "evaluator", str(config.get("evaluator", EVALUATOR_NAME)))
+    configured_evaluator_version = str(config.get("evaluator_version", evaluator.version))
+    if configured_evaluator_version != evaluator.version:
+        raise ValueError(
+            "configured evaluator_version does not match the registered plugin descriptor: "
+            f"expected {evaluator.version!r}, got {configured_evaluator_version!r}"
+        )
     semantic = SemanticIdentity(
         identity_schema_version=IDENTITY_SCHEMA_VERSION,
         scenario_generator=ComponentIdentity(
@@ -396,12 +428,7 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
             "analysis",
         ),
         policy_resources_and_hashes=_normalize_resources(config.get("policy_resources")),
-        evaluator=ComponentIdentity(
-            "evaluator",
-            str(config.get("evaluator", EVALUATOR_NAME)),
-            str(config.get("evaluator_version", EVALUATOR_VERSION)),
-            "1",
-        ),
+        evaluator=evaluator,
         episodes_per_combo=spec.episodes_per_combo,
     )
     semantic_payload = semantic.to_dict()

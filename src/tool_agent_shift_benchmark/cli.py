@@ -11,6 +11,7 @@ from tool_agent_shift_benchmark.analysis.run_pairwise_compounds import write_pai
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
 from tool_agent_shift_benchmark.core.config import dump_config_yaml, load_config, load_raw_config, write_config_yaml
 from tool_agent_shift_benchmark.core.config_schema import migrate_config_data, validate_config
+from tool_agent_shift_benchmark.core.contracts import CONTRACT_VERSION
 from tool_agent_shift_benchmark.core.episode import Episode
 from tool_agent_shift_benchmark.core.monitoring import MONITOR_MODE_ORDER
 from tool_agent_shift_benchmark.core.orchestration import ExperimentPlanner, ExperimentSpec
@@ -84,7 +85,7 @@ def _run_command(args: argparse.Namespace) -> None:
                 "episodes": len(episodes),
                 "workers": args.workers if args.workers is not None else load_config(args.config)["workers"],
                 "plugin_catalog": catalog.as_dict(),
-                "contract_version": "1",
+                "contract_version": CONTRACT_VERSION,
             },
         )
         print(f"run artifacts written to {run_dir}")

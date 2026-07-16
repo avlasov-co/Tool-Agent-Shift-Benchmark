@@ -25,7 +25,7 @@ class VisibleOnlyAgent:
 
 def catalog_with_agent(agent):
     catalog = PluginCatalog(include_external=False)
-    catalog.register(PluginDescriptor("agent", agent.name, version="test"), agent)
+    catalog.register(PluginDescriptor.for_factory("agent", agent.name, agent, version="test"), agent)
     return catalog
 
 
@@ -40,7 +40,7 @@ def config_v2(config):
                     "kind": "agent",
                     "name": agent,
                     "version": "test",
-                    "contract_version": "1",
+                    "contract_version": "2",
                     "entry_point": f"tests:{agent}",
                 }
             )
@@ -72,7 +72,12 @@ def test_entry_point_plugin_is_discovered_and_invalid_contract_is_rejected(monke
     class ExternalAgent(VisibleOnlyAgent):
         name = "external_visible"
 
-    ExternalAgent.plugin_descriptor = PluginDescriptor("agent", "external_visible", version="2.0.0")
+    ExternalAgent.plugin_descriptor = PluginDescriptor.for_factory(
+        "agent",
+        "external_visible",
+        ExternalAgent,
+        version="2.0.0",
+    )
 
     class EntryPoint:
         name = "external_visible"
@@ -94,8 +99,14 @@ def test_entry_point_plugin_is_discovered_and_invalid_contract_is_rejected(monke
 
         def load(self):
             class Bad:
-                plugin_descriptor = PluginDescriptor("agent", "bad_external", contract_version="999")
+                name = "bad_external"
 
+                def decide(self, context, response):
+                    raise AssertionError("incompatible plugin must not run")
+
+            descriptor = PluginDescriptor.for_factory("agent", "bad_external", Bad).to_dict()
+            descriptor["contract_version"] = "999"
+            Bad.plugin_descriptor = descriptor
             return Bad
 
     class BadEntryPoints(EntryPoints):
@@ -103,7 +114,7 @@ def test_entry_point_plugin_is_discovered_and_invalid_contract_is_rejected(monke
             return [BadEntryPoint()] if group == "tasb.agents" else []
 
     monkeypatch.setattr("tool_agent_shift_benchmark.core.catalog.entry_points", lambda: BadEntryPoints())
-    with pytest.raises(ValueError, match="incompatible contract"):
+    with pytest.raises(ValueError, match="unsupported plugin contract"):
         PluginCatalog()
 
 

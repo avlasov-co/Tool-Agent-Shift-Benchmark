@@ -116,7 +116,7 @@ def persistent_schema_config(*, agent: str = "retry", requery_attempts: int = 2)
                 "kind": "agent",
                 "name": agent,
                 "version": "test",
-                "contract_version": "1",
+                "contract_version": "2",
                 "entry_point": f"tests:{agent}",
             }
         ]
@@ -176,7 +176,10 @@ def test_runner_enforces_requery_budget_for_an_agent_that_never_stops_requesting
             )
 
     catalog = PluginCatalog(include_external=False)
-    catalog.register(PluginDescriptor("agent", AlwaysRequeryAgent.name, version="test"), AlwaysRequeryAgent)
+    catalog.register(
+        PluginDescriptor.for_factory("agent", AlwaysRequeryAgent.name, AlwaysRequeryAgent, version="test"),
+        AlwaysRequeryAgent,
+    )
     episode = RunCoordinator(
         ExperimentSpec.from_config(persistent_schema_config(agent=AlwaysRequeryAgent.name, requery_attempts=1)),
         catalog,

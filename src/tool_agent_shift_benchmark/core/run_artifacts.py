@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from tool_agent_shift_benchmark.core.contracts import CONTRACT_VERSION
 from tool_agent_shift_benchmark.core.serialization import canonical_loads, stable_hash, write_json
 
 RUNS_DIR = Path("runs")
@@ -169,7 +170,7 @@ def snapshot_outputs(
         "episode_count": episode_count,
         "seed_list": sorted({seed for seed in seed_list if seed is not None}),
         "plugin_catalog": metadata.get("plugin_catalog", []),
-        "contract_version": metadata.get("contract_version", "1"),
+        "contract_version": metadata.get("contract_version", CONTRACT_VERSION),
         "checkpoint": {
             "parent": metadata.get("parent_run"),
             "path": str(run_path / "checkpoint.json") if (run_path / "checkpoint.json").exists() else None,

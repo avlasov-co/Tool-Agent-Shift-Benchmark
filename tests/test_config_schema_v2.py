@@ -147,7 +147,7 @@ def test_declared_external_plugin_validates_without_loading_plugin_code(monkeypa
                 "kind": "agent",
                 "name": "external_agent",
                 "version": "3.2.1",
-                "contract_version": "1",
+                "contract_version": "2",
                 "entry_point": "package.module:Agent",
             }
         ],

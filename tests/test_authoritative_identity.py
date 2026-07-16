@@ -33,7 +33,7 @@ def base_config(agent: str = "naive", environment: str = "file_ops") -> dict[str
                 "kind": "agent",
                 "name": agent,
                 "version": "test",
-                "contract_version": "1",
+                "contract_version": "2",
                 "entry_point": f"tests:{agent}",
             }
         )
@@ -43,7 +43,7 @@ def base_config(agent: str = "naive", environment: str = "file_ops") -> dict[str
                 "kind": "environment",
                 "name": environment,
                 "version": "test",
-                "contract_version": "1",
+                "contract_version": "2",
                 "entry_point": f"tests:{environment}",
             }
         )
@@ -79,11 +79,21 @@ def test_faulty_environment_descriptor_becomes_structured_identity_error(tmp_pat
             self.scenario_id = f"faulty_environment_scenario_{scenario_index}"
 
         def runtime_descriptor(self) -> PluginDescriptor:
-            return PluginDescriptor("environment", self.name, version="wrong-version")
+            return PluginDescriptor.for_factory(
+                "environment",
+                self.name,
+                type(self),
+                version="wrong-version",
+            )
 
     catalog = PluginCatalog(include_external=False)
     catalog.register(
-        PluginDescriptor("environment", "faulty_environment", version="planned-version"),
+        PluginDescriptor.for_factory(
+            "environment",
+            "faulty_environment",
+            FaultyDescriptorEnvironment,
+            version="planned-version",
+        ),
         FaultyDescriptorEnvironment,
     )
     spec = ExperimentSpec.from_config(
@@ -117,7 +127,10 @@ def test_faulty_plugin_return_identity_is_rejected() -> None:
             return AgentDecision("different_agent", AgentAction("abstain", abstain=True), 1.0)
 
     catalog = PluginCatalog(include_external=False)
-    catalog.register(PluginDescriptor("agent", "faulty_agent", version="test"), FaultyAgent)
+    catalog.register(
+        PluginDescriptor.for_factory("agent", "faulty_agent", FaultyAgent, version="test"),
+        FaultyAgent,
+    )
     spec = ExperimentSpec.from_config(
         {**base_config(agent="faulty_agent"), "episodes_per_combo": 1},
         seed=6,

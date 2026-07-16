@@ -152,7 +152,7 @@ plugin_references:
   - kind: agent
     name: spy
     version: 1.0.0
-    contract_version: '1'
+    contract_version: '2'
     entry_point: tests.test_context:SpyAgent
 """,
         encoding="utf-8",

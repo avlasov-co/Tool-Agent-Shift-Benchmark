@@ -5,6 +5,7 @@ from dataclasses import replace
 from random import Random
 from typing import Any
 
+from tool_agent_shift_benchmark.core.contracts import PLUGIN_CONFIGURATION_SCHEMA_VERSION
 from tool_agent_shift_benchmark.core.fault_channels import FAULT_CHANNEL_CONTRACT, FaultChannelDescriptor
 from tool_agent_shift_benchmark.core.fault_effects import FAULT_EFFECT_CONTRACT, FaultEffect
 from tool_agent_shift_benchmark.core.types import ToolResponse
@@ -20,6 +21,13 @@ class BaseFault:
     detection_path = "no detection required"
     adaptation_path = "ordinary policy execution"
     capabilities = (FAULT_EFFECT_CONTRACT, FAULT_CHANNEL_CONTRACT)
+    configuration_schema = {
+        "schema_version": PLUGIN_CONFIGURATION_SCHEMA_VERSION,
+        "type": "object",
+        "properties": {"severity": {"type": "number", "minimum": 0.0, "maximum": 1.0}},
+        "required": [],
+        "additional_properties": False,
+    }
 
     def __init__(self, severity: float = 1.0):
         if not isinstance(severity, (int, float)) or isinstance(severity, bool):

@@ -18,7 +18,6 @@ from tool_agent_shift_benchmark.core.context import ObservationContext, redact_r
 from tool_agent_shift_benchmark.core.contracts import IdentityMismatchError, OrchestrationError, PluginDescriptor
 from tool_agent_shift_benchmark.core.counterfactual import COUNTERFACTUAL_EVALUATION_CONTRACT
 from tool_agent_shift_benchmark.core.episode import Episode
-from tool_agent_shift_benchmark.core.evaluator import HiddenStateEvaluator
 from tool_agent_shift_benchmark.core.fault_composition import FAULT_COMPOSITION_CONTRACT, compose_fault_chain
 from tool_agent_shift_benchmark.core.fault_effects import FAULT_EFFECT_CONTRACT
 from tool_agent_shift_benchmark.core.fault_schedule import FaultSchedule
@@ -313,7 +312,17 @@ class EpisodeSpec:
 
 def _component_identity(catalog: PluginCatalog, kind: str, name: str) -> ComponentIdentity:
     descriptor = catalog.descriptor(kind, name)
-    return ComponentIdentity(kind, descriptor.name, descriptor.version, descriptor.contract_version)
+    return ComponentIdentity(
+        kind,
+        descriptor.name,
+        descriptor.version,
+        descriptor.contract_version,
+        descriptor.implementation_identifier,
+        descriptor.configuration_hash,
+        descriptor.trust_level.value,
+        descriptor.capabilities,
+        descriptor.isolation_mode,
+    )
 
 
 class ExperimentPlanner:
@@ -326,6 +335,7 @@ class ExperimentPlanner:
                 "agent": list(spec.agents),
                 "shift": shift_names,
                 "monitor": [spec.monitor],
+                "evaluator": [str(spec.config.get("evaluator", "hidden_state_evaluator"))],
             }
         )
         self.identity = build_experiment_identity(spec, self.catalog)
@@ -555,6 +565,11 @@ class EpisodeRunner:
             "name": component.name,
             "version": component.version,
             "contract_version": component.contract_version,
+            "implementation_identifier": component.implementation_identifier,
+            "configuration_hash": component.configuration_hash,
+            "trust_level": component.trust_level,
+            "capabilities": list(component.capabilities),
+            "isolation_mode": component.isolation_mode,
         }
 
     def _mismatch(
@@ -589,7 +604,17 @@ class EpisodeRunner:
         if raw is None:
             actual = expected
         elif isinstance(raw, PluginDescriptor):
-            actual = ComponentIdentity(raw.kind, raw.name, raw.version, raw.contract_version)
+            actual = ComponentIdentity(
+                raw.kind,
+                raw.name,
+                raw.version,
+                raw.contract_version,
+                raw.implementation_identifier,
+                raw.configuration_hash,
+                raw.trust_level.value,
+                raw.capabilities,
+                raw.isolation_mode,
+            )
         elif isinstance(raw, dict):
             try:
                 actual = ComponentIdentity(
@@ -597,6 +622,11 @@ class EpisodeRunner:
                     str(raw["name"]),
                     str(raw["version"]),
                     str(raw["contract_version"]),
+                    str(raw.get("implementation_identifier", "legacy_unspecified")),
+                    str(raw.get("configuration_hash", "legacy_unspecified")),
+                    str(raw.get("trust_level", "legacy_unspecified")),
+                    tuple(str(value) for value in raw.get("capabilities", ())),
+                    str(raw.get("isolation_mode", "legacy_unspecified")),
                 )
             except KeyError as exc:
                 raise IdentityMismatchError(
@@ -800,7 +830,10 @@ class EpisodeRunner:
             dict.fromkeys(component for schedule in item.fault_schedules for component in schedule.components)
         )
         shift_objs = {name: self.catalog.get("shift", name)(severity=item.severity) for name in shift_names}
-        evaluator = HiddenStateEvaluator()
+        evaluator = self.catalog.get(
+            "evaluator",
+            str(self.spec.config.get("evaluator", "hidden_state_evaluator")),
+        )()
         memory_channel = PolicyMemoryChannel()
         stateful_memory = bool(getattr(agent_obj, "stateful_memory", False))
         monitor_factory = self.catalog.get("monitor", self.spec.monitor)

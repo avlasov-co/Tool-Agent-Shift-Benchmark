@@ -9,7 +9,7 @@ from __future__ import annotations
 from copy import copy, deepcopy
 from typing import Any
 
-from tool_agent_shift_benchmark.core.contracts import EnvironmentPlugin
+from tool_agent_shift_benchmark.core.contracts import EnvironmentPlugin, empty_configuration_schema
 from tool_agent_shift_benchmark.core.counterfactual import (
     CounterfactualInterventionScore,
     CounterfactualMismatchError,
@@ -24,6 +24,8 @@ from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, 
 class HiddenStateEvaluator:
     name = "hidden_state_evaluator"
     version = "2.0.0"
+    capabilities = ("pure_counterfactual_v1", "hidden_state_scoring_v1")
+    configuration_schema = empty_configuration_schema()
 
     @staticmethod
     def _state_snapshot(environment: EnvironmentPlugin) -> dict[str, Any]:

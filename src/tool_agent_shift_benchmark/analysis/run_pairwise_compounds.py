@@ -12,7 +12,6 @@ from tool_agent_shift_benchmark.core.episode import Episode
 from tool_agent_shift_benchmark.core.fault_schedule import FaultSchedule
 from tool_agent_shift_benchmark.core.identity import (
     EVALUATOR_NAME,
-    EVALUATOR_VERSION,
     IDENTITY_SCHEMA_VERSION,
     ComponentIdentity,
     PlannedEpisodeIdentity,
@@ -70,7 +69,17 @@ class PairwiseEpisodeSpec:
 
 def _component(catalog: PluginCatalog, kind: str, name: str) -> ComponentIdentity:
     descriptor = catalog.descriptor(kind, name)
-    return ComponentIdentity(kind, descriptor.name, descriptor.version, descriptor.contract_version)
+    return ComponentIdentity(
+        kind,
+        descriptor.name,
+        descriptor.version,
+        descriptor.contract_version,
+        descriptor.implementation_identifier,
+        descriptor.configuration_hash,
+        descriptor.trust_level.value,
+        descriptor.capabilities,
+        descriptor.isolation_mode,
+    )
 
 
 def parse_pair(pair: str) -> tuple[str, str]:
@@ -109,7 +118,7 @@ def _plan_fault_combo(
     agent = _component(catalog, "agent", agent_name)
     shift_chain = tuple(_component(catalog, "shift", name) for name in (fault_names or ("normal",)))
     monitor = _component(catalog, "monitor", "composite")
-    evaluator = ComponentIdentity("evaluator", EVALUATOR_NAME, EVALUATOR_VERSION, "1")
+    evaluator = _component(catalog, "evaluator", EVALUATOR_NAME)
     run_id = stable_hash(
         {
             "identity_schema_version": IDENTITY_SCHEMA_VERSION,

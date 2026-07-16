@@ -1,0 +1,60 @@
+# Plugin contract v1 to v2 migration
+
+Contract v2 is a deliberate compatibility boundary. Runtime registration no
+longer accepts a v1 descriptor or infers undocumented behavior from a single
+method. Historical records remain readable, but new runs and plugins use
+contract version `2`.
+
+## Descriptor migration
+
+Replace the v1 fields `kind`, `name`, `version`, `contract_version`, optional
+`capabilities`, and free-form `metadata` with a complete
+`plugin-descriptor-v2` record:
+
+- `schema_version: plugin-descriptor-v2`;
+- `kind`, `name`, and implementation `version`;
+- `contract_version: "2"`;
+- stable `implementation_identifier` in `module:qualname` form;
+- a `plugin-configuration-schema-v1` object and its canonical
+  `plugin_config_*` hash;
+- one trust level: `builtin_trusted`, `local_trusted`,
+  `external_restricted`, or `untrusted_isolated`;
+- declared capabilities and the actual isolation mode.
+
+Programmatic registrations should construct the descriptor with
+`PluginDescriptor.for_factory(...)`; this derives the implementation identity,
+canonical configuration hash, version, and declared capabilities before the
+same validator used by built-ins and entry points runs.
+
+## Required interfaces
+
+- Environments implement reset, scenario generation/replay metadata, tool
+  response and execution, lifecycle/clock operations, visible constraints,
+  pure counterfactual scoring support, and evaluator-only state access.
+- Agents implement `decide`.
+- Shifts implement `apply` and `channel_descriptor` (the Phase 5A shift context
+  replaces the historical environment argument).
+- Monitors implement `check`.
+- Evaluators implement `score_action`, `score_intervention`, and `score`.
+- Reporters implement `report`.
+
+Factories must have a stable declared name and be non-abstract. Descriptor
+identity, configuration schema/hash, and capability declarations must match the
+implementation. Duplicate names and partial implementations fail registration.
+
+## Entry-point migration
+
+Entry-point packages must publish non-executable v2 descriptor metadata and an
+importable implementation identifier. Listing metadata must not be used as an
+implicit import hook. Contract-v1 packages receive an incompatible-contract
+error and must be upgraded or explicitly adapted in their own package; the
+benchmark does not relabel v1 behavior as v2.
+
+## Trust migration
+
+Use `local_trusted` only for reviewed code the caller explicitly chooses to run
+with ordinary process authority. Installed third-party packages should use
+`external_restricted`; unknown/adversarial code should use
+`untrusted_isolated`. Restricted and untrusted descriptors cannot declare
+`in_process` execution. Isolation is bounded process containment and is not a
+general kernel sandbox; see `docs/security/plugin-threat-model.md`.

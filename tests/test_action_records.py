@@ -40,7 +40,7 @@ def config(
                 "kind": "monitor",
                 "name": monitor,
                 "version": "test",
-                "contract_version": "1",
+                "contract_version": "2",
                 "entry_point": f"tests:{monitor}",
             }
         ]
@@ -64,7 +64,7 @@ class AlwaysBlockMonitor:
 
 def catalog_with_monitor(name: str, monitor: type[object]) -> PluginCatalog:
     catalog = PluginCatalog(include_external=False)
-    catalog.register(PluginDescriptor("monitor", name, version="test"), monitor)
+    catalog.register(PluginDescriptor.for_factory("monitor", name, monitor, version="test"), monitor)
     return catalog
 
 
@@ -159,14 +159,17 @@ class FailingAgent:
 
 def test_infrastructure_failure_gets_a_non_fabricated_failure_record() -> None:
     catalog = PluginCatalog(include_external=False)
-    catalog.register(PluginDescriptor("agent", FailingAgent.name, version="test"), FailingAgent)
+    catalog.register(
+        PluginDescriptor.for_factory("agent", FailingAgent.name, FailingAgent, version="test"),
+        FailingAgent,
+    )
     value = config(agent=FailingAgent.name)
     value["plugin_references"] = [
         {
             "kind": "agent",
             "name": FailingAgent.name,
             "version": "test",
-            "contract_version": "1",
+            "contract_version": "2",
             "entry_point": "tests:failing_action_record_agent",
         }
     ]

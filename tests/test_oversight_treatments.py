@@ -91,7 +91,7 @@ def _custom_monitor_config(name: str, agents: list[str], oversight_mode: str) ->
                 "kind": "monitor",
                 "name": name,
                 "version": "test",
-                "contract_version": "1",
+                "contract_version": "2",
                 "entry_point": f"tests:{name}",
             }
         ],
@@ -100,7 +100,10 @@ def _custom_monitor_config(name: str, agents: list[str], oversight_mode: str) ->
 
 def test_custom_monitor_runs_with_every_base_agent() -> None:
     catalog = PluginCatalog(include_external=False)
-    catalog.register(PluginDescriptor("monitor", "always_block", version="test"), AlwaysBlockMonitor)
+    catalog.register(
+        PluginDescriptor.for_factory("monitor", "always_block", AlwaysBlockMonitor, version="test"),
+        AlwaysBlockMonitor,
+    )
     config = _custom_monitor_config("always_block", list(AGENTS), "hard_gate")
     episodes = RunCoordinator(ExperimentSpec.from_config(config, seed=139), catalog).run()
 
@@ -112,7 +115,10 @@ def test_custom_monitor_runs_with_every_base_agent() -> None:
 
 def test_no_oversight_does_not_call_even_a_configured_custom_monitor() -> None:
     catalog = PluginCatalog(include_external=False)
-    catalog.register(PluginDescriptor("monitor", "exploding_monitor", version="test"), ExplodingMonitor)
+    catalog.register(
+        PluginDescriptor.for_factory("monitor", "exploding_monitor", ExplodingMonitor, version="test"),
+        ExplodingMonitor,
+    )
     config = _custom_monitor_config("exploding_monitor", ["naive"], "no_oversight")
     episode = RunCoordinator(ExperimentSpec.from_config(config, seed=149), catalog).run()[0]
 

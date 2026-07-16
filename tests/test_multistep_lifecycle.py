@@ -29,7 +29,7 @@ def _config(agent: str = "validate_then_act", steps: int = 6) -> dict[str, objec
                 "kind": "agent",
                 "name": agent,
                 "version": "test",
-                "contract_version": "1",
+                "contract_version": "2",
                 "entry_point": f"tests:{agent}",
             }
         ]
@@ -38,7 +38,7 @@ def _config(agent: str = "validate_then_act", steps: int = 6) -> dict[str, objec
 
 def _catalog(agent_name: str, agent_type: type) -> PluginCatalog:
     catalog = PluginCatalog(include_external=False)
-    catalog.register(PluginDescriptor("agent", agent_name, version="test"), agent_type)
+    catalog.register(PluginDescriptor.for_factory("agent", agent_name, agent_type, version="test"), agent_type)
     return catalog
 
 
