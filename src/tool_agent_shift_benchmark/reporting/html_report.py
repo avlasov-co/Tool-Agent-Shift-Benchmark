@@ -4,8 +4,9 @@ import argparse
 import csv
 import html
 from pathlib import Path
+from string import Template
 
-DEFAULT_TEMPLATE = Path("templates/report.html")
+from tool_agent_shift_benchmark.package_resources import read_builtin_resource
 
 
 def _read_rows(path: str | Path) -> list[dict[str, str]]:
@@ -156,15 +157,9 @@ def render_html_report(
     )
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
+    template = Template(read_builtin_resource("templates", "report.html").decode("utf-8"))
     output.write_text(
-        "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' "
-        "content='width=device-width,initial-scale=1'><title>"
-        + html.escape(title)
-        + "</title><style>"
-        + css
-        + "</style></head><body><main>"
-        + "\n".join(sections)
-        + "</main></body></html>\n",
+        template.substitute(title=html.escape(title), css=css, sections="\n".join(sections)),
         encoding="utf-8",
     )
     return output

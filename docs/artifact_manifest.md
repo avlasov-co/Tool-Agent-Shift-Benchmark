@@ -7,7 +7,7 @@ This file records the expected artifact contract for the smoke reproducibility p
 ```bash
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m compileall -q src tests
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q
-python -m tool_agent_shift_benchmark.run_eval --all-envs --all-agents --config configs/small.yaml --seed 42
+python -m tool_agent_shift_benchmark.run_eval --all-envs --all-agents --config small --seed 42
 python -m tool_agent_shift_benchmark.plot_results
 python -m tool_agent_shift_benchmark.generate_report
 python -m tool_agent_shift_benchmark.analysis.run_analysis
@@ -17,7 +17,7 @@ CI runs this same smoke contract via `scripts/run_repro.sh`.
 
 ## Expected smoke outputs
 
-For `configs/small.yaml` with `--all-envs --all-agents`:
+For `small` with `--all-envs --all-agents`:
 
 - environments: 3
 - agents: 6
@@ -49,7 +49,7 @@ Expected files after the smoke run:
 ## Multi-seed command
 
 ```bash
-python -m tool_agent_shift_benchmark.run_seeds --config configs/seeds.yaml --all-envs --all-agents
+python -m tool_agent_shift_benchmark.run_seeds --config seeds --all-envs --all-agents
 python -m tool_agent_shift_benchmark.plot_results
 python -m tool_agent_shift_benchmark.generate_report
 python -m tool_agent_shift_benchmark.analysis.run_analysis
@@ -62,7 +62,7 @@ The multi-seed output is the only valid source for confidence intervals.
 The checked-in generated artifacts are from the extended multi-seed validation path:
 
 ```bash
-python -m tool_agent_shift_benchmark.run_seeds --config configs/seeds.yaml --all-envs --all-agents
+python -m tool_agent_shift_benchmark.run_seeds --config seeds --all-envs --all-agents
 python -m tool_agent_shift_benchmark.plot_results
 python -m tool_agent_shift_benchmark.generate_report
 python -m tool_agent_shift_benchmark.analysis.run_analysis
@@ -88,7 +88,7 @@ The smoke command remains the fastest reviewer path. The multi-seed artifacts ar
 Run explicit fault-pair analysis with:
 
 ```bash
-python -m tool_agent_shift_benchmark.analysis.run_pairwise_compounds --config configs/compound_matrix.yaml
+python -m tool_agent_shift_benchmark.analysis.run_pairwise_compounds --config compound_matrix
 ```
 
 Expected outputs:

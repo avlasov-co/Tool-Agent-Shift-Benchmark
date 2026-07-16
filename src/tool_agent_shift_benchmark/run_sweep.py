@@ -7,7 +7,7 @@ from tool_agent_shift_benchmark.run_eval import run_eval
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Run benchmark sweep")
-    parser.add_argument("--config", default="configs/ablations.yaml")
+    parser.add_argument("--config", default="ablations")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args(argv)
     episodes = run_eval(args.config, args.seed, all_envs=True, all_agents=True)

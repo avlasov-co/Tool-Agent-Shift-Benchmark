@@ -1,5 +1,7 @@
 schema_version: 2
 monitor_policy: record
+policy_resources:
+  offline_llm_fixture: e202bdaae8911129ce16a363989a01f68c83905a70936aa8c35eb104eca174a7
 migration:
   source_schema_version: unversioned-v1
   decisions:

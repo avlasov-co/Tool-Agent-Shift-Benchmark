@@ -66,8 +66,8 @@ The benchmark is fully synthetic. It does not call real APIs, modify real files,
 Use the CLI for reviewer-friendly runs:
 
 ```bash
-tasb validate-config configs/small.yaml
-tasb run --config configs/small.yaml --all-envs --all-agents --seed 42 --run-name smoke --overwrite
+tasb validate-config small
+tasb run --config small --all-envs --all-agents --seed 42 --run-name smoke --overwrite
 tasb analyze --run runs/smoke
 tasb pairwise --run runs/smoke
 tasb plot --run runs/smoke

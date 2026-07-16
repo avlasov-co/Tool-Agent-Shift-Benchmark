@@ -34,7 +34,7 @@ ENVS = {
     "risk_ops": RiskOpsEnvironment,
 }
 ANALYSIS_DIR = Path("results/analysis")
-DEFAULT_CONFIG = "configs/compound_matrix.yaml"
+DEFAULT_CONFIG = "compound_matrix"
 
 
 @dataclass(frozen=True)

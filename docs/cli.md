@@ -14,15 +14,19 @@ python -m pip install -e .
 ## Common workflow
 
 ```bash
-tasb validate-config configs/small.yaml
-tasb run --config configs/small.yaml --all-envs --all-agents --seed 42 --run-name smoke --overwrite
+tasb validate-config small
+tasb run --config small --all-envs --all-agents --seed 42 --run-name smoke --overwrite
 tasb analyze --run runs/smoke
-tasb pairwise --config configs/compound_matrix.yaml --run runs/smoke
+tasb pairwise --config compound_matrix --run runs/smoke
 tasb plot --run runs/smoke
 tasb report --run runs/smoke --html
 tasb replay CASE_ID --run runs/smoke --format markdown
 tasb verify-release
 ```
+
+`small`, `full`, `seeds`, `ablations`, `default`, and `compound_matrix` are
+packaged configuration names. Discover them with `tasb config list`. Supplying
+an explicit YAML file path remains supported for user-authored configurations.
 
 ## Commands
 
@@ -33,6 +37,8 @@ tasb verify-release
 - `tasb report`: generate Markdown and optionally HTML reports.
 - `tasb replay`: replay a recorded failure case as JSON, Markdown, or text.
 - `tasb validate-config`: validate benchmark or pairwise configs.
+- `tasb config list`: list packaged built-in configs; `tasb config validate`
+  and `tasb config migrate` retain the versioned configuration workflow.
 - `tasb verify-release`: run the full release verifier.
 - `tasb clean`: remove generated outputs.
 - `tasb plugins list|validate`: inspect and validate built-in and external plugins.
@@ -40,7 +46,8 @@ tasb verify-release
 - `tasb inspect-run`: inspect a self-contained run manifest.
 - `tasb render-architecture`: regenerate the Mermaid architecture renders.
 
-Legacy `python -m tool_agent_shift_benchmark...` commands remain supported.
+`python -m tool_agent_shift_benchmark` is equivalent to `tasb`; individual
+submodules remain useful for development but are not the primary user surface.
 # Platform commands
 
 `tasb plugins list` lists built-in and entry-point plugins; `tasb plugins validate` checks catalog metadata. `tasb plan --config <config>` resolves the Cartesian matrix and stable seed policy without executing episodes. `tasb run --config <config> --workers N` executes serially by default or with deterministic parallel scheduling. `tasb inspect-run <run>` prints the self-describing manifest, and `tasb render-architecture` regenerates the Mermaid renders.

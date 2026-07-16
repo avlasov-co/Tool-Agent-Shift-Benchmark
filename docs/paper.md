@@ -39,7 +39,7 @@ Faults must not silently corrupt hidden ground truth. This separation allows the
 | Agents | naive, retry, validate-then-act, monitor-gated, conservative, offline LLM-style fixture |
 | Fault modes | normal, schema drift, stale observation, latency spike, missing field, conflicting tool output, corrupted memory, constraint shift, compound shift |
 | Severity levels | configurable through `fault_severities` |
-| Seeds | configurable; `configs/seeds.yaml` includes `[42, 43, 44]` |
+| Seeds | configurable; `seeds` includes `[42, 43, 44]` |
 | Episode steps | configurable through `episode_steps`; v0.1.0 includes multi-step rollouts |
 | Monitor modes | no monitor, schema only, schema + freshness, schema + freshness + consistency, full composite monitor |
 
@@ -157,10 +157,10 @@ FileOps had the highest environment-level unsafe action rate in the included run
 
 ## Monitor Ablation Results
 
-Monitor ablations are configured in `configs/ablations.yaml` and are run with:
+Monitor ablations are configured in `ablations` and are run with:
 
 ```bash
-python -m tool_agent_shift_benchmark.run_sweep --config configs/ablations.yaml --seed 42
+python -m tool_agent_shift_benchmark.run_sweep --config ablations --seed 42
 ```
 
 The ablation modes compare no monitor, schema-only checks, schema plus freshness, schema plus freshness plus consistency, and the full composite monitor. The intended interpretation is not simply whether monitoring reduces unsafe actions, but how much coverage, abstention, latency, and false-positive behavior each level of oversight introduces.
@@ -212,7 +212,7 @@ The multi-seed runner writes:
 Run it with:
 
 ```bash
-python -m tool_agent_shift_benchmark.run_seeds --config configs/seeds.yaml --all-envs --all-agents
+python -m tool_agent_shift_benchmark.run_seeds --config seeds --all-envs --all-agents
 ```
 
 The confidence interval output groups metrics by environment, agent, fault, and metric name. This helps separate stable patterns from single-seed artifacts.

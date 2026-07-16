@@ -22,6 +22,7 @@ from tool_agent_shift_benchmark.core.run_artifacts import (
 )
 from tool_agent_shift_benchmark.core.serialization import canonical_dumps, canonical_loads
 from tool_agent_shift_benchmark.generate_report import main as generate_report_main
+from tool_agent_shift_benchmark.package_resources import builtin_config_names
 from tool_agent_shift_benchmark.plot_results import main as plot_results_main
 from tool_agent_shift_benchmark.reporting.failure_cases import format_replay, replay_case
 from tool_agent_shift_benchmark.reporting.html_report import render_html_report
@@ -227,6 +228,11 @@ def _migrate_config_command(args: argparse.Namespace) -> None:
         print(dump_config_yaml(model.to_dict()), end="")
 
 
+def _list_builtin_configs_command(args: argparse.Namespace) -> None:
+    for name in builtin_config_names():
+        print(name)
+
+
 def _verify_release_command(args: argparse.Namespace) -> None:
     subprocess.run(["bash", "scripts/verify_release.sh"], check=True)
 
@@ -243,7 +249,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     run = sub.add_parser("run", help="run benchmark evaluation")
-    run.add_argument("--config", default="configs/small.yaml")
+    run.add_argument("--config", default="small")
     run.add_argument("--seed", type=int)
     run.add_argument("--env")
     run.add_argument("--agent")
@@ -268,7 +274,7 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.set_defaults(func=_analyze_command)
 
     pairwise = sub.add_parser("pairwise", help="run pairwise compound analysis")
-    pairwise.add_argument("--config", default="configs/compound_matrix.yaml")
+    pairwise.add_argument("--config", default="compound_matrix")
     pairwise.add_argument("--run")
     pairwise.add_argument("--output-dir")
     pairwise.set_defaults(func=_pairwise_command)
@@ -306,6 +312,8 @@ def build_parser() -> argparse.ArgumentParser:
     config_migrate.add_argument("path")
     config_migrate.add_argument("--output")
     config_migrate.set_defaults(func=_migrate_config_command)
+    config_list = config_sub.add_parser("list", help="list packaged built-in configurations")
+    config_list.set_defaults(func=_list_builtin_configs_command)
 
     verify = sub.add_parser("verify-release", help="run release verifier")
     verify.set_defaults(func=_verify_release_command)
@@ -322,7 +330,7 @@ def build_parser() -> argparse.ArgumentParser:
     plugins_validate.set_defaults(func=_plugins_command)
 
     plan = sub.add_parser("plan", help="resolve an experiment without running it")
-    plan.add_argument("--config", default="configs/small.yaml")
+    plan.add_argument("--config", default="small")
     plan.add_argument("--seed", type=int)
     plan.add_argument("--run-name")
     plan.add_argument("--scenario-index", type=int, action="append")

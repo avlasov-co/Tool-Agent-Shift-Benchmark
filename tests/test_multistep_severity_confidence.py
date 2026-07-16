@@ -12,11 +12,7 @@ from tool_agent_shift_benchmark.run_seeds import run_seeds
 
 def test_multistep_and_severity_outputs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    import shutil
-
-    repo = Path(__file__).resolve().parents[1]
-    shutil.copytree(repo / "configs", tmp_path / "configs")
-    episodes = run_eval("configs/small.yaml", seed=7, all_envs=False, all_agents=False)
+    episodes = run_eval("small", seed=7, all_envs=False, all_agents=False)
     assert episodes
     assert Path("results/multistep_traces.jsonl").exists()
     rows = list(csv.DictReader(open("results/episode_log.csv", encoding="utf-8")))
@@ -37,11 +33,7 @@ def test_fault_severity_changes_latency_or_staleness():
 
 def test_run_seeds_confidence_outputs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    import shutil
-
-    repo = Path(__file__).resolve().parents[1]
-    shutil.copytree(repo / "configs", tmp_path / "configs")
-    seed_rows, ci_rows = run_seeds("configs/seeds.yaml", all_envs=False, all_agents=False)
+    seed_rows, ci_rows = run_seeds("seeds", all_envs=False, all_agents=False)
     assert seed_rows
     assert ci_rows
     assert Path("results/seed_summary.csv").exists()

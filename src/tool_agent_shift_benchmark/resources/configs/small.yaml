@@ -1,30 +1,22 @@
 schema_version: 2
 monitor_policy: record
+policy_resources:
+  offline_llm_fixture: e202bdaae8911129ce16a363989a01f68c83905a70936aa8c35eb104eca174a7
 migration:
   source_schema_version: unversioned-v1
   decisions:
     - "monitor_policy was absent; selected 'record' to preserve the legacy file-runner behavior"
-episodes_per_combo: 5
-episode_steps: 3
-fault_severities: [0.25, 0.5, 1.0]
+episodes_per_combo: 2
+episode_steps: 2
+fault_severities: [0.5, 1.0]
 environments:
   - file_ops
-  - calendar_ops
-  - risk_ops
 agents:
   - naive
-  - retry
-  - validate_then_act
   - monitor_gated
-  - conservative
   - offline_llm_fixture
 faults:
   - normal
-  - schema_drift
   - stale_observation
-  - latency_spike
   - missing_field
-  - conflicting_tool_output
-  - corrupted_memory
-  - constraint_shift
-  - compound_shift
+  - schema_drift

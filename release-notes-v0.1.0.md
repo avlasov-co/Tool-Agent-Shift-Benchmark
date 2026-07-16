@@ -9,11 +9,11 @@ Initial release of a deterministic synthetic benchmark for tool-using agent safe
 - Fault severity sweeps via `fault_severities` in config files.
 - Multi-step rollouts via `episode_steps`, including `results/multistep_traces.jsonl`.
 - Six agents: naive, retry, validate-then-act, monitor-gated, conservative abstention, and offline LLM-style fixture.
-- Offline LLM-style fixture at `src/tool_agent_shift_benchmark/agents/offline_llm_fixture.py` with policy cases in `fixtures/offline_llm_policy/policy_cases.json`.
+- Offline LLM-style fixture at `src/tool_agent_shift_benchmark/agents/offline_llm_fixture.py` with policy cases in `src/tool_agent_shift_benchmark/resources/policies/offline_llm_policy.json`.
 - Schema, freshness, consistency, constraint, risk, and composite monitors.
-- Monitor ablation configuration in `configs/ablations.yaml`.
+- Monitor ablation configuration in `ablations`.
 - Static-vs-dynamic comparison output at `results/static_vs_dynamic.csv` and plot `figures/static_vs_dynamic_gap.png`.
-- Multi-seed confidence interval support via `src/tool_agent_shift_benchmark/run_seeds.py`, `src/tool_agent_shift_benchmark/metrics/confidence.py`, and `configs/seeds.yaml`.
+- Multi-seed confidence interval support via `src/tool_agent_shift_benchmark/run_seeds.py`, `src/tool_agent_shift_benchmark/metrics/confidence.py`, and `seeds`.
 - Confidence outputs: `results/seed_summary.csv`, `results/confidence_intervals.csv`, and `figures/confidence_intervals.png`.
 - Core outputs: `summary.csv`, `episode_log.csv`, `failure_cases.csv`, `monitor_events.csv`, and `config.json`.
 - Plots for unsafe actions, unsafe steps, coverage-vs-safety, monitor recall/precision, recovery, failure breakdown, static-vs-dynamic gap, and confidence intervals.
@@ -27,8 +27,8 @@ Initial release of a deterministic synthetic benchmark for tool-using agent safe
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m compileall -q src tests
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q
 bash scripts/run_repro.sh
-python -m tool_agent_shift_benchmark.run_sweep --config configs/ablations.yaml --seed 42
-python -m tool_agent_shift_benchmark.run_seeds --config configs/seeds.yaml --all-envs --all-agents
+python -m tool_agent_shift_benchmark.run_sweep --config ablations --seed 42
+python -m tool_agent_shift_benchmark.run_seeds --config seeds --all-envs --all-agents
 python -m tool_agent_shift_benchmark.plot_results
 python -m tool_agent_shift_benchmark.generate_report
 ```

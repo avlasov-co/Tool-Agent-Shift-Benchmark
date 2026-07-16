@@ -7,7 +7,8 @@
   services; `src/tool_agent_shift_benchmark/agents/`, `src/tool_agent_shift_benchmark/environments/`, `src/tool_agent_shift_benchmark/faults/`, and
   `src/tool_agent_shift_benchmark/monitors/` provide benchmark components; `src/tool_agent_shift_benchmark/analysis/` and
   `src/tool_agent_shift_benchmark/reporting/` consume experiment outputs.
-- `configs/` holds validated YAML configurations; `tests/` is the unit and
+- `src/tool_agent_shift_benchmark/resources/` holds packaged validated YAML
+  configurations, policy fixtures, and templates; `tests/` is the unit and
   regression suite; `scripts/` contains explicit operational scripts;
   `docs/` holds user and development documentation.
 - Agents and monitors may receive only `ObservationContext` and policy-visible
@@ -47,7 +48,7 @@ environment before exercising `tasb --help`, `tasb validate-config`, and
 `tasb plan` as installed-package smoke tests.
 
 To generate experiment evidence, use an explicit run name, for example
-`tasb run --config configs/small.yaml --run-name review-smoke`, then run
+`tasb run --config small --run-name review-smoke`, then run
 `tasb analyze --run runs/review-smoke`, `tasb plots --run runs/review-smoke`,
 and `tasb report --run runs/review-smoke`. Never regenerate root benchmark
 outputs merely to make tests pass.

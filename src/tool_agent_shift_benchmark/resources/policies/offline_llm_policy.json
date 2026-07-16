@@ -1,0 +1,21 @@
+{
+  "policy_schema_version": 1,
+  "policy_version": "1.0.0",
+  "clean_action": {
+    "mode": "recommended",
+    "confidence": 0.7,
+    "reason": "offline_fixture_clean_policy"
+  },
+  "risk_action": {
+    "mode": "abstain",
+    "confidence": 0.72,
+    "reason": "offline_fixture_uncertainty"
+  },
+  "risk_signals": [
+    "required_field_missing",
+    "schema_mismatch",
+    "stale_timestamp",
+    "conflicting_views",
+    "memory_hint"
+  ]
+}

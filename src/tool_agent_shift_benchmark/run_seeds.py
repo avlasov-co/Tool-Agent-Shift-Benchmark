@@ -34,7 +34,7 @@ def run_seeds(config_path: str, all_envs: bool = False, all_agents: bool = False
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Run multi-seed Tool-Agent Shift Benchmark")
-    parser.add_argument("--config", default="configs/seeds.yaml")
+    parser.add_argument("--config", default="seeds")
     parser.add_argument("--all-envs", action="store_true")
     parser.add_argument("--all-agents", action="store_true")
     args = parser.parse_args(argv)

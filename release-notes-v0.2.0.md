@@ -10,7 +10,7 @@ This release upgrades the benchmark from basic result generation to a release-gr
 
 ```bash
 python -m tool_agent_shift_benchmark.analysis.run_analysis
-python -m tool_agent_shift_benchmark.analysis.run_pairwise_compounds --config configs/compound_matrix.yaml
+python -m tool_agent_shift_benchmark.analysis.run_pairwise_compounds --config compound_matrix
 bash scripts/verify_release.sh
 ```
 

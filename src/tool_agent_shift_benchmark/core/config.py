@@ -8,6 +8,7 @@ from typing import Any
 import yaml
 
 from tool_agent_shift_benchmark.core.serialization import canonicalize
+from tool_agent_shift_benchmark.package_resources import load_config_text
 
 
 class ConfigSyntaxError(ValueError):
@@ -48,8 +49,7 @@ _UniqueKeySafeLoader.add_constructor(
 
 
 def load_raw_config(path: str | Path) -> dict[str, Any]:
-    source = Path(path)
-    text = source.read_text(encoding="utf-8")
+    source, text = load_config_text(path)
     try:
         data = yaml.load(text, Loader=_UniqueKeySafeLoader)
     except ConfigSyntaxError as exc:

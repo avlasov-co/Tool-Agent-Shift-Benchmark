@@ -244,7 +244,7 @@ def _deterministic_plan_command(python: str) -> list[str]:
     code = (
         "from tool_agent_shift_benchmark.core.config import load_config; "
         "from tool_agent_shift_benchmark.core.orchestration import ExperimentPlanner, ExperimentSpec; "
-        "config=load_config('configs/small.yaml'); "
+        "config=load_config('small'); "
         "first=ExperimentPlanner(ExperimentSpec.from_config(config, seed=42)).plan(); "
         "second=ExperimentPlanner(ExperimentSpec.from_config(config, seed=42)).plan(); "
         "assert first == second and "
@@ -337,7 +337,7 @@ def run_audit(
     )
     runner.run_command(
         "configuration_validation",
-        [runner.python, "-m", "tool_agent_shift_benchmark.core.config_schema", "configs/small.yaml"],
+        [runner.python, "-m", "tool_agent_shift_benchmark.core.config_schema", "small"],
         env=common_env,
     )
     runner.run_command(
@@ -388,12 +388,12 @@ def run_audit(
         runner.run_command("cli_smoke", [str(venv_dir / "bin" / "tasb"), "--help"], env=common_env)
         runner.run_command(
             "cli_validate_config_alias_smoke",
-            [str(venv_dir / "bin" / "tasb"), "validate-config", "configs/small.yaml"],
+            [str(venv_dir / "bin" / "tasb"), "validate-config", "small"],
             env=common_env,
         )
         runner.run_command(
             "cli_config_validate_smoke",
-            [str(venv_dir / "bin" / "tasb"), "config", "validate", "configs/small.yaml"],
+            [str(venv_dir / "bin" / "tasb"), "config", "validate", "small"],
             env=common_env,
         )
         legacy_config = runner.output_dir / "legacy-config-smoke.yaml"
@@ -421,7 +421,7 @@ def run_audit(
         )
         runner.run_command(
             "cli_plan_smoke",
-            [str(venv_dir / "bin" / "tasb"), "plan", "--config", "configs/small.yaml"],
+            [str(venv_dir / "bin" / "tasb"), "plan", "--config", "small"],
             env=common_env,
         )
     runner.run_callable(

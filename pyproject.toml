@@ -59,3 +59,10 @@ tasb = "tool_agent_shift_benchmark.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["tool_agent_shift_benchmark*"]
+
+[tool.setuptools.package-data]
+tool_agent_shift_benchmark = [
+  "resources/configs/*.yaml",
+  "resources/policies/*.json",
+  "resources/templates/*.html",
+]

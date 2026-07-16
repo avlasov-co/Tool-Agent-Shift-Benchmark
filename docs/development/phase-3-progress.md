@@ -48,3 +48,29 @@ commit. The final section will retain baseline failures and remaining risks.
   --check` passed. A mechanical rename initially rewrote three local
   `src`-variable expressions in `run_artifacts`; the full test suite exposed
   the mistake and it was corrected before commit.
+
+### Checkpoint 11 — package resources
+
+- Moved every shipped YAML config into
+  `tool_agent_shift_benchmark/resources/configs/`, the offline policy into
+  `resources/policies/`, and added the HTML report template to
+  `resources/templates/`. `pyproject.toml` now declares all three data groups.
+- Added importlib-resources access with named built-ins (`small`, `full`,
+  `seeds`, `ablations`, `default`, `compound_matrix`), `tasb config list`, and
+  continued support for explicit external YAML paths. The historical
+  `configs/small.yaml` spelling resolves to its packaged counterpart where
+  practical.
+- The offline fixture policy now has strict schema/version validation. Its
+  visible-signal rules, actions, confidences, and reasons drive decisions; the
+  policy path, version, SHA-256, and observed visible signals are recorded in
+  every fixture decision. Built-in configurations record that same policy hash
+  in the scientific identity resource map.
+- Tests prove named-resource loading, external-path loading, clear missing or
+  malformed policy errors, and that a changed external policy changes the
+  resulting action. The suite has 154 passing tests.
+- A clean temporary source copy built a regular wheel containing config,
+  policy, and template resources. A fresh installed wheel, run from an empty
+  directory, listed/validated/planned `small` and loaded the fixture policy
+  without checkout access or `PYTHONPATH`.
+- `ruff check`, `ruff format --check`, focused strict mypy, and `git diff
+  --check` passed.

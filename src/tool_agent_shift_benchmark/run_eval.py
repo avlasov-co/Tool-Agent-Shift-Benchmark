@@ -273,7 +273,7 @@ def write_outputs(
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Run Tool-Agent Shift Benchmark")
-    parser.add_argument("--config", default="configs/small.yaml")
+    parser.add_argument("--config", default="small")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--env", choices=list(ENVS))
     parser.add_argument("--agent", choices=list(AGENTS))

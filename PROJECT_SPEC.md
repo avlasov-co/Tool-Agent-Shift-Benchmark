@@ -142,11 +142,6 @@ tool-agent-shift-benchmark
 ├── requirements.txt
 ├── Makefile
 ├── PROJECT_SPEC.md
-├── configs
-│   ├── small.yaml
-│   ├── default.yaml
-│   ├── full.yaml
-│   └── ablations.yaml
 ├── docs
 │   ├── index.md
 │   ├── paper.md
@@ -166,69 +161,14 @@ tool-agent-shift-benchmark
 │   ├── run_repro.sh
 │   └── clean_outputs.sh
 ├── src
-│   ├── __init__.py
-│   ├── run_eval.py
-│   ├── run_sweep.py
-│   ├── plot_results.py
-│   ├── generate_report.py
-│   ├── core
-│   │   ├── __init__.py
-│   │   ├── types.py
-│   │   ├── episode.py
-│   │   ├── registry.py
-│   │   ├── config.py
-│   │   └── serialization.py
-│   ├── environments
-│   │   ├── __init__.py
-│   │   ├── base.py
-│   │   ├── file_ops.py
-│   │   ├── calendar_ops.py
-│   │   └── risk_ops.py
-│   ├── tools
-│   │   ├── __init__.py
-│   │   ├── base.py
-│   │   ├── file_tools.py
-│   │   ├── calendar_tools.py
-│   │   └── market_tools.py
-│   ├── faults
-│   │   ├── __init__.py
-│   │   ├── base.py
-│   │   ├── schema_drift.py
-│   │   ├── stale_observation.py
-│   │   ├── latency_spike.py
-│   │   ├── missing_field.py
-│   │   ├── conflicting_output.py
-│   │   ├── corrupted_memory.py
-│   │   ├── constraint_shift.py
-│   │   └── compound.py
-│   ├── agents
-│   │   ├── __init__.py
-│   │   ├── base.py
-│   │   ├── naive.py
-│   │   ├── retry.py
-│   │   ├── validate_then_act.py
-│   │   ├── monitor_gated.py
-│   │   └── conservative.py
-│   ├── monitors
-│   │   ├── __init__.py
-│   │   ├── base.py
-│   │   ├── schema.py
-│   │   ├── freshness.py
-│   │   ├── consistency.py
-│   │   ├── constraint.py
-│   │   ├── risk.py
-│   │   └── composite.py
-│   ├── metrics
-│   │   ├── __init__.py
-│   │   ├── safety.py
-│   │   ├── coverage.py
-│   │   ├── monitors.py
-│   │   └── aggregation.py
-│   └── reporting
-│       ├── __init__.py
-│       ├── plots.py
-│       ├── report.py
-│       └── failure_cases.py
+│   └── tool_agent_shift_benchmark
+│       ├── agents, analysis, core, environments, faults, metrics, monitors,
+│       │   reporting, and tools
+│       ├── run_eval.py, run_seeds.py, and run_sweep.py
+│       └── resources
+│           ├── configs
+│           ├── policies
+│           └── templates
 ├── tests
 │   ├── test_core_types.py
 │   ├── test_environments.py
@@ -297,6 +237,6 @@ A release is acceptable only when:
 
 ## v0.1.0 extended release additions
 
-This release includes multi-step rollouts, fault severity sweeps, a deterministic offline LLM-style fixture agent, static-vs-dynamic comparison, and multi-seed confidence intervals. The relevant files are `src/tool_agent_shift_benchmark/run_seeds.py`, `src/tool_agent_shift_benchmark/metrics/confidence.py`, `configs/seeds.yaml`, `src/tool_agent_shift_benchmark/agents/offline_llm_fixture.py`, `fixtures/offline_llm_policy/policy_cases.json`, and `tests/test_multistep_severity_confidence.py`.
+This release includes multi-step rollouts, fault severity sweeps, a deterministic offline LLM-style fixture agent, static-vs-dynamic comparison, and multi-seed confidence intervals. The relevant files are `src/tool_agent_shift_benchmark/run_seeds.py`, `src/tool_agent_shift_benchmark/metrics/confidence.py`, packaged `seeds` config, `src/tool_agent_shift_benchmark/agents/offline_llm_fixture.py`, `src/tool_agent_shift_benchmark/resources/policies/offline_llm_policy.json`, and `tests/test_multistep_severity_confidence.py`.
 
 Frontier LLM API integration is intentionally out of scope for v0.1.0 because the benchmark must remain open-source, reproducible, and free from paid credential requirements.

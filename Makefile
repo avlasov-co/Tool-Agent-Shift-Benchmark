@@ -26,16 +26,16 @@ coverage:
 	$(PYTHON) -m coverage report
 
 small:
-	$(PYTHON) -m tool_agent_shift_benchmark.run_eval --all-envs --all-agents --config configs/small.yaml --seed 42
+	$(PYTHON) -m tool_agent_shift_benchmark.run_eval --all-envs --all-agents --config small --seed 42
 
 full:
-	$(PYTHON) -m tool_agent_shift_benchmark.run_eval --all-envs --all-agents --config configs/full.yaml --seed 42
+	$(PYTHON) -m tool_agent_shift_benchmark.run_eval --all-envs --all-agents --config full --seed 42
 
 seeds:
-	$(PYTHON) -m tool_agent_shift_benchmark.run_seeds --config configs/seeds.yaml --all-envs --all-agents
+	$(PYTHON) -m tool_agent_shift_benchmark.run_seeds --config seeds --all-envs --all-agents
 
 sweep:
-	$(PYTHON) -m tool_agent_shift_benchmark.run_sweep --config configs/ablations.yaml --seed 42
+	$(PYTHON) -m tool_agent_shift_benchmark.run_sweep --config ablations --seed 42
 
 plots:
 	$(PYTHON) -m tool_agent_shift_benchmark.plot_results

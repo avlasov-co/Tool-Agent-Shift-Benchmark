@@ -117,15 +117,11 @@ def test_all_agents_and_monitors_run_without_environment_object():
 
 def test_run_eval_redacts_evaluator_fault_labels_from_policy_inputs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    import pathlib
-    import shutil
 
     import tool_agent_shift_benchmark.run_eval as run_eval_module
     from tool_agent_shift_benchmark.core.types import AgentAction, AgentDecision
+    from tool_agent_shift_benchmark.package_resources import read_builtin_config
     from tool_agent_shift_benchmark.run_eval import run_eval
-
-    srcroot = pathlib.Path(__file__).resolve().parents[1]
-    shutil.copytree(srcroot / "configs", tmp_path / "configs")
 
     class SpyAgent:
         name = "spy"
@@ -137,8 +133,9 @@ def test_run_eval_redacts_evaluator_fault_labels_from_policy_inputs(tmp_path, mo
 
     monkeypatch.setitem(run_eval_module.AGENTS, "spy", SpyAgent)
     config_path = tmp_path / "configs" / "small.yaml"
+    config_path.parent.mkdir()
     config_path.write_text(
-        config_path.read_text(encoding="utf-8")
+        read_builtin_config("small")[1]
         + """\
 plugin_references:
   - kind: agent
@@ -149,7 +146,7 @@ plugin_references:
 """,
         encoding="utf-8",
     )
-    episodes = run_eval("configs/small.yaml", 42, env="file_ops", agent="spy")
+    episodes = run_eval(str(config_path), 42, env="file_ops", agent="spy")
     assert episodes
     assert any(e.tool_response.observation.metadata.get("faults") for e in episodes if e.fault.name != "normal")
 
@@ -157,18 +154,14 @@ plugin_references:
 def test_single_seed_run_records_effective_config_and_clears_stale_ci(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     import json
-    import pathlib
-    import shutil
 
     from tool_agent_shift_benchmark.run_eval import run_eval
 
-    srcroot = pathlib.Path(__file__).resolve().parents[1]
-    shutil.copytree(srcroot / "configs", tmp_path / "configs")
     (tmp_path / "results").mkdir()
     (tmp_path / "results" / "confidence_intervals.csv").write_text("stale\n", encoding="utf-8")
     (tmp_path / "results" / "seed_summary.csv").write_text("stale\n", encoding="utf-8")
 
-    episodes = run_eval("configs/small.yaml", 42, all_envs=True, all_agents=True)
+    episodes = run_eval("small", 42, all_envs=True, all_agents=True)
     payload = json.loads((tmp_path / "results" / "config.json").read_text(encoding="utf-8"))
     cfg = payload["config"]
     assert len(episodes) == 252

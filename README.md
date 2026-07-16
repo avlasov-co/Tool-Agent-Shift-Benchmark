@@ -2,7 +2,7 @@
 
 ## Platform architecture
 
-The runtime boundaries and policy/evaluator data flow are maintained in [docs/architecture.mmd](docs/architecture.mmd), with checked-in [SVG](docs/architecture.svg) and [PNG](docs/architecture.png) renders. Use `tasb plan --config configs/small.yaml` to inspect a resolved matrix and `tasb plugins list` to inspect installed plugins.
+The runtime boundaries and policy/evaluator data flow are maintained in [docs/architecture.mmd](docs/architecture.mmd), with checked-in [SVG](docs/architecture.svg) and [PNG](docs/architecture.png) renders. Use `tasb plan --config small` to inspect a resolved matrix and `tasb plugins list` to inspect installed plugins.
 
 ![CI](https://github.com/avlasov-co/tool-agent-shift-benchmark/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
@@ -64,7 +64,7 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m compileall -q src tests
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q
-python -m tool_agent_shift_benchmark.run_eval --all-envs --all-agents --config configs/small.yaml --seed 42
+python -m tool_agent_shift_benchmark.run_eval --all-envs --all-agents --config small --seed 42
 python -m tool_agent_shift_benchmark.plot_results
 python -m tool_agent_shift_benchmark.generate_report
 python -m tool_agent_shift_benchmark.analysis.run_analysis
@@ -76,10 +76,10 @@ python -m tool_agent_shift_benchmark.analysis.run_analysis
 After installation, use the `tasb` command for a cleaner benchmark workflow:
 
 ```bash
-tasb validate-config configs/small.yaml
-tasb run --config configs/small.yaml --all-envs --all-agents --seed 42 --run-name smoke --overwrite
+tasb validate-config small
+tasb run --config small --all-envs --all-agents --seed 42 --run-name smoke --overwrite
 tasb analyze --run runs/smoke
-tasb pairwise --config configs/compound_matrix.yaml --run runs/smoke
+tasb pairwise --config compound_matrix --run runs/smoke
 tasb plot --run runs/smoke
 tasb report --run runs/smoke --html
 tasb replay CASE_ID --run runs/smoke --format markdown
@@ -102,20 +102,20 @@ bash scripts/run_repro.sh
 For the extended confidence-interval run:
 
 ```bash
-python -m tool_agent_shift_benchmark.run_seeds --config configs/seeds.yaml --all-envs --all-agents
+python -m tool_agent_shift_benchmark.run_seeds --config seeds --all-envs --all-agents
 ```
 
 For monitor ablations:
 
 ```bash
-python -m tool_agent_shift_benchmark.run_sweep --config configs/ablations.yaml --seed 42
+python -m tool_agent_shift_benchmark.run_sweep --config ablations --seed 42
 ```
 
 
 For the explicit pairwise compound-fault matrix:
 
 ```bash
-python -m tool_agent_shift_benchmark.analysis.run_pairwise_compounds --config configs/compound_matrix.yaml
+python -m tool_agent_shift_benchmark.analysis.run_pairwise_compounds --config compound_matrix
 ```
 
 For release validation:
@@ -188,12 +188,6 @@ This matters because a benchmark that lets policies inspect hidden state is just
 tool-agent-shift-benchmark
 ├── README.md
 ├── PROJECT_SPEC.md
-├── configs/
-│   ├── small.yaml
-│   ├── default.yaml
-│   ├── full.yaml
-│   ├── ablations.yaml
-│   └── seeds.yaml
 ├── docs/
 │   ├── index.md
 │   ├── paper.md
@@ -201,8 +195,6 @@ tool-agent-shift-benchmark
 │   ├── experimental_report.md
 │   └── ...
 ├── figures/
-├── fixtures/
-│   └── offline_llm_policy/
 ├── results/
 ├── scripts/
 ├── src/tool_agent_shift_benchmark/
@@ -213,6 +205,10 @@ tool-agent-shift-benchmark
 │   ├── metrics/
 │   ├── monitors/
 │   ├── reporting/
+│   ├── resources/
+│   │   ├── configs/
+│   │   ├── policies/
+│   │   └── templates/
 │   ├── run_eval.py
 │   ├── run_sweep.py
 │   └── run_seeds.py
