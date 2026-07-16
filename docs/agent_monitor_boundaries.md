@@ -2,14 +2,18 @@
 
 The benchmark now passes agents and monitors an `ObservationContext`, not the full synthetic environment object.
 
-This is a benchmark-validity guardrail. Agents and monitors can inspect only:
+This is a benchmark-validity guardrail. Each environment now supplies a
+versioned `environment-policy-adapter-v1`; `ObservationContext` delegates only
+the adapter's documented safe capabilities and contains no environment-name
+dispatch. Agents and monitors can inspect only:
 
-- the current environment name and scenario id;
+- the current environment name (not the authoritative scenario or split id);
 - the visible observation returned by the tool after fault injection;
 - visible constraints attached to that observation;
-- visible schema requirements;
+- the environment-provided action schema and visible schema requirements;
 - the benchmark's current timestamp;
-- helper methods that propose or validate actions using visible observation data only.
+- visible candidate extraction, safe abstention, and helper methods that
+  recommend or validate actions using visible observation data only.
 
 They cannot access:
 
@@ -25,7 +29,12 @@ The evaluator owns hidden ground truth. The policy being evaluated should not se
 
 ## Visible validation vs hidden scoring
 
-`ObservationContext.validate_action(...)` performs visible-only checks. It can catch things visible in the observation, such as a visible protected file flag, visible working-hours mismatch, or visible risk-limit violation. It intentionally cannot catch hidden-only hazards.
+`ObservationContext.validate_action(...)` performs visible-only checks through
+the environment's policy adapter. It can catch things visible in the
+observation, such as a visible protected file flag, visible working-hours
+mismatch, or visible risk-limit violation. It intentionally cannot catch
+hidden-only hazards. Adapters contain immutable public task/configuration data;
+they do not retain the environment or expose execution/evaluator methods.
 
 The synthetic environment still performs hidden scoring through `execute(...)` after the agent decision. That is where evaluator-only facts are allowed to determine whether an action was unsafe.
 
@@ -33,7 +42,13 @@ This means a monitor may allow an action that looks safe from visible data, whil
 
 ## Regression coverage
 
-`tests/test_context.py` checks that the context exposes no hidden evaluator methods and that all agents and monitors run through the visible-only context. `tests/test_agents.py` also checks that the retry baseline no longer bypasses a fault by calling a clean `tool_response()` after the shifted observation is received.
+`tests/test_context.py` checks that the context exposes no hidden evaluator
+methods and that all agents and monitors run through the visible-only context.
+`tests/test_environment_policy_adapters.py` proves all first-party environments
+provide the generic adapter and a new plugin environment participates without a
+central dispatch change. `tests/test_agents.py` also checks that the retry
+baseline no longer bypasses a fault by calling a clean `tool_response()` after
+the shifted observation is received.
 
 ## Fault-label redaction
 

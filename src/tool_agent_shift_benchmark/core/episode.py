@@ -142,6 +142,7 @@ class Episode:
             "15",
             "16",
             "17",
+            "18",
         }:
             raise ValueError(f"unsupported episode identity schema: {identity_schema_version!r}")
         planned_identity = value.get("planned_identity", {})
@@ -175,6 +176,7 @@ class Episode:
                 "15",
                 "16",
                 "17",
+                "18",
             }:
                 manifest_hash = (value.get("metadata", {}).get("scenario_manifest") or {}).get("content_hash")
                 if planned_identity.get("scenario_manifest_hash") != manifest_hash:
@@ -196,15 +198,16 @@ class Episode:
                 "15",
                 "16",
                 "17",
+                "18",
             }:
                 schedule_ids = fault.metadata.get("schedule_ids", [])
                 if planned_identity.get("fault_schedule_ids") != schedule_ids:
                     raise ValueError("serialized planned identity mismatch for fault_schedule_ids")
-            if identity_schema_version in {"12", "13", "14", "15", "16", "17"} and planned_identity.get(
+            if identity_schema_version in {"12", "13", "14", "15", "16", "17", "18"} and planned_identity.get(
                 "monitor_mode"
             ) != value.get("metadata", {}).get("monitor_mode"):
                 raise ValueError("serialized planned identity mismatch for monitor_mode")
-            if identity_schema_version in {"13", "14", "15", "16", "17"} and planned_identity.get(
+            if identity_schema_version in {"13", "14", "15", "16", "17", "18"} and planned_identity.get(
                 "oversight_mode"
             ) != value.get("metadata", {}).get("oversight_mode"):
                 raise ValueError("serialized planned identity mismatch for oversight_mode")

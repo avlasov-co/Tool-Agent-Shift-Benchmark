@@ -914,9 +914,11 @@ class EpisodeRunner:
                     stateful_agent=stateful_memory,
                     requests=memory_requests,
                 )
-                context = ObservationContext.from_environment(
-                    env_obj,
+                policy_adapter = env_obj.policy_adapter(policy_response.observation)
+                context = ObservationContext.from_policy_adapter(
+                    policy_adapter,
                     policy_response.observation,
+                    current_time=int(policy_response.metadata["timing"]["response_received_at"]),
                     response_latency_ms=policy_response.latency_ms,
                     response_received_at=int(policy_response.metadata["timing"]["response_received_at"]),
                     memory=memory_read.policy_view,
@@ -1060,6 +1062,7 @@ class EpisodeRunner:
                 {
                     "step": step,
                     "tool_response": policy_response.to_dict(),
+                    "policy_adapter": policy_adapter.to_dict(),
                     "decision": decision.to_dict(),
                     "monitor": monitor_decision.to_dict(),
                     "action_record": action_record.policy_dict(),

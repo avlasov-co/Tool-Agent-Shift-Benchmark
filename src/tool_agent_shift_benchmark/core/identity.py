@@ -1,4 +1,4 @@
-"""Typed, normalized scientific identity schema version 17."""
+"""Typed, normalized scientific identity schema version 18."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from tool_agent_shift_benchmark.core.oversight import (
     OversightTreatmentDescriptor,
     oversight_treatment,
 )
+from tool_agent_shift_benchmark.core.policy_adapter import ENVIRONMENT_POLICY_ADAPTER_CONTRACT
 from tool_agent_shift_benchmark.core.scenarios import (
     SCENARIO_FAMILY_CONTRACT,
     SCENARIO_MANIFEST_CONTRACT,
@@ -31,7 +32,7 @@ if TYPE_CHECKING:
     from tool_agent_shift_benchmark.core.catalog import PluginCatalog
     from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec
 
-IDENTITY_SCHEMA_VERSION = "17"
+IDENTITY_SCHEMA_VERSION = "18"
 SCENARIO_GENERATOR_NAME = "deterministic_synthetic_scenarios"
 SCENARIO_GENERATOR_VERSION = "3.0.0"
 EVALUATOR_NAME = "hidden_state_evaluator"
@@ -100,6 +101,7 @@ class FaultScheduleIdentity:
 @dataclass(frozen=True)
 class StepSemanticsIdentity:
     version: str
+    environment_policy_adapter_contract: str
     maximum_steps: int
     requery_contract: str
     policy_memory_contract: str
@@ -409,6 +411,7 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
         ),
         step_semantics=StepSemanticsIdentity(
             STEP_SEMANTICS_VERSION,
+            ENVIRONMENT_POLICY_ADAPTER_CONTRACT,
             spec.episode_steps,
             TOOL_REQUERY_CONTRACT,
             POLICY_MEMORY_CONTRACT,

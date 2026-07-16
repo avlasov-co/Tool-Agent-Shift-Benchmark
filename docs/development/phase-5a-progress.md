@@ -19,8 +19,8 @@
 
 ## Current checkpoint
 
-Checkpoint 36 — plugin contract v2 — complete. Checkpoint 37 — generic
-environment policy adapters — in progress.
+Checkpoints 36–37 are complete. Checkpoint 38 — sanitized shift context — in
+progress.
 
 ## Checkpoint evidence
 
@@ -61,6 +61,34 @@ commit identifiers will be recorded here before every checkpoint commit.
 - Contract-focused tests pass 75 cases. The full suite passes 508 tests after
   byte compilation. Branch coverage passes at 82.01% over 7,137 statements and
   2,172 branches. Ruff lint/format, strict mypy, and `git diff --check` pass.
+
+### Checkpoint 37 — generic environment policy adapters
+
+- Added `environment-policy-adapter-v1` with exactly five declared safe
+  capability groups: action schema, visible candidate extraction, visible
+  observation/action validation, safe abstention, and recommendation helpers.
+  Adapter snapshots contain only environment name, required visible fields,
+  visible constraints, public task metadata, action schema, and capabilities;
+  validation rejects environment/evaluator/execution handles.
+- Moved every file/calendar/risk recommendation and visible-validation branch
+  out of `ObservationContext` into first-party environment-provided adapters.
+  The context now delegates generically and the episode runner constructs it
+  from an adapter rather than passing or introspecting an environment object.
+  Agents and monitors required no environment-specific changes.
+- Added explicit first-party action schemas and visible-candidate extractors.
+  Policy traces record the safe adapter contract/schema used for each decision.
+- Added a `synthetic_inventory` test plugin environment. It plans, generates a
+  scenario, produces an adapter with a custom schema marker, runs the ordinary
+  naive agent, and records the adapter without adding its name anywhere in
+  central context, agent, or runner dispatch.
+- First-party environment descriptors advance to version `2.0.0` and declare
+  the adapter capability. Scientific identity advances from schema 17 to 18
+  and binds `environment-policy-adapter-v1`; identity-v2 through identity-v17
+  reads remain accepted.
+- Adapter/context/environment focused tests pass 29 cases. The full suite
+  passes 511 tests after compilation. Branch coverage passes at 81.91% over
+  7,296 statements and 2,200 branches. Ruff lint/format, strict mypy, and
+  `git diff --check` pass.
 
 ## Terminal validation
 

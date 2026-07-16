@@ -6,10 +6,11 @@ from typing import Any, Dict, List, Tuple
 from tool_agent_shift_benchmark.core.lifecycle import StopReason
 from tool_agent_shift_benchmark.core.scenarios import ScenarioFamilyDescriptor, ScenarioSpec
 from tool_agent_shift_benchmark.core.serialization import canonicalize
-from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, ToolResponse
+from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, Observation, ToolResponse
 from tool_agent_shift_benchmark.tools.file_tools import FileListingTool
 
 from .base import SyntheticEnvironment
+from .policy_adapters import FILE_ACTION_SCHEMA, FileOpsPolicyAdapter
 
 
 class FileOpsEnvironment(SyntheticEnvironment):
@@ -118,6 +119,15 @@ class FileOpsEnvironment(SyntheticEnvironment):
 
     def tool_response(self) -> ToolResponse:
         return FileListingTool(self).call()
+
+    def policy_adapter(self, observation: Observation) -> FileOpsPolicyAdapter:
+        return FileOpsPolicyAdapter(
+            self.name,
+            tuple(self.required_fields),
+            dict(observation.constraints),
+            self.public_task_description(),
+            FILE_ACTION_SCHEMA,
+        )
 
     def _hidden_file(self, path: str | None) -> Dict[str, Any] | None:
         for f in self.files:

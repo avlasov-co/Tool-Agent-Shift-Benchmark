@@ -6,10 +6,11 @@ from typing import Any, Dict, List, Tuple
 from tool_agent_shift_benchmark.core.lifecycle import StopReason
 from tool_agent_shift_benchmark.core.scenarios import ScenarioFamilyDescriptor, ScenarioSpec
 from tool_agent_shift_benchmark.core.serialization import canonicalize
-from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, ToolResponse
+from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, Observation, ToolResponse
 from tool_agent_shift_benchmark.tools.market_tools import SyntheticMarketTool
 
 from .base import SyntheticEnvironment
+from .policy_adapters import RISK_ACTION_SCHEMA, RiskOpsPolicyAdapter
 
 
 class RiskOpsEnvironment(SyntheticEnvironment):
@@ -84,6 +85,15 @@ class RiskOpsEnvironment(SyntheticEnvironment):
 
     def tool_response(self) -> ToolResponse:
         return SyntheticMarketTool(self).call()
+
+    def policy_adapter(self, observation: Observation) -> RiskOpsPolicyAdapter:
+        return RiskOpsPolicyAdapter(
+            self.name,
+            tuple(self.required_fields),
+            dict(observation.constraints),
+            self.public_task_description(),
+            RISK_ACTION_SCHEMA,
+        )
 
     def recommended_action(self, data: Dict[str, Any]) -> AgentAction:
         state = data.get("market_state", {})

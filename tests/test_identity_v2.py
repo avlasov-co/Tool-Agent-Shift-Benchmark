@@ -210,7 +210,8 @@ def test_identity_document_contains_required_typed_fields() -> None:
     assert semantic.scenario_split_contract == "scenario-split-v1"
     assert semantic.scenario_split == "development"
     assert [split.name for split in semantic.scenario_splits] == ["development", "validation", "challenge"]
-    assert semantic.environments[0].version == "1.0.0"
+    assert semantic.environments[0].version == "2.0.0"
+    assert "environment-policy-adapter-v1" in semantic.environments[0].capabilities
     assert semantic.agents[0].version == "1.0.0"
     assert semantic.fault_schedules[0].cadence == "each_step"
     assert semantic.fault_effect_contract == "fault-effect-v1"
@@ -233,6 +234,7 @@ def test_identity_document_contains_required_typed_fields() -> None:
     assert semantic.oversight_modes == ("hard_gate",)
     assert semantic.oversight_treatments[0].enforcement == "replace_denied_execution_with_abstention"
     assert semantic.step_semantics.maximum_steps == 2
+    assert semantic.step_semantics.environment_policy_adapter_contract == "environment-policy-adapter-v1"
     assert semantic.step_semantics.requery_contract == "tool-requery-v1"
     assert semantic.step_semantics.clock_contract == "causal-latency-v1"
     assert semantic.step_semantics.maximum_requeries_per_step == 2

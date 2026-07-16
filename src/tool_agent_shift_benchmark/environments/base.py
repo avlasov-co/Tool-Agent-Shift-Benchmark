@@ -6,8 +6,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 from tool_agent_shift_benchmark.core.contracts import empty_configuration_schema
 from tool_agent_shift_benchmark.core.counterfactual import PURE_COUNTERFACTUAL_CAPABILITY
 from tool_agent_shift_benchmark.core.lifecycle import StopReason
+from tool_agent_shift_benchmark.core.policy_adapter import (
+    ENVIRONMENT_POLICY_ADAPTER_CONTRACT,
+    BasePolicyAdapter,
+)
 from tool_agent_shift_benchmark.core.seeding import SEED_STREAM_ALGORITHM
-from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, ToolResponse
+from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, Observation, ToolResponse
 
 if TYPE_CHECKING:
     from tool_agent_shift_benchmark.core.scenarios import ScenarioFamilyDescriptor, ScenarioSpec
@@ -15,8 +19,8 @@ if TYPE_CHECKING:
 
 class SyntheticEnvironment(ABC):
     name = "base"
-    version = "1.0.0"
-    capabilities = (PURE_COUNTERFACTUAL_CAPABILITY,)
+    version = "2.0.0"
+    capabilities = (PURE_COUNTERFACTUAL_CAPABILITY, ENVIRONMENT_POLICY_ADAPTER_CONTRACT)
     configuration_schema = empty_configuration_schema()
     required_fields: List[str] = []
     scenario_generator_name = "deterministic_synthetic_scenarios"
@@ -72,6 +76,12 @@ class SyntheticEnvironment(ABC):
 
     @abstractmethod
     def validate_action(self, action: AgentAction, observation: object | None = None) -> Tuple[bool, List[str]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def policy_adapter(self, observation: Observation) -> BasePolicyAdapter:
+        """Return a safe adapter containing no environment or evaluator handle."""
+
         raise NotImplementedError
 
     def hidden_ground_truth(self) -> Dict[str, Any]:
