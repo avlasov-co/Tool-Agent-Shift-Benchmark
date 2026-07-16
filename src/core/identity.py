@@ -121,6 +121,24 @@ class ExperimentIdentity:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class PlannedEpisodeIdentity:
+    identity_schema_version: str
+    run_id: str
+    scenario_id: str
+    scenario_seed: int
+    scenario_pair_id: str | None
+    episode_id: str
+    environment: ComponentIdentity
+    agent: ComponentIdentity
+    shift_chain: tuple[ComponentIdentity, ...]
+    monitor: ComponentIdentity
+    evaluator: ComponentIdentity
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 def _component(catalog: PluginCatalog, kind: str, name: str) -> ComponentIdentity:
     descriptor = catalog.descriptor(kind, name)
     return ComponentIdentity(kind, descriptor.name, descriptor.version, descriptor.contract_version)

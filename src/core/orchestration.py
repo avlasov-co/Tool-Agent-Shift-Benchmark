@@ -11,10 +11,15 @@ from typing import Any
 
 from src.core.catalog import PluginCatalog
 from src.core.context import ObservationContext, redact_response_for_policy
-from src.core.contracts import OrchestrationError
+from src.core.contracts import IdentityMismatchError, OrchestrationError, PluginDescriptor
 from src.core.episode import Episode
 from src.core.evaluator import HiddenStateEvaluator
-from src.core.identity import ExperimentIdentity, build_experiment_identity
+from src.core.identity import (
+    ComponentIdentity,
+    ExperimentIdentity,
+    PlannedEpisodeIdentity,
+    build_experiment_identity,
+)
 from src.core.types import (
     AgentAction,
     AgentDecision,
@@ -156,14 +161,53 @@ class ExperimentSpec:
 
 @dataclass(frozen=True)
 class EpisodeSpec:
-    run_id: str
+    identity: PlannedEpisodeIdentity
     environment: str
     agent: str
     shift: str
     severity: float
     scenario_index: int
-    seed: int
-    episode_id: str
+
+    @property
+    def run_id(self) -> str:
+        return str(self.identity.run_id)
+
+    @property
+    def scenario_id(self) -> str:
+        return str(self.identity.scenario_id)
+
+    @property
+    def scenario_pair_id(self) -> str | None:
+        value = self.identity.scenario_pair_id
+        return None if value is None else str(value)
+
+    @property
+    def seed(self) -> int:
+        return int(self.identity.scenario_seed)
+
+    @property
+    def episode_id(self) -> str:
+        return str(self.identity.episode_id)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "run_id": self.run_id,
+            "scenario_id": self.scenario_id,
+            "scenario_pair_id": self.scenario_pair_id,
+            "episode_id": self.episode_id,
+            "environment": self.environment,
+            "agent": self.agent,
+            "shift": self.shift,
+            "severity": self.severity,
+            "scenario_index": self.scenario_index,
+            "seed": self.seed,
+            "identity": self.identity.to_dict(),
+        }
+
+
+def _component_identity(catalog: PluginCatalog, kind: str, name: str) -> ComponentIdentity:
+    descriptor = catalog.descriptor(kind, name)
+    return ComponentIdentity(kind, descriptor.name, descriptor.version, descriptor.contract_version)
 
 
 class ExperimentPlanner:
@@ -221,15 +265,26 @@ class ExperimentPlanner:
                                 },
                                 prefix="ep",
                             )
+                            planned_identity = PlannedEpisodeIdentity(
+                                identity_schema_version=self.identity.schema_version,
+                                run_id=self.run_id,
+                                scenario_id=scenario_id,
+                                scenario_seed=seed,
+                                scenario_pair_id=None,
+                                episode_id=episode_id,
+                                environment=_component_identity(self.catalog, "environment", env),
+                                agent=_component_identity(self.catalog, "agent", agent),
+                                shift_chain=tuple(_component_identity(self.catalog, "shift", name) for name in chain),
+                                monitor=self.identity.semantic.monitor,
+                                evaluator=self.identity.semantic.evaluator,
+                            )
                             item = EpisodeSpec(
-                                self.run_id,
+                                planned_identity,
                                 env,
                                 agent,
                                 shift,
                                 severity,
                                 index,
-                                seed,
-                                episode_id,
                             )
                             planned.append(item)
         return planned
@@ -267,6 +322,101 @@ class EpisodeRunner:
     def __init__(self, spec: ExperimentSpec, catalog: PluginCatalog | None = None):
         self.spec, self.catalog = spec, catalog or PluginCatalog()
 
+    @staticmethod
+    def _descriptor_dict(component: ComponentIdentity) -> dict[str, Any]:
+        return {
+            "kind": component.kind,
+            "name": component.name,
+            "version": component.version,
+            "contract_version": component.contract_version,
+        }
+
+    def _mismatch(
+        self,
+        item: EpisodeSpec,
+        *,
+        field: str,
+        expected: Any,
+        actual: Any,
+        phase: str,
+        descriptor: ComponentIdentity,
+    ) -> None:
+        if expected != actual:
+            raise IdentityMismatchError(
+                field=field,
+                expected=expected,
+                actual=actual,
+                phase=phase,
+                plugin_descriptor=self._descriptor_dict(descriptor),
+                episode_id=item.episode_id,
+            )
+
+    def _validate_runtime_descriptor(
+        self,
+        item: EpisodeSpec,
+        instance: object,
+        expected: ComponentIdentity,
+        phase: str,
+    ) -> None:
+        raw = getattr(instance, "runtime_descriptor", None)
+        raw = raw() if callable(raw) else raw
+        if raw is None:
+            actual = expected
+        elif isinstance(raw, PluginDescriptor):
+            actual = ComponentIdentity(raw.kind, raw.name, raw.version, raw.contract_version)
+        elif isinstance(raw, dict):
+            try:
+                actual = ComponentIdentity(
+                    str(raw["kind"]),
+                    str(raw["name"]),
+                    str(raw["version"]),
+                    str(raw["contract_version"]),
+                )
+            except KeyError as exc:
+                raise IdentityMismatchError(
+                    field="plugin_descriptor",
+                    expected=self._descriptor_dict(expected),
+                    actual=raw,
+                    phase=phase,
+                    plugin_descriptor=self._descriptor_dict(expected),
+                    episode_id=item.episode_id,
+                ) from exc
+        else:
+            actual = raw
+        self._mismatch(
+            item,
+            field="plugin_descriptor",
+            expected=self._descriptor_dict(expected),
+            actual=self._descriptor_dict(actual) if isinstance(actual, ComponentIdentity) else actual,
+            phase=phase,
+            descriptor=expected,
+        )
+
+    def _validate_observation_identity(
+        self,
+        item: EpisodeSpec,
+        env_name: str,
+        scenario_id: str,
+        phase: str,
+    ) -> None:
+        descriptor = item.identity.environment
+        self._mismatch(
+            item,
+            field="observation.env_name",
+            expected=item.environment,
+            actual=env_name,
+            phase=phase,
+            descriptor=descriptor,
+        )
+        self._mismatch(
+            item,
+            field="observation.scenario_id",
+            expected=item.scenario_id,
+            actual=scenario_id,
+            phase=phase,
+            descriptor=descriptor,
+        )
+
     def run(self, item: EpisodeSpec) -> Episode:
         env_obj = self.catalog.get("environment", item.environment)(seed=item.seed, scenario_index=item.scenario_index)
         agent_obj = self.catalog.get("agent", item.agent)()
@@ -274,6 +424,44 @@ class EpisodeRunner:
         evaluator = HiddenStateEvaluator()
         monitor_factory = self.catalog.get("monitor", self.spec.monitor)
         monitor = monitor_factory() if self.spec.monitor != "composite" else CompositeMonitor()
+        self._validate_runtime_descriptor(item, env_obj, item.identity.environment, "environment_descriptor")
+        self._validate_runtime_descriptor(item, agent_obj, item.identity.agent, "agent_descriptor")
+        for shift_obj, descriptor in zip(shift_objs, item.identity.shift_chain):
+            self._validate_runtime_descriptor(item, shift_obj, descriptor, "shift_descriptor")
+        self._validate_runtime_descriptor(item, monitor, item.identity.monitor, "monitor_descriptor")
+        self._validate_runtime_descriptor(item, evaluator, item.identity.evaluator, "evaluator_descriptor")
+        self._mismatch(
+            item,
+            field="environment.name",
+            expected=item.environment,
+            actual=getattr(env_obj, "name", None),
+            phase="environment_identity",
+            descriptor=item.identity.environment,
+        )
+        self._mismatch(
+            item,
+            field="environment.scenario_id",
+            expected=item.scenario_id,
+            actual=getattr(env_obj, "scenario_id", None),
+            phase="environment_identity",
+            descriptor=item.identity.environment,
+        )
+        self._mismatch(
+            item,
+            field="environment.seed",
+            expected=item.seed,
+            actual=getattr(env_obj, "seed", None),
+            phase="environment_identity",
+            descriptor=item.identity.environment,
+        )
+        self._mismatch(
+            item,
+            field="environment.scenario_index",
+            expected=item.scenario_index,
+            actual=getattr(env_obj, "scenario_index", None),
+            phase="environment_identity",
+            descriptor=item.identity.environment,
+        )
         monitors: list[MonitorDecision] = []
         step_trace: list[dict[str, Any]] = []
         evaluator_trace: list[dict[str, Any]] = []
@@ -281,6 +469,12 @@ class EpisodeRunner:
         stop_reason, failure_step, unsafe_steps = "max_steps", "", 0
         for step in range(self.spec.episode_steps):
             clean = env_obj.tool_response()
+            self._validate_observation_identity(
+                item,
+                clean.observation.env_name,
+                clean.observation.scenario_id,
+                "environment_response",
+            )
             step_seed = int(
                 stable_hash({"episode": item.episode_id, "step": step}, prefix="step").split("_")[1],
                 16,
@@ -295,9 +489,23 @@ class EpisodeRunner:
                     16,
                 ) % (2**31)
                 shifted = shift_obj.apply(shifted, env_obj, Random(shift_rng_seed))
+                self._validate_observation_identity(
+                    item,
+                    shifted.observation.env_name,
+                    shifted.observation.scenario_id,
+                    "shift_response",
+                )
             policy_response = redact_response_for_policy(shifted)
             context = ObservationContext.from_environment(env_obj, policy_response.observation)
             decision = agent_obj.decide(context, policy_response)
+            self._mismatch(
+                item,
+                field="decision.agent_name",
+                expected=item.agent,
+                actual=decision.agent_name,
+                phase="agent_decision",
+                descriptor=item.identity.agent,
+            )
             monitor_decision = (
                 getattr(agent_obj, "last_monitor_decision", None) if item.agent == "monitor_gated" else None
             )
@@ -366,19 +574,39 @@ class EpisodeRunner:
             "evaluator_trace": evaluator_trace,
             "recovered": recovered,
         }
-        return Episode(
+        episode = Episode(
             item.environment,
-            env_obj.scenario_id,
+            item.scenario_id,
             item.agent,
             FaultConfig(item.shift, item.severity),
             item.seed,
             item.run_id,
+            item.episode_id,
             final_response,
             final_decision,
             monitors,
             final_execution,
             metadata,
+            item.scenario_pair_id,
+            item.identity.identity_schema_version,
+            item.identity.to_dict(),
         )
+        for field, expected, actual in (
+            ("run_id", item.run_id, episode.run_id),
+            ("scenario_id", item.scenario_id, episode.scenario_id),
+            ("scenario_pair_id", item.scenario_pair_id, episode.scenario_pair_id),
+            ("seed", item.seed, episode.seed),
+            ("episode_id", item.episode_id, episode.episode_id),
+        ):
+            self._mismatch(
+                item,
+                field=f"episode.{field}",
+                expected=expected,
+                actual=actual,
+                phase="episode_record",
+                descriptor=item.identity.environment,
+            )
+        return episode
 
 
 class EpisodeScheduler:
@@ -401,9 +629,22 @@ class EpisodeScheduler:
             try:
                 return self.runner.run(item)
             except Exception as exc:
-                if attempt <= self.retry_attempts:
+                if attempt <= self.retry_attempts and not isinstance(exc, IdentityMismatchError):
                     continue
-                error = OrchestrationError(item.episode_id, "episode", type(exc).__name__, str(exc), attempt)
+                if isinstance(exc, IdentityMismatchError):
+                    error = OrchestrationError(
+                        item.episode_id,
+                        exc.phase,
+                        type(exc).__name__,
+                        str(exc),
+                        attempt,
+                        exc.field,
+                        exc.expected,
+                        exc.actual,
+                        exc.plugin_descriptor,
+                    )
+                else:
+                    error = OrchestrationError(item.episode_id, "episode", type(exc).__name__, str(exc), attempt)
                 self.errors.append(error)
                 if self.failure_policy == "fail_fast":
                     raise
@@ -439,10 +680,37 @@ class RunCoordinator:
             self.spec.retry_attempts,
             self.spec.failure_policy,
         )
+        canonical_plan = planner.canonical_plan()
         if checkpoint_path and Path(checkpoint_path).exists():
             saved = json.loads(Path(checkpoint_path).read_text(encoding="utf-8"))
+            saved_run_id = saved.get("run_id")
+            if saved_run_id is not None and saved_run_id != planner.run_id:
+                scenario_generator = planner.identity.semantic.scenario_generator
+                episode_id = canonical_plan[0].episode_id if canonical_plan else planner.run_id
+                mismatch = IdentityMismatchError(
+                    field="checkpoint.run_id",
+                    expected=planner.run_id,
+                    actual=saved_run_id,
+                    phase="checkpoint_identity",
+                    plugin_descriptor=EpisodeRunner._descriptor_dict(scenario_generator),
+                    episode_id=episode_id,
+                )
+                self.errors = [
+                    OrchestrationError(
+                        episode_id,
+                        mismatch.phase,
+                        type(mismatch).__name__,
+                        str(mismatch),
+                        1,
+                        mismatch.field,
+                        mismatch.expected,
+                        mismatch.actual,
+                        mismatch.plugin_descriptor,
+                    )
+                ]
+                raise mismatch
             completed = set(completed or set()) | set(saved.get("completed_episode_ids", []))
-        canonical_ids = {item.episode_id for item in planner.canonical_plan()}
+        canonical_ids = {item.episode_id for item in canonical_plan}
         unknown_completed = set(completed or set()) - canonical_ids
         if unknown_completed:
             raise UnknownEpisodeSelectionError("resume", unknown_completed)

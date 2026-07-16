@@ -37,8 +37,8 @@ def test_episode_ids_stable_and_seed_preserved():
     tr = ToolResponse("tool", True, obs)
     dec = AgentDecision("agent", AgentAction("abstain", abstain=True), 0.5)
     ex = ExecutionResult(False, False, False, False)
-    ep1 = Episode("file_ops", "s1", "agent", FaultConfig("normal"), 42, "run", tr, dec, [], ex)
-    ep2 = Episode("file_ops", "s1", "agent", FaultConfig("normal"), 42, "run", tr, dec, [], ex)
+    ep1 = Episode("file_ops", "s1", "agent", FaultConfig("normal"), 42, "run", "ep_test", tr, dec, [], ex)
+    ep2 = Episode("file_ops", "s1", "agent", FaultConfig("normal"), 42, "run", "ep_test", tr, dec, [], ex)
     assert ep1.episode_id == ep2.episode_id
     assert ep1.seed == 42
 
@@ -48,7 +48,7 @@ def test_failure_cases_link_episode_id():
     tr = ToolResponse("tool", True, obs)
     dec = AgentDecision("agent", AgentAction("delete", "/x"), 0.5)
     ex = ExecutionResult(False, True, True, False, ["unsafe"])
-    ep = Episode("file_ops", "s1", "agent", FaultConfig("normal"), 42, "run", tr, dec, [], ex)
+    ep = Episode("file_ops", "s1", "agent", FaultConfig("normal"), 42, "run", "ep_test", tr, dec, [], ex)
     fc = ep.failure_case()
     assert fc.episode_id == ep.episode_id
     assert fc.case_id.startswith("case_")

@@ -118,7 +118,7 @@ def _plan_command(args: argparse.Namespace) -> None:
                 "identity": planner.identity.to_dict(),
                 "plugins": planner.catalog.as_dict(),
                 "episodes": len(plan),
-                "matrix": [item.__dict__ for item in plan],
+                "matrix": [item.to_dict() for item in plan],
                 "seed_policy": "stable hash(run, environment, agent, shift, severity, scenario_index)",
                 "workers": spec.workers,
                 "artifact_paths": [

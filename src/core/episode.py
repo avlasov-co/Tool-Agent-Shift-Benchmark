@@ -24,29 +24,28 @@ class Episode:
     fault: FaultConfig
     seed: int
     run_id: str
+    episode_id: str
     tool_response: ToolResponse
     decision: AgentDecision
     monitor_decisions: List[MonitorDecision]
     execution: ExecutionResult
     metadata: Dict[str, Any] = field(default_factory=dict)
+    scenario_pair_id: str | None = None
+    identity_schema_version: str = "2"
+    planned_identity: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        self.episode_id = stable_hash(
-            {
-                "env": self.env_name,
-                "scenario": self.scenario_id,
-                "agent": self.agent_name,
-                "fault": self.fault.name,
-                "severity": self.fault.severity,
-                "seed": self.seed,
-                "run_id": self.run_id,
-            },
-            prefix="ep",
-        )
+        for name, value in (
+            ("run_id", self.run_id),
+            ("scenario_id", self.scenario_id),
+            ("episode_id", self.episode_id),
+            ("identity_schema_version", self.identity_schema_version),
+        ):
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"{name} must be a non-empty string")
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
-        d["episode_id"] = self.episode_id
         return d
 
     @classmethod
@@ -61,6 +60,42 @@ class Episode:
         monitors = [MonitorDecision(**item) for item in value.get("monitor_decisions", [])]
         execution = ExecutionResult(**value["execution"])
         fault = FaultConfig(**value["fault"])
+        identity_schema_version = str(value.get("identity_schema_version", "1"))
+        episode_id = value.get("episode_id")
+        if not isinstance(episode_id, str) or not episode_id:
+            raise ValueError("serialized episode is missing its authoritative episode_id")
+        if identity_schema_version == "1":
+            expected_legacy_id = stable_hash(
+                {
+                    "env": value["env_name"],
+                    "scenario": value["scenario_id"],
+                    "agent": value["agent_name"],
+                    "fault": fault.name,
+                    "severity": fault.severity,
+                    "seed": int(value["seed"]),
+                    "run_id": value["run_id"],
+                },
+                prefix="ep",
+            )
+            if episode_id != expected_legacy_id:
+                raise ValueError(f"legacy episode_id mismatch: expected {expected_legacy_id!r}, got {episode_id!r}")
+        elif identity_schema_version != "2":
+            raise ValueError(f"unsupported episode identity schema: {identity_schema_version!r}")
+        planned_identity = value.get("planned_identity", {})
+        if planned_identity:
+            declared = {
+                "run_id": value["run_id"],
+                "scenario_id": value["scenario_id"],
+                "scenario_pair_id": value.get("scenario_pair_id"),
+                "scenario_seed": int(value["seed"]),
+                "episode_id": episode_id,
+            }
+            for name, actual in declared.items():
+                expected = planned_identity.get(name)
+                if expected != actual:
+                    raise ValueError(
+                        f"serialized planned identity mismatch for {name}: expected {expected!r}, got {actual!r}"
+                    )
         return cls(
             value["env_name"],
             value["scenario_id"],
@@ -68,11 +103,15 @@ class Episode:
             fault,
             int(value["seed"]),
             value["run_id"],
+            episode_id,
             tool_response,
             agent_decision,
             monitors,
             execution,
             value.get("metadata", {}),
+            value.get("scenario_pair_id"),
+            identity_schema_version,
+            planned_identity,
         )
 
     def to_row(self) -> Dict[str, Any]:
@@ -83,6 +122,7 @@ class Episode:
             "env_name": self.env_name,
             "environment": self.env_name,
             "scenario_id": self.scenario_id,
+            "scenario_pair_id": self.scenario_pair_id or "",
             "agent_name": self.agent_name,
             "agent": self.agent_name,
             "fault_name": self.fault.name,

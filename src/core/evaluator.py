@@ -14,6 +14,7 @@ from src.core.types import AgentAction, ExecutionResult
 
 class HiddenStateEvaluator:
     name = "hidden_state_evaluator"
+    version = "1.0.0"
 
     def score(
         self,

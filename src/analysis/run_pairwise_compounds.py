@@ -1,14 +1,24 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 from pathlib import Path
 from random import Random
 from typing import Any
 
 from src.agents import AGENTS
+from src.core.catalog import PluginCatalog
 from src.core.config import load_config
 from src.core.context import ObservationContext, redact_response_for_policy
+from src.core.contracts import IdentityMismatchError
 from src.core.episode import Episode
+from src.core.identity import (
+    EVALUATOR_NAME,
+    EVALUATOR_VERSION,
+    IDENTITY_SCHEMA_VERSION,
+    ComponentIdentity,
+    PlannedEpisodeIdentity,
+)
 from src.core.serialization import write_csv, write_json
 from src.core.types import FaultConfig, MonitorDecision, stable_hash
 from src.environments.calendar_ops import CalendarOpsEnvironment
@@ -25,6 +35,43 @@ ENVS = {
 }
 ANALYSIS_DIR = Path("results/analysis")
 DEFAULT_CONFIG = "configs/compound_matrix.yaml"
+
+
+@dataclass(frozen=True)
+class PairwiseEpisodeSpec:
+    identity: PlannedEpisodeIdentity
+    scenario_index: int
+    environment: str
+    agent: str
+    fault_names: tuple[str, ...]
+    severity: float
+
+    @property
+    def run_id(self) -> str:
+        return self.identity.run_id
+
+    @property
+    def scenario_id(self) -> str:
+        return self.identity.scenario_id
+
+    @property
+    def scenario_pair_id(self) -> str:
+        if self.identity.scenario_pair_id is None:
+            raise RuntimeError("pairwise episode is missing scenario_pair_id")
+        return self.identity.scenario_pair_id
+
+    @property
+    def episode_id(self) -> str:
+        return self.identity.episode_id
+
+    @property
+    def scenario_seed(self) -> int:
+        return self.identity.scenario_seed
+
+
+def _component(catalog: PluginCatalog, kind: str, name: str) -> ComponentIdentity:
+    descriptor = catalog.descriptor(kind, name)
+    return ComponentIdentity(kind, descriptor.name, descriptor.version, descriptor.contract_version)
 
 
 def parse_pair(pair: str) -> tuple[str, str]:
@@ -51,6 +98,91 @@ def _monitor_decision(
     return CompositeMonitor().check(context, observation, action)
 
 
+def _plan_fault_combo(
+    *,
+    env_name: str,
+    agent_name: str,
+    fault_names: tuple[str, ...],
+    severity: float,
+    episodes_per_combo: int,
+    seed: int,
+) -> list[PairwiseEpisodeSpec]:
+    combo_name = "+".join(fault_names) if fault_names else "normal"
+    catalog = PluginCatalog(include_external=False)
+    environment = _component(catalog, "environment", env_name)
+    agent = _component(catalog, "agent", agent_name)
+    shift_chain = tuple(_component(catalog, "shift", name) for name in (fault_names or ("normal",)))
+    monitor = _component(catalog, "monitor", "composite")
+    evaluator = ComponentIdentity("evaluator", EVALUATOR_NAME, EVALUATOR_VERSION, "1")
+    run_id = stable_hash(
+        {
+            "identity_schema_version": IDENTITY_SCHEMA_VERSION,
+            "kind": "pairwise_compound_matrix",
+            "environment": environment,
+            "agent": agent,
+            "faults": shift_chain,
+            "severity": severity,
+            "episodes_per_combo": episodes_per_combo,
+            "seed": seed,
+            "monitor": monitor,
+            "evaluator": evaluator,
+        },
+        prefix="pairrun",
+    )
+    planned: list[PairwiseEpisodeSpec] = []
+    for index in range(episodes_per_combo):
+        scenario_id = f"{env_name}_scenario_{index}"
+        scenario_pair_id = stable_hash(
+            {
+                "kind": "pairwise_scenario",
+                "identity_schema_version": IDENTITY_SCHEMA_VERSION,
+                "env": env_name,
+                "agent": agent_name,
+                "severity": severity,
+                "episodes_per_combo": episodes_per_combo,
+                "seed": seed,
+                "scenario_index": index,
+            },
+            prefix="pair",
+        )
+        scenario_seed = int(stable_hash({"pair": scenario_pair_id}, prefix="seed").split("_")[1], 16) % (2**31)
+        episode_id = stable_hash(
+            {
+                "env": env_name,
+                "scenario": scenario_id,
+                "agent": agent_name,
+                "fault": combo_name,
+                "severity": severity,
+                "seed": scenario_seed,
+                "run_id": run_id,
+            },
+            prefix="ep",
+        )
+        planned.append(
+            PairwiseEpisodeSpec(
+                PlannedEpisodeIdentity(
+                    IDENTITY_SCHEMA_VERSION,
+                    run_id,
+                    scenario_id,
+                    scenario_seed,
+                    scenario_pair_id,
+                    episode_id,
+                    environment,
+                    agent,
+                    shift_chain,
+                    monitor,
+                    evaluator,
+                ),
+                index,
+                env_name,
+                agent_name,
+                fault_names,
+                severity,
+            )
+        )
+    return planned
+
+
 def _run_fault_combo(
     *,
     env_name: str,
@@ -62,22 +194,31 @@ def _run_fault_combo(
 ) -> list[Episode]:
     episodes: list[Episode] = []
     combo_name = "+".join(fault_names) if fault_names else "normal"
-    run_id = stable_hash(
-        {
-            "kind": "pairwise_compound_matrix",
-            "env": env_name,
-            "agent": agent_name,
-            "faults": fault_names,
-            "severity": severity,
-            "episodes_per_combo": episodes_per_combo,
-            "seed": seed,
-        },
-        prefix="pairrun",
-    )
-    for idx in range(episodes_per_combo):
-        combo_seed = seed + idx * 37 + len(fault_names) * 101
-        rng = Random(combo_seed)
-        env_obj = ENVS[env_name](seed=combo_seed, scenario_index=idx)
+    for item in _plan_fault_combo(
+        env_name=env_name,
+        agent_name=agent_name,
+        fault_names=fault_names,
+        severity=severity,
+        episodes_per_combo=episodes_per_combo,
+        seed=seed,
+    ):
+        fault_seed = int(stable_hash({"episode": item.episode_id, "phase": "faults"}, prefix="seed").split("_")[1], 16)
+        rng = Random(fault_seed)
+        env_obj = ENVS[env_name](seed=item.scenario_seed, scenario_index=item.scenario_index)
+        if env_obj.scenario_id != item.scenario_id:
+            raise IdentityMismatchError(
+                field="environment.scenario_id",
+                expected=item.scenario_id,
+                actual=env_obj.scenario_id,
+                phase="pairwise_environment_identity",
+                plugin_descriptor={
+                    "kind": item.identity.environment.kind,
+                    "name": item.identity.environment.name,
+                    "version": item.identity.environment.version,
+                    "contract_version": item.identity.environment.contract_version,
+                },
+                episode_id=item.episode_id,
+            )
         agent_obj = AGENTS[agent_name]()
         response = env_obj.tool_response()
         for fault_name in fault_names:
@@ -91,18 +232,19 @@ def _run_fault_combo(
         episodes.append(
             Episode(
                 env_name=env_name,
-                scenario_id=env_obj.scenario_id,
+                scenario_id=item.scenario_id,
                 agent_name=agent_name,
                 fault=FaultConfig(combo_name, severity, {"parts": list(fault_names)}),
-                seed=seed,
-                run_id=run_id,
+                seed=item.scenario_seed,
+                run_id=item.run_id,
+                episode_id=item.episode_id,
                 tool_response=response,
                 decision=decision,
                 monitor_decisions=[monitor],
                 execution=execution,
                 metadata={
                     "config_path": DEFAULT_CONFIG,
-                    "combo_seed": combo_seed,
+                    "combo_seed": item.scenario_seed,
                     "episode_steps": 1,
                     "steps_taken": 1,
                     "multi_step": False,
@@ -118,6 +260,8 @@ def _run_fault_combo(
                     "recovered": recovered,
                     "pairwise_compound_matrix": True,
                 },
+                scenario_pair_id=item.scenario_pair_id,
+                planned_identity=item.identity.to_dict(),
             )
         )
     return episodes

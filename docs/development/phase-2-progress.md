@@ -15,7 +15,8 @@
 
 ## Current checkpoint
 
-Checkpoint 6 complete and pending commit: normalized semantic identity v2.
+Checkpoint 7 complete and pending commit: authoritative planned runtime
+identity.
 
 ## Checkpoint evidence
 
@@ -53,6 +54,27 @@ Checkpoint 6 complete and pending commit: normalized semantic identity v2.
   selector-neutral complete-plan v1 run ID is retained as `legacy_run_id` for
   explicit compatibility provenance.
 
+### Checkpoint 7 — authoritative planned identity
+
+- Each episode plan now carries a typed `PlannedEpisodeIdentity` containing the
+  run ID, scenario ID, scenario seed, optional scenario-pair ID, episode ID,
+  and planned component descriptors. The complete planned identity is embedded
+  in the runtime episode record.
+- `Episode` no longer computes an ID in `__post_init__`. New records require an
+  authoritative ID; the explicit schema-v1 reader validates a stored legacy ID
+  rather than silently replacing it.
+- Runtime validates environment name/scenario/seed/index, optional component
+  runtime descriptors, response identity after environment and shift calls,
+  agent decision identity, and final episode fields against the plan.
+- Mismatches produce structured errors with episode ID, phase, field, expected
+  value, actual value, and the planned plugin descriptor. Deterministic identity
+  failures are not retried as infrastructure work.
+- Checkpoints from a different run fail before rewrite. Completed, failed,
+  skipped, resumed, replayed, and serialized flows retain the planned IDs.
+- Pairwise compound planning now assigns a planned identity-v2 run ID,
+  authoritative episode/scenario seeds, and a `scenario_pair_id` shared by the
+  clean, single-fault, and paired-fault variants of the same scenario.
+
 ## Identity field matrix
 
 | Field group | Scientific identity | Normalization |
@@ -75,6 +97,8 @@ Checkpoint 6 complete and pending commit: normalized semantic identity v2.
 - Scenario schema default: `v1` (semantic and configurable).
 - Artifact/config schemas remain at their Phase 1 versions until Checkpoints 8
   and 9.
+- Episode planned-identity schema: `2`; schema-v1 compatibility reads validate
+  the stored legacy ID.
 
 ## Compatibility decisions
 
@@ -104,6 +128,15 @@ Checkpoint 6 complete and pending commit: normalized semantic identity v2.
 - Checkpoint 6 Ruff lint/format, strict mypy, compilation, and
   `git diff --check`: passed.
 - Checkpoint 6 pre-commit audit passed every executable/source/package check;
+  it recorded only the expected in-progress dirty tree and unchanged absent
+  evidence corpus.
+- Checkpoint 7 focused authoritative identity/selection/semantic
+  identity/platform/core/pairwise/reproducibility suite: 54 passed.
+- Checkpoint 7 full suite and branch coverage: 85 passed; 76.57% branch
+  coverage against the 73% floor.
+- Checkpoint 7 Ruff lint/format, strict mypy, compilation, and
+  `git diff --check`: passed.
+- Checkpoint 7 pre-commit audit passed every executable/source/package check;
   it recorded only the expected in-progress dirty tree and unchanged absent
   evidence corpus.
 

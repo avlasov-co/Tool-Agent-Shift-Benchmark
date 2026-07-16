@@ -122,6 +122,44 @@ class OrchestrationError:
     error_type: str
     message: str
     attempts: int = 1
+    field: str | None = None
+    expected: Any = None
+    actual: Any = None
+    plugin_descriptor: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return self.__dict__.copy()
+
+
+class IdentityMismatchError(RuntimeError):
+    """A runtime component disagreed with the planner's identity."""
+
+    def __init__(
+        self,
+        *,
+        field: str,
+        expected: Any,
+        actual: Any,
+        phase: str,
+        plugin_descriptor: dict[str, Any],
+        episode_id: str,
+    ):
+        self.field = field
+        self.expected = expected
+        self.actual = actual
+        self.phase = phase
+        self.plugin_descriptor = plugin_descriptor
+        self.episode_id = episode_id
+        super().__init__(f"planned identity mismatch for {field}: expected {expected!r}, got {actual!r}")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "episode_id": self.episode_id,
+            "phase": self.phase,
+            "error_type": type(self).__name__,
+            "message": str(self),
+            "field": self.field,
+            "expected": self.expected,
+            "actual": self.actual,
+            "plugin_descriptor": self.plugin_descriptor,
+        }
