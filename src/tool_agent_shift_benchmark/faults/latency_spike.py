@@ -7,6 +7,12 @@ from .base import BaseFault, clone_response
 
 class LatencySpikeFault(BaseFault):
     name = "latency_spike"
+    channel = "service_time"
+    mechanism = "causal_response_delay"
+    severity_semantics = "proportion of a deterministic call-local maximum latency"
+    schedule_behavior = "advances the environment clock on each active tool call"
+    detection_path = "inspect policy-visible response latency and received-at time"
+    adaptation_path = "revalidate freshness and execution-time constraints"
 
     def apply(self, response, env, rng: Random):
         maximum_latency = 500 + rng.randint(0, 50)

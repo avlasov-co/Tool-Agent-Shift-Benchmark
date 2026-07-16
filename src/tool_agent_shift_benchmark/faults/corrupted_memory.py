@@ -13,6 +13,10 @@ class CorruptedMemoryFault(BaseFault):
     capabilities = (*BaseFault.capabilities, POLICY_MEMORY_CONTRACT)
     channel = "policy_memory"
     mechanism = "stateful_memory_read_corruption"
+    severity_semantics = "monotonic number of memory corruption families applied to one read"
+    schedule_behavior = "corrupts only stateful policy-memory reads on active scheduled calls"
+    detection_path = "validate memory source, confidence, timestamp, shape, and expected presence"
+    adaptation_path = "overwrite, ignore, reobserve, or abstain without mutating the pristine reference"
 
     def apply(self, response, env, rng: Random):
         """Record direct-call provenance without mutating a tool observation.

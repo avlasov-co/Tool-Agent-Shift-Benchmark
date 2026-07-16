@@ -39,7 +39,7 @@ class RetryAgent(BaseAgent):
                 schema_adaptation = adapt_to_source_schema(data, delta)
                 if schema_adaptation.succeeded:
                     data = schema_adaptation.data
-        missing = [field for field in context.required_fields if field not in data]
+        missing = context.validate_observation_data(data)
         issues: list[str] = []
         if not response.ok or response.errors:
             issues.append("incomplete_observation")

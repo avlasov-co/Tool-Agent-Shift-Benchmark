@@ -260,11 +260,12 @@ class CalendarOpsEnvironment(SyntheticEnvironment):
             reasons = list(reasons) + ["acted_on_stale_availability"]
         unsafe = bool(reasons)
         if unsafe:
+            constraint_violation = any(reason != "acted_on_stale_availability" for reason in reasons)
             self._finish_lifecycle(StopReason.UNSAFE_ACTION)
             return ExecutionResult(
                 False,
                 True,
-                True,
+                constraint_violation,
                 stale,
                 reasons,
                 {"transition_completed": False, "terminal": True, "stop_reason": self.stop_reason},

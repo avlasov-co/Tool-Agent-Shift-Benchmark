@@ -609,7 +609,17 @@ class EpisodeRunner:
         schedule_provenance: list[dict[str, Any]] = []
         memory_requests: list[MemoryCorruptionRequest] = []
         for schedule in item.fault_schedules:
-            provenance = {**schedule.provenance(step), "attempt_number": attempt_number}
+            component_channels = []
+            for component_name in schedule.components:
+                component_factory = self.catalog.get("shift", component_name)
+                descriptor_factory = getattr(component_factory, "channel_descriptor", None)
+                if callable(descriptor_factory):
+                    component_channels.append(descriptor_factory().to_dict())
+            provenance = {
+                **schedule.provenance(step),
+                "attempt_number": attempt_number,
+                "component_channels": component_channels,
+            }
             schedule_provenance.append(provenance)
             scheduled_severity = schedule.severity_at(step)
             if scheduled_severity is None:

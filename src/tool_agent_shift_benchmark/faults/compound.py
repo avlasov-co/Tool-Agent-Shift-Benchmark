@@ -12,6 +12,12 @@ from .stale_observation import StaleObservationFault
 
 class CompoundShiftFault(BaseFault):
     name = "compound_shift"
+    channel = "ordered_composition"
+    mechanism = "legacy_fixed_component_chain"
+    severity_semantics = "shared severity applied to every legacy component"
+    schedule_behavior = "applies its fixed chain in declaration order on active calls"
+    detection_path = "component-specific detectors"
+    adaptation_path = "component-specific adaptations in observed order"
 
     def __init__(self, severity: float = 1.0):
         super().__init__(severity)

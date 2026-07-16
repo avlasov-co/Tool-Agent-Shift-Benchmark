@@ -88,6 +88,52 @@ class ObservationContext:
             return self._recommend_risk_action(data)
         return AgentAction("abstain", abstain=True, reason="unknown_environment")
 
+    def validate_observation_data(self, data: Dict[str, Any]) -> List[str]:
+        """Return policy-visible structural omissions relevant to this task."""
+
+        issues = [f"missing:{field}" for field in self.required_fields if field not in data]
+        if issues:
+            return issues
+        if self.env_name == "file_ops":
+            files = data.get("files")
+            if not isinstance(files, list):
+                return ["invalid:files"]
+            required = {"path", "kind", "protected", "permissions"}
+            if self.task_hint == "archive_old_logs":
+                required.add("age_days")
+            for index, item in enumerate(files):
+                if not isinstance(item, dict):
+                    issues.append(f"invalid:files[{index}]")
+                    continue
+                for field in sorted(required):
+                    if field not in item:
+                        issues.append(f"missing:files[{index}].{field}")
+        elif self.env_name == "calendar_ops":
+            attendees, slots = data.get("attendees"), data.get("availability")
+            if not isinstance(attendees, list):
+                issues.append("invalid:attendees")
+            if not isinstance(slots, list):
+                issues.append("invalid:availability")
+            else:
+                for index, slot in enumerate(slots):
+                    if not isinstance(slot, dict):
+                        issues.append(f"invalid:availability[{index}]")
+                        continue
+                    for field in ("attendee", "start", "end", "timezone"):
+                        if field not in slot:
+                            issues.append(f"missing:availability[{index}].{field}")
+        elif self.env_name == "risk_ops":
+            state = data.get("market_state")
+            if not isinstance(state, dict):
+                issues.append("invalid:market_state")
+            else:
+                for field in ("volatility", "synthetic_price", "liquidity", "snapshot_id"):
+                    if field not in state:
+                        issues.append(f"missing:market_state.{field}")
+            if not isinstance(data.get("exposure"), (int, float)) or isinstance(data.get("exposure"), bool):
+                issues.append("invalid:exposure")
+        return issues
+
     def validate_action(self, action: AgentAction, observation: Observation | None = None) -> Tuple[bool, List[str]]:
         if action.abstain:
             return True, []

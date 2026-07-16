@@ -5,14 +5,21 @@ from dataclasses import replace
 from random import Random
 from typing import Any
 
+from tool_agent_shift_benchmark.core.fault_channels import FAULT_CHANNEL_CONTRACT, FaultChannelDescriptor
 from tool_agent_shift_benchmark.core.fault_effects import FAULT_EFFECT_CONTRACT, FaultEffect
 from tool_agent_shift_benchmark.core.types import ToolResponse
 
 
 class BaseFault:
     name = "normal"
-    version = "2.0.0"
-    capabilities = (FAULT_EFFECT_CONTRACT,)
+    version = "3.0.0"
+    channel = "none"
+    mechanism = "identity_noop"
+    severity_semantics = "always zero realized effect"
+    schedule_behavior = "records schedule activation without changing policy-visible state"
+    detection_path = "no detection required"
+    adaptation_path = "ordinary policy execution"
+    capabilities = (FAULT_EFFECT_CONTRACT, FAULT_CHANNEL_CONTRACT)
 
     def __init__(self, severity: float = 1.0):
         if not isinstance(severity, (int, float)) or isinstance(severity, bool):
@@ -28,6 +35,7 @@ class BaseFault:
         realized_magnitude: float,
         details: dict[str, Any] | None = None,
     ) -> FaultEffect:
+        channel = self.channel_descriptor()
         return FaultEffect(
             FAULT_EFFECT_CONTRACT,
             self.name,
@@ -35,7 +43,27 @@ class BaseFault:
             float(realized_magnitude),
             effect_type,
             realized_magnitude == 0.0,
-            details or {},
+            {
+                **(details or {}),
+                "fault_channel": channel.channel,
+                "causal_mechanism": channel.causal_mechanism,
+                "severity_semantics": channel.severity_semantics,
+                "detection_path": channel.detection_path,
+                "adaptation_path": channel.adaptation_path,
+            },
+        )
+
+    @classmethod
+    def channel_descriptor(cls) -> FaultChannelDescriptor:
+        return FaultChannelDescriptor(
+            FAULT_CHANNEL_CONTRACT,
+            cls.name,
+            cls.channel,
+            cls.mechanism,
+            cls.severity_semantics,
+            cls.schedule_behavior,
+            cls.detection_path,
+            cls.adaptation_path,
         )
 
     def _record(self, response: ToolResponse, effect: FaultEffect) -> dict[str, Any]:

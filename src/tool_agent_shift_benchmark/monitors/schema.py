@@ -14,9 +14,7 @@ class SchemaMonitor(BaseMonitor):
         compatibility = "baseline"
         schema_info = observation.metadata.get("schema_info")
         if observation.schema_version == "v1":
-            for field in context.required_fields:
-                if field not in observation.data:
-                    reasons.append(f"schema_missing:{field}")
+            reasons.extend(f"schema_{issue}" for issue in context.validate_observation_data(observation.data))
         else:
             delta = schema_delta_from_metadata(observation.metadata)
             if (

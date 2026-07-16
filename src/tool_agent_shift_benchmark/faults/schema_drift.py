@@ -18,6 +18,10 @@ class SchemaDriftFault(BaseFault):
     version = "3.0.0"
     channel = "tool_schema"
     mechanism = "versioned_schema_delta"
+    severity_semantics = "monotonic count of compatible through breaking schema changes"
+    schedule_behavior = "applies one declared source-to-target delta at each active tool call"
+    detection_path = "validate tool-schema-registry-v1 schema_info and delta hash"
+    adaptation_path = "deterministic reverse migration or explicit fail-closed abstention"
     capabilities = (*BaseFault.capabilities, SCHEMA_REGISTRY_CONTRACT)
 
     def __init__(self, severity: float = 1.0, family: str | None = None):

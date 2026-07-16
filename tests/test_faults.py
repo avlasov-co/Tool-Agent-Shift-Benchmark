@@ -17,7 +17,9 @@ def test_schema_drift_and_missing_field():
     drifted = FAULTS["schema_drift"]().apply(env.tool_response(), env, Random(1))
     assert "items" in drifted.observation.data and "files" not in drifted.observation.data
     missing = FAULTS["missing_field"]().apply(env.tool_response(), env, Random(1))
-    assert "protected" not in missing.observation.data["files"][0]
+    removed = missing.observation.metadata["faults"][-1]["details"]["removed_paths"]
+    assert removed
+    assert all(path.startswith("files[") for path in removed)
 
 
 def test_every_fault_deterministic_logs_metadata_and_preserves_ground_truth():

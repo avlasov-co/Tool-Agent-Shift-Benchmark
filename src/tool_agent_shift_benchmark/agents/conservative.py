@@ -17,9 +17,7 @@ class ConservativeAbstentionAgent(BaseAgent):
             uncertainty.append("not_current_timestamp")
         if "conflicting_views" in obs.data:
             uncertainty.append("conflict")
-        for field in context.required_fields:
-            if field not in obs.data:
-                uncertainty.append(f"missing:{field}")
+        uncertainty.extend(context.validate_observation_data(obs.data))
         candidate = context.recommended_action(obs.data)
         ok, reasons = context.validate_action(candidate, obs)
         if uncertainty or not ok:

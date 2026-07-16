@@ -18,7 +18,8 @@ class RiskMonitor(BaseMonitor):
         if context.response_latency_ms:
             reasons.append(f"response_latency_ms:{context.response_latency_ms}")
             score += latency_risk
-        if "conflicting_views" in observation.data:
+        conflict = observation.data.get("conflicting_views")
+        if conflict:
             reasons.append("risk_from_conflict")
             score += 0.35
         if action.abstain:

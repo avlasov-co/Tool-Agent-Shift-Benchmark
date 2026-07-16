@@ -8,6 +8,12 @@ from .base import BaseFault, clone_response
 
 class StaleObservationFault(BaseFault):
     name = "stale_observation"
+    channel = "observation_time"
+    mechanism = "historical_snapshot_substitution"
+    severity_semantics = "bounded observation age plus thresholded historical value rollback"
+    schedule_behavior = "substitutes a stale snapshot independently on each active tool call"
+    detection_path = "compare observation timestamp and snapshot values with the visible clock"
+    adaptation_path = "reobserve, revalidate at execution, or abstain"
 
     def apply(self, response, env, rng: Random):
         if self.severity == 0.0:

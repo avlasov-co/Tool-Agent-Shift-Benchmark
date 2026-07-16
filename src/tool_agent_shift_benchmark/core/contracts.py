@@ -99,6 +99,8 @@ class ShiftPlugin(Protocol):
     name: str
 
     def apply(self, response: ToolResponse, env: object, rng: Random) -> ToolResponse: ...
+    @classmethod
+    def channel_descriptor(cls) -> object: ...
 
 
 class MonitorPlugin(Protocol):

@@ -31,9 +31,7 @@ class ValidateThenActAgent(BaseAgent):
                     obs = replace(obs, data=adaptation.data, schema_version=delta.source_schema.version)
                 else:
                     reasons.extend(f"schema_incompatible:{error}" for error in adaptation.errors)
-        for field in context.required_fields:
-            if field not in obs.data:
-                reasons.append(f"missing:{field}")
+        reasons.extend(context.validate_observation_data(obs.data))
         if obs.schema_version != "v1":
             reasons.append("schema_drift")
         if context.current_time - obs.timestamp > 3:
