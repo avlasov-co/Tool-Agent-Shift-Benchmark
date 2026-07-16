@@ -1,12 +1,13 @@
 from random import Random
 
 import pytest
-from src.agents import AGENTS
-from src.core.context import ObservationContext, redact_response_for_policy
-from src.core.types import Observation, ToolResponse
-from src.environments.file_ops import FileOpsEnvironment
-from src.faults import FAULTS
-from src.monitors.composite import CompositeMonitor
+
+from tool_agent_shift_benchmark.agents import AGENTS
+from tool_agent_shift_benchmark.core.context import ObservationContext, redact_response_for_policy
+from tool_agent_shift_benchmark.core.types import Observation, ToolResponse
+from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
+from tool_agent_shift_benchmark.faults import FAULTS
+from tool_agent_shift_benchmark.monitors.composite import CompositeMonitor
 
 
 def test_redact_response_for_policy_removes_evaluator_only_metadata():
@@ -119,9 +120,9 @@ def test_run_eval_redacts_evaluator_fault_labels_from_policy_inputs(tmp_path, mo
     import pathlib
     import shutil
 
-    import src.run_eval as run_eval_module
-    from src.core.types import AgentAction, AgentDecision
-    from src.run_eval import run_eval
+    import tool_agent_shift_benchmark.run_eval as run_eval_module
+    from tool_agent_shift_benchmark.core.types import AgentAction, AgentDecision
+    from tool_agent_shift_benchmark.run_eval import run_eval
 
     srcroot = pathlib.Path(__file__).resolve().parents[1]
     shutil.copytree(srcroot / "configs", tmp_path / "configs")
@@ -159,7 +160,7 @@ def test_single_seed_run_records_effective_config_and_clears_stale_ci(tmp_path, 
     import pathlib
     import shutil
 
-    from src.run_eval import run_eval
+    from tool_agent_shift_benchmark.run_eval import run_eval
 
     srcroot = pathlib.Path(__file__).resolve().parents[1]
     shutil.copytree(srcroot / "configs", tmp_path / "configs")

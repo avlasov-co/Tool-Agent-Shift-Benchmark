@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from src.analysis.run_analysis import (
+from tool_agent_shift_benchmark.analysis.run_analysis import (
     build_agent_profiles,
     build_failure_clusters,
     build_monitor_threshold_sweep,

@@ -9,8 +9,8 @@ This release upgrades the benchmark from basic result generation to a release-gr
 ## New commands
 
 ```bash
-python -m src.analysis.run_analysis
-python -m src.analysis.run_pairwise_compounds --config configs/compound_matrix.yaml
+python -m tool_agent_shift_benchmark.analysis.run_analysis
+python -m tool_agent_shift_benchmark.analysis.run_pairwise_compounds --config configs/compound_matrix.yaml
 bash scripts/verify_release.sh
 ```
 

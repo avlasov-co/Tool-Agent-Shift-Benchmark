@@ -15,6 +15,6 @@ export COVERAGE_FILE="$AUDIT_DIR/.coverage"
 "$PYTHON_BIN" -m mypy --cache-dir "$AUDIT_DIR/mypy-cache"
 "$PYTHON_BIN" -m coverage run -m pytest -q -p no:cacheprovider
 "$PYTHON_BIN" -m coverage report
-"$PYTHON_BIN" -m src.audit --strict --output-dir "$AUDIT_DIR" --python "$PYTHON_BIN"
+"$PYTHON_BIN" -m tool_agent_shift_benchmark.audit --strict --output-dir "$AUDIT_DIR" --python "$PYTHON_BIN"
 
 echo "non-destructive release verification complete; audit report: $AUDIT_DIR/report.json"

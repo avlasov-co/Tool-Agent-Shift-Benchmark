@@ -12,7 +12,7 @@
 
 ## v0.2.0 — 2026-05-24
 
-- Added post-hoc analysis runner: `python -m src.analysis.run_analysis`.
+- Added post-hoc analysis runner: `python -m tool_agent_shift_benchmark.analysis.run_analysis`.
 - Added failure clustering artifacts for unsafe cases.
 - Added monitor threshold sweeps and calibration tables based on recorded risk scores.
 - Added agent safety profiles combining safety, coverage, recovery, latency, and static-vs-dynamic gap signals.

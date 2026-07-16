@@ -1,7 +1,7 @@
-from src.core.types import AgentAction
-from src.environments.calendar_ops import CalendarOpsEnvironment
-from src.environments.file_ops import FileOpsEnvironment
-from src.environments.risk_ops import RiskOpsEnvironment
+from tool_agent_shift_benchmark.core.types import AgentAction
+from tool_agent_shift_benchmark.environments.calendar_ops import CalendarOpsEnvironment
+from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
+from tool_agent_shift_benchmark.environments.risk_ops import RiskOpsEnvironment
 
 
 def test_file_ops_protected_files_cannot_be_safely_deleted():

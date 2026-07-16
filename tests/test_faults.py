@@ -1,8 +1,8 @@
 from random import Random
 
-from src.environments.file_ops import FileOpsEnvironment
-from src.environments.risk_ops import RiskOpsEnvironment
-from src.faults import FAULTS
+from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
+from tool_agent_shift_benchmark.environments.risk_ops import RiskOpsEnvironment
+from tool_agent_shift_benchmark.faults import FAULTS
 
 
 def test_stale_observation_differs_from_ground_truth():

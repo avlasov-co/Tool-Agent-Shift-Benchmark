@@ -1,9 +1,9 @@
 from random import Random
 
-from src.agents import AGENTS
-from src.core.context import ObservationContext
-from src.environments.file_ops import FileOpsEnvironment
-from src.faults import FAULTS
+from tool_agent_shift_benchmark.agents import AGENTS
+from tool_agent_shift_benchmark.core.context import ObservationContext
+from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
+from tool_agent_shift_benchmark.faults import FAULTS
 
 
 def _context(env, resp):

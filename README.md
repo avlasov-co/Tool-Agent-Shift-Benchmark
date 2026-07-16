@@ -64,10 +64,10 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m compileall -q src tests
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q
-python -m src.run_eval --all-envs --all-agents --config configs/small.yaml --seed 42
-python -m src.plot_results
-python -m src.generate_report
-python -m src.analysis.run_analysis
+python -m tool_agent_shift_benchmark.run_eval --all-envs --all-agents --config configs/small.yaml --seed 42
+python -m tool_agent_shift_benchmark.plot_results
+python -m tool_agent_shift_benchmark.generate_report
+python -m tool_agent_shift_benchmark.analysis.run_analysis
 ```
 
 
@@ -86,7 +86,10 @@ tasb replay CASE_ID --run runs/smoke --format markdown
 tasb verify-release
 ```
 
-The legacy `python -m src...` commands still work. The CLI wraps them into a reviewer-friendly workflow with named run directories and stricter release checks.
+`python -m tool_agent_shift_benchmark` and `tasb` are the supported command
+interfaces. The former `python -m src...` source-layout imports were removed in
+v0.3.1; no generic `src` compatibility shim is retained because it would mask
+source-tree import leakage.
 
 ## Reproduce
 
@@ -99,20 +102,20 @@ bash scripts/run_repro.sh
 For the extended confidence-interval run:
 
 ```bash
-python -m src.run_seeds --config configs/seeds.yaml --all-envs --all-agents
+python -m tool_agent_shift_benchmark.run_seeds --config configs/seeds.yaml --all-envs --all-agents
 ```
 
 For monitor ablations:
 
 ```bash
-python -m src.run_sweep --config configs/ablations.yaml --seed 42
+python -m tool_agent_shift_benchmark.run_sweep --config configs/ablations.yaml --seed 42
 ```
 
 
 For the explicit pairwise compound-fault matrix:
 
 ```bash
-python -m src.analysis.run_pairwise_compounds --config configs/compound_matrix.yaml
+python -m tool_agent_shift_benchmark.analysis.run_pairwise_compounds --config configs/compound_matrix.yaml
 ```
 
 For release validation:
@@ -126,7 +129,7 @@ bash scripts/verify_release.sh
 Unsafe episodes are exported to `results/failure_cases.csv` and can be replayed:
 
 ```bash
-python -m src.reporting.failure_cases --case-id CASE_ID
+python -m tool_agent_shift_benchmark.reporting.failure_cases --case-id CASE_ID
 ```
 
 A replay shows the environment, fault condition, agent decision, monitor decision, action taken, hidden ground-truth check, and unsafe reason codes. This makes failures auditable instead of only statistical.
@@ -139,8 +142,8 @@ A replay shows the environment, fault condition, agent decision, monitor decisio
 - `results/monitor_events.csv` — monitor decisions and reason codes.
 - `results/config.json` — exact run metadata.
 - `results/static_vs_dynamic.csv` — static clean score vs dynamic shifted score.
-- `results/seed_summary.csv` — per-seed metrics generated only by `src.run_seeds`.
-- `results/confidence_intervals.csv` — multi-seed confidence intervals generated only by `src.run_seeds`.
+- `results/seed_summary.csv` — per-seed metrics generated only by `tool_agent_shift_benchmark.run_seeds`.
+- `results/confidence_intervals.csv` — multi-seed confidence intervals generated only by `tool_agent_shift_benchmark.run_seeds`.
 - `results/multistep_traces.jsonl` — multi-step episode traces.
 - `figures/*.png` — benchmark plots.
 - `docs/experimental_report.md` — generated report from current results.
@@ -202,7 +205,7 @@ tool-agent-shift-benchmark
 │   └── offline_llm_policy/
 ├── results/
 ├── scripts/
-├── src/
+├── src/tool_agent_shift_benchmark/
 │   ├── agents/
 │   ├── core/
 │   ├── environments/

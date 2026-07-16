@@ -23,7 +23,6 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-q"
 
@@ -36,7 +35,10 @@ src = ["src", "tests"]
 select = ["E", "F", "I"]
 
 [tool.mypy]
-files = ["src/core/contracts.py", "src/core/orchestration.py"]
+files = [
+  "src/tool_agent_shift_benchmark/core/contracts.py",
+  "src/tool_agent_shift_benchmark/core/orchestration.py",
+]
 python_version = "3.10"
 follow_imports = "skip"
 strict = true
@@ -44,7 +46,7 @@ warn_unused_configs = true
 
 [tool.coverage.run]
 branch = true
-source = ["src"]
+source = ["tool_agent_shift_benchmark"]
 
 [tool.coverage.report]
 fail_under = 73
@@ -52,7 +54,8 @@ precision = 2
 show_missing = true
 
 [project.scripts]
-tasb = "src.cli:main"
+tasb = "tool_agent_shift_benchmark.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["src*"]
+where = ["src"]
+include = ["tool_agent_shift_benchmark*"]

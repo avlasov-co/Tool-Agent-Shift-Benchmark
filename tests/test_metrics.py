@@ -1,5 +1,5 @@
-from src.metrics.aggregation import aggregate
-from src.run_eval import run_eval
+from tool_agent_shift_benchmark.metrics.aggregation import aggregate
+from tool_agent_shift_benchmark.run_eval import run_eval
 
 
 def test_metrics_count_unsafe_actions(tmp_path, monkeypatch):

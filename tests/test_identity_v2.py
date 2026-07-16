@@ -3,12 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from src.core.catalog import PluginCatalog
-from src.core.config import load_config
-from src.core.identity import IDENTITY_SCHEMA_VERSION
-from src.core.orchestration import ExperimentPlanner, ExperimentSpec
-from src.core.run_artifacts import prepare_run_dir, snapshot_outputs
-from src.run_eval import run_eval
+
+from tool_agent_shift_benchmark.core.catalog import PluginCatalog
+from tool_agent_shift_benchmark.core.config import load_config
+from tool_agent_shift_benchmark.core.identity import IDENTITY_SCHEMA_VERSION
+from tool_agent_shift_benchmark.core.orchestration import ExperimentPlanner, ExperimentSpec
+from tool_agent_shift_benchmark.core.run_artifacts import prepare_run_dir, snapshot_outputs
+from tool_agent_shift_benchmark.run_eval import run_eval
 
 
 def base_config() -> dict[str, object]:

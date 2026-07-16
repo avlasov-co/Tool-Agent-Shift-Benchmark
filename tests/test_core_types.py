@@ -1,8 +1,9 @@
 import json
 
 import pytest
-from src.core.episode import Episode
-from src.core.types import (
+
+from tool_agent_shift_benchmark.core.episode import Episode
+from tool_agent_shift_benchmark.core.types import (
     AgentAction,
     AgentDecision,
     ExecutionResult,

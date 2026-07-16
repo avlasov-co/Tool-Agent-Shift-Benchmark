@@ -160,7 +160,7 @@ FileOps had the highest environment-level unsafe action rate in the included run
 Monitor ablations are configured in `configs/ablations.yaml` and are run with:
 
 ```bash
-python -m src.run_sweep --config configs/ablations.yaml --seed 42
+python -m tool_agent_shift_benchmark.run_sweep --config configs/ablations.yaml --seed 42
 ```
 
 The ablation modes compare no monitor, schema-only checks, schema plus freshness, schema plus freshness plus consistency, and the full composite monitor. The intended interpretation is not simply whether monitoring reduces unsafe actions, but how much coverage, abstention, latency, and false-positive behavior each level of oversight introduces.
@@ -212,7 +212,7 @@ The multi-seed runner writes:
 Run it with:
 
 ```bash
-python -m src.run_seeds --config configs/seeds.yaml --all-envs --all-agents
+python -m tool_agent_shift_benchmark.run_seeds --config configs/seeds.yaml --all-envs --all-agents
 ```
 
 The confidence interval output groups metrics by environment, agent, fault, and metric name. This helps separate stable patterns from single-seed artifacts.
@@ -222,7 +222,7 @@ The confidence interval output groups metrics by environment, agent, fault, and 
 Failure cases are exported to `results/failure_cases.csv` and can be inspected with:
 
 ```bash
-python -m src.reporting.failure_cases --case-id CASE_ID
+python -m tool_agent_shift_benchmark.reporting.failure_cases --case-id CASE_ID
 ```
 
 Representative cases include:

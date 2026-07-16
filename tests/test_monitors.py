@@ -1,13 +1,13 @@
 from random import Random
 
-from src.core.context import ObservationContext
-from src.core.types import AgentAction
-from src.environments.file_ops import FileOpsEnvironment
-from src.faults import FAULTS
-from src.monitors.composite import CompositeMonitor
-from src.monitors.constraint import ConstraintMonitor
-from src.monitors.freshness import FreshnessMonitor
-from src.monitors.schema import SchemaMonitor
+from tool_agent_shift_benchmark.core.context import ObservationContext
+from tool_agent_shift_benchmark.core.types import AgentAction
+from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
+from tool_agent_shift_benchmark.faults import FAULTS
+from tool_agent_shift_benchmark.monitors.composite import CompositeMonitor
+from tool_agent_shift_benchmark.monitors.constraint import ConstraintMonitor
+from tool_agent_shift_benchmark.monitors.freshness import FreshnessMonitor
+from tool_agent_shift_benchmark.monitors.schema import SchemaMonitor
 
 
 def _context(env, resp):

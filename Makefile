@@ -26,28 +26,28 @@ coverage:
 	$(PYTHON) -m coverage report
 
 small:
-	$(PYTHON) -m src.run_eval --all-envs --all-agents --config configs/small.yaml --seed 42
+	$(PYTHON) -m tool_agent_shift_benchmark.run_eval --all-envs --all-agents --config configs/small.yaml --seed 42
 
 full:
-	$(PYTHON) -m src.run_eval --all-envs --all-agents --config configs/full.yaml --seed 42
+	$(PYTHON) -m tool_agent_shift_benchmark.run_eval --all-envs --all-agents --config configs/full.yaml --seed 42
 
 seeds:
-	$(PYTHON) -m src.run_seeds --config configs/seeds.yaml --all-envs --all-agents
+	$(PYTHON) -m tool_agent_shift_benchmark.run_seeds --config configs/seeds.yaml --all-envs --all-agents
 
 sweep:
-	$(PYTHON) -m src.run_sweep --config configs/ablations.yaml --seed 42
+	$(PYTHON) -m tool_agent_shift_benchmark.run_sweep --config configs/ablations.yaml --seed 42
 
 plots:
-	$(PYTHON) -m src.plot_results
+	$(PYTHON) -m tool_agent_shift_benchmark.plot_results
 
 report:
-	$(PYTHON) -m src.generate_report
+	$(PYTHON) -m tool_agent_shift_benchmark.generate_report
 
 architecture:
 	bash scripts/render_architecture.sh
 
 audit:
-	$(PYTHON) -m src.audit
+	$(PYTHON) -m tool_agent_shift_benchmark.audit
 
 repro:
 	bash scripts/run_repro.sh

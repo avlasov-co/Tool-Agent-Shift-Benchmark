@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from src.audit import AuditResult, AuditRunner, exit_code
+from tool_agent_shift_benchmark.audit import AuditResult, AuditRunner, exit_code
 
 
 def test_result_aggregation_and_json_serialization(tmp_path: Path) -> None:

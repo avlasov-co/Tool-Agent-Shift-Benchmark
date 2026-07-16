@@ -4,11 +4,12 @@ import csv
 from pathlib import Path
 
 import pytest
-from src.cli import build_parser
-from src.core.config_schema import ConfigValidationError, validate_config_data
-from src.core.run_artifacts import prepare_run_dir, snapshot_outputs
-from src.reporting.failure_cases import format_replay, replay_case
-from src.reporting.html_report import render_html_report
+
+from tool_agent_shift_benchmark.cli import build_parser
+from tool_agent_shift_benchmark.core.config_schema import ConfigValidationError, validate_config_data
+from tool_agent_shift_benchmark.core.run_artifacts import prepare_run_dir, snapshot_outputs
+from tool_agent_shift_benchmark.reporting.failure_cases import format_replay, replay_case
+from tool_agent_shift_benchmark.reporting.html_report import render_html_report
 
 
 def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:

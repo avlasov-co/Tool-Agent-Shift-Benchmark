@@ -1,7 +1,7 @@
 # Canonical scientific serialization policy
 
 Scientific and identity-bearing records use canonical serialization schema
-version `1`, implemented by `src/core/serialization.py`. The same compact UTF-8
+version `1`, implemented by `src/tool_agent_shift_benchmark/core/serialization.py`. The same compact UTF-8
 bytes are used for hashes in every process and working directory.
 
 ## Supported values

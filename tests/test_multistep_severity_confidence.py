@@ -2,12 +2,12 @@ import csv
 import json
 from pathlib import Path
 
-from src.agents.offline_llm_fixture import OfflineLLMFixtureAgent
-from src.core.context import ObservationContext
-from src.environments.file_ops import FileOpsEnvironment
-from src.faults.stale_observation import StaleObservationFault
-from src.run_eval import run_eval
-from src.run_seeds import run_seeds
+from tool_agent_shift_benchmark.agents.offline_llm_fixture import OfflineLLMFixtureAgent
+from tool_agent_shift_benchmark.core.context import ObservationContext
+from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
+from tool_agent_shift_benchmark.faults.stale_observation import StaleObservationFault
+from tool_agent_shift_benchmark.run_eval import run_eval
+from tool_agent_shift_benchmark.run_seeds import run_seeds
 
 
 def test_multistep_and_severity_outputs(tmp_path, monkeypatch):

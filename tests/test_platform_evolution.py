@@ -4,12 +4,13 @@ import json
 from pathlib import Path
 
 import pytest
-from src.core.catalog import PluginCatalog
-from src.core.contracts import PluginDescriptor
-from src.core.episode import Episode
-from src.core.orchestration import ExperimentPlanner, ExperimentSpec, RunCoordinator
-from src.core.run_artifacts import prepare_run_dir, snapshot_outputs
-from src.core.types import AgentAction, AgentDecision
+
+from tool_agent_shift_benchmark.core.catalog import PluginCatalog
+from tool_agent_shift_benchmark.core.contracts import PluginDescriptor
+from tool_agent_shift_benchmark.core.episode import Episode
+from tool_agent_shift_benchmark.core.orchestration import ExperimentPlanner, ExperimentSpec, RunCoordinator
+from tool_agent_shift_benchmark.core.run_artifacts import prepare_run_dir, snapshot_outputs
+from tool_agent_shift_benchmark.core.types import AgentAction, AgentDecision
 
 
 class VisibleOnlyAgent:
@@ -83,7 +84,7 @@ def test_entry_point_plugin_is_discovered_and_invalid_contract_is_rejected(monke
         def select(self, *, group):
             return [EntryPoint()] if group == "tasb.agents" else []
 
-    monkeypatch.setattr("src.core.catalog.entry_points", lambda: EntryPoints())
+    monkeypatch.setattr("tool_agent_shift_benchmark.core.catalog.entry_points", lambda: EntryPoints())
     catalog = PluginCatalog()
     assert catalog.descriptor("agent", "external_visible").version == "2.0.0"
     assert catalog.get("agent", "external_visible") is ExternalAgent
@@ -101,7 +102,7 @@ def test_entry_point_plugin_is_discovered_and_invalid_contract_is_rejected(monke
         def select(self, *, group):
             return [BadEntryPoint()] if group == "tasb.agents" else []
 
-    monkeypatch.setattr("src.core.catalog.entry_points", lambda: BadEntryPoints())
+    monkeypatch.setattr("tool_agent_shift_benchmark.core.catalog.entry_points", lambda: BadEntryPoints())
     with pytest.raises(ValueError, match="incompatible contract"):
         PluginCatalog()
 

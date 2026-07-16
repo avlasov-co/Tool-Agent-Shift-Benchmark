@@ -2,11 +2,11 @@
 
 ## Structure and boundaries
 
-- `src/` contains the package. `src/core/` owns contracts, deterministic
+- `src/tool_agent_shift_benchmark/` contains the package. `src/tool_agent_shift_benchmark/core/` owns contracts, deterministic
   planning, orchestration, serialization, run artifacts, and evaluator-side
-  services; `src/agents/`, `src/environments/`, `src/faults/`, and
-  `src/monitors/` provide benchmark components; `src/analysis/` and
-  `src/reporting/` consume experiment outputs.
+  services; `src/tool_agent_shift_benchmark/agents/`, `src/tool_agent_shift_benchmark/environments/`, `src/tool_agent_shift_benchmark/faults/`, and
+  `src/tool_agent_shift_benchmark/monitors/` provide benchmark components; `src/tool_agent_shift_benchmark/analysis/` and
+  `src/tool_agent_shift_benchmark/reporting/` consume experiment outputs.
 - `configs/` holds validated YAML configurations; `tests/` is the unit and
   regression suite; `scripts/` contains explicit operational scripts;
   `docs/` holds user and development documentation.

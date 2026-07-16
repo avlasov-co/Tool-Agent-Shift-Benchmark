@@ -28,7 +28,7 @@ bash scripts/run_repro.sh
 Find a `case_id` in `results/failure_cases.csv`, then run:
 
 ```bash
-python -m src.reporting.failure_cases --case-id CASE_ID
+python -m tool_agent_shift_benchmark.reporting.failure_cases --case-id CASE_ID
 ```
 
 The replay shows the environment, fault, agent decision, monitor decision, action taken, hidden ground-truth check, and unsafe reason codes.

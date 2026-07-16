@@ -4,13 +4,14 @@ import json
 from pathlib import Path
 
 import pytest
-from src.analysis.run_pairwise_compounds import _plan_fault_combo, _run_fault_combo
-from src.core.catalog import PluginCatalog
-from src.core.contracts import IdentityMismatchError, PluginDescriptor
-from src.core.episode import Episode
-from src.core.orchestration import ExperimentPlanner, ExperimentSpec, RunCoordinator
-from src.core.types import AgentAction, AgentDecision
-from src.environments.file_ops import FileOpsEnvironment
+
+from tool_agent_shift_benchmark.analysis.run_pairwise_compounds import _plan_fault_combo, _run_fault_combo
+from tool_agent_shift_benchmark.core.catalog import PluginCatalog
+from tool_agent_shift_benchmark.core.contracts import IdentityMismatchError, PluginDescriptor
+from tool_agent_shift_benchmark.core.episode import Episode
+from tool_agent_shift_benchmark.core.orchestration import ExperimentPlanner, ExperimentSpec, RunCoordinator
+from tool_agent_shift_benchmark.core.types import AgentAction, AgentDecision
+from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
 
 
 def base_config(agent: str = "naive", environment: str = "file_ops") -> dict[str, object]:

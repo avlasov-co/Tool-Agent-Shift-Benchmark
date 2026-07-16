@@ -40,7 +40,7 @@ tasb verify-release
 - `tasb inspect-run`: inspect a self-contained run manifest.
 - `tasb render-architecture`: regenerate the Mermaid architecture renders.
 
-Legacy `python -m src...` commands remain supported.
+Legacy `python -m tool_agent_shift_benchmark...` commands remain supported.
 # Platform commands
 
 `tasb plugins list` lists built-in and entry-point plugins; `tasb plugins validate` checks catalog metadata. `tasb plan --config <config>` resolves the Cartesian matrix and stable seed policy without executing episodes. `tasb run --config <config> --workers N` executes serially by default or with deterministic parallel scheduling. `tasb inspect-run <run>` prints the self-describing manifest, and `tasb render-architecture` regenerates the Mermaid renders.

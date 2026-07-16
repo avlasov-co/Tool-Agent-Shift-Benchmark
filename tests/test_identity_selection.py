@@ -4,11 +4,12 @@ import json
 from pathlib import Path
 
 import pytest
-from src.cli import _plan_command as plan_command
-from src.cli import build_parser
-from src.core.catalog import PluginCatalog
-from src.core.episode import Episode
-from src.core.orchestration import (
+
+from tool_agent_shift_benchmark.cli import _plan_command as plan_command
+from tool_agent_shift_benchmark.cli import build_parser
+from tool_agent_shift_benchmark.core.catalog import PluginCatalog
+from tool_agent_shift_benchmark.core.episode import Episode
+from tool_agent_shift_benchmark.core.orchestration import (
     ExperimentPlanner,
     ExperimentSpec,
     RunCoordinator,

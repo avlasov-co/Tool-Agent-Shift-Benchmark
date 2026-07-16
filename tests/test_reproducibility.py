@@ -1,4 +1,4 @@
-from src.run_eval import run_eval
+from tool_agent_shift_benchmark.run_eval import run_eval
 
 
 def test_reproducible_episode_ids(tmp_path, monkeypatch):

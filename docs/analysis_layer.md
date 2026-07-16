@@ -7,13 +7,13 @@ It does not modify agent inputs, monitor inputs, hidden ground truth, evaluator 
 ## Command
 
 ```bash
-python -m src.analysis.run_analysis
+python -m tool_agent_shift_benchmark.analysis.run_analysis
 ```
 
 Optional paths:
 
 ```bash
-python -m src.analysis.run_analysis --results-dir results --analysis-dir results/analysis
+python -m tool_agent_shift_benchmark.analysis.run_analysis --results-dir results --analysis-dir results/analysis
 ```
 
 ## Inputs
@@ -71,7 +71,7 @@ This is post-hoc comparison, not a new pairwise fault injector. For explicit pai
 The analysis runner above compares the existing fixed `compound_shift` rows when they are already present in `results/summary.csv`. For an explicit pairwise experiment, run:
 
 ```bash
-python -m src.analysis.run_pairwise_compounds --config configs/compound_matrix.yaml
+python -m tool_agent_shift_benchmark.analysis.run_pairwise_compounds --config configs/compound_matrix.yaml
 ```
 
 This command generates clean, single-fault, and paired-fault episodes under the same visible-only policy boundary used by the main benchmark. It reports pair-vs-clean and pair-vs-worst-single deltas for unsafe rate, coverage, safe-useful action rate, recovery, monitor recall, and monitor false-positive rate.

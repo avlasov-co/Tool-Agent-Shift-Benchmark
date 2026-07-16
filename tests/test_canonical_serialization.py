@@ -12,7 +12,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from src.core.serialization import (
+
+from tool_agent_shift_benchmark.core.serialization import (
     CanonicalSerializationError,
     canonical_bytes,
     canonical_dumps,
@@ -158,7 +159,7 @@ def test_hash_is_stable_across_processes_and_working_directories(tmp_path: Path)
     first_dir.mkdir()
     second_dir.mkdir()
     script = (
-        "from src.core.serialization import stable_hash; "
+        "from tool_agent_shift_benchmark.core.serialization import stable_hash; "
         "print(stable_hash({'unicode':'é','float':1.25,'nested':[{'b':2,'a':1}]}, prefix='test'))"
     )
     environment = {**os.environ, "PYTHONPATH": str(repository)}
@@ -191,9 +192,9 @@ def test_planned_filtered_replay_and_resume_identity_is_cross_process_stable(tmp
     second_dir.mkdir()
     script = """
 import os
-from src.core.catalog import PluginCatalog
-from src.core.orchestration import ExperimentPlanner, ExperimentSpec, RunCoordinator
-from src.core.serialization import canonical_dumps
+from tool_agent_shift_benchmark.core.catalog import PluginCatalog
+from tool_agent_shift_benchmark.core.orchestration import ExperimentPlanner, ExperimentSpec, RunCoordinator
+from tool_agent_shift_benchmark.core.serialization import canonical_dumps
 config = {
     'schema_version': 2,
     'environments': ['file_ops'],

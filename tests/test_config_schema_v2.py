@@ -3,18 +3,19 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from src.cli import main as cli_main
-from src.core.config import ConfigSyntaxError, dump_config_yaml, load_config, load_raw_config
-from src.core.config_schema import (
+
+from tool_agent_shift_benchmark.cli import main as cli_main
+from tool_agent_shift_benchmark.core.config import ConfigSyntaxError, dump_config_yaml, load_config, load_raw_config
+from tool_agent_shift_benchmark.core.config_schema import (
     CONFIG_SCHEMA_VERSION,
     ConfigValidationError,
     migrate_config_data,
     parse_config_data,
     validate_config,
 )
-from src.core.orchestration import ExperimentPlanner, ExperimentSpec
-from src.core.serialization import read_json
-from src.run_eval import run_eval
+from tool_agent_shift_benchmark.core.orchestration import ExperimentPlanner, ExperimentSpec
+from tool_agent_shift_benchmark.core.serialization import read_json
+from tool_agent_shift_benchmark.run_eval import run_eval
 
 
 def valid_config() -> dict[str, object]:
@@ -136,7 +137,7 @@ def test_declared_external_plugin_validates_without_loading_plugin_code(monkeypa
     def forbidden_entry_points():
         raise AssertionError("plugin discovery executed during schema validation")
 
-    monkeypatch.setattr("src.core.catalog.entry_points", forbidden_entry_points)
+    monkeypatch.setattr("tool_agent_shift_benchmark.core.catalog.entry_points", forbidden_entry_points)
     config = {
         **valid_config(),
         "agents": ["external_agent"],

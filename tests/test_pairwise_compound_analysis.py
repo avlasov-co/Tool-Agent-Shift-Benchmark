@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from src.analysis.run_pairwise_compounds import (
+from tool_agent_shift_benchmark.analysis.run_pairwise_compounds import (
     build_pairwise_compound_matrix,
     parse_pair,
     write_pairwise_compound_matrix,
