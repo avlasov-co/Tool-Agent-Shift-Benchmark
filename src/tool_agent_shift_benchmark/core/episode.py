@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List
 
+from tool_agent_shift_benchmark.core.memory import MemoryOperation, MemoryWrite
 from tool_agent_shift_benchmark.core.serialization import register_dataclass
 
 from .types import (
@@ -58,7 +59,16 @@ class Episode:
         tool_response = ToolResponse(**{**response, "observation": observation})
         decision = value["decision"]
         action = AgentAction(**decision["action"])
-        agent_decision = AgentDecision(**{**decision, "action": action})
+        memory_writes = tuple(MemoryWrite(**item) for item in decision.get("memory_writes", ()))
+        memory_operations = tuple(MemoryOperation(**item) for item in decision.get("memory_operations", ()))
+        agent_decision = AgentDecision(
+            **{
+                **decision,
+                "action": action,
+                "memory_writes": memory_writes,
+                "memory_operations": memory_operations,
+            }
+        )
         monitors = [MonitorDecision(**item) for item in value.get("monitor_decisions", [])]
         execution = ExecutionResult(**value["execution"])
         fault = FaultConfig(**value["fault"])
@@ -81,7 +91,7 @@ class Episode:
             )
             if episode_id != expected_legacy_id:
                 raise ValueError(f"legacy episode_id mismatch: expected {expected_legacy_id!r}, got {episode_id!r}")
-        elif identity_schema_version not in {"2", "3", "4", "5", "6", "7"}:
+        elif identity_schema_version not in {"2", "3", "4", "5", "6", "7", "8"}:
             raise ValueError(f"unsupported episode identity schema: {identity_schema_version!r}")
         planned_identity = value.get("planned_identity", {})
         if planned_identity:
@@ -98,13 +108,13 @@ class Episode:
                     raise ValueError(
                         f"serialized planned identity mismatch for {name}: expected {expected!r}, got {actual!r}"
                     )
-            if identity_schema_version in {"3", "4", "5", "6", "7"}:
+            if identity_schema_version in {"3", "4", "5", "6", "7", "8"}:
                 manifest_hash = (value.get("metadata", {}).get("scenario_manifest") or {}).get("content_hash")
                 if planned_identity.get("scenario_manifest_hash") != manifest_hash:
                     raise ValueError("serialized planned identity mismatch for scenario_manifest_hash")
                 if planned_identity.get("seed_streams") != value.get("metadata", {}).get("seed_streams"):
                     raise ValueError("serialized planned identity mismatch for seed_streams")
-            if identity_schema_version in {"4", "5", "6", "7"}:
+            if identity_schema_version in {"4", "5", "6", "7", "8"}:
                 schedule_ids = fault.metadata.get("schedule_ids", [])
                 if planned_identity.get("fault_schedule_ids") != schedule_ids:
                     raise ValueError("serialized planned identity mismatch for fault_schedule_ids")

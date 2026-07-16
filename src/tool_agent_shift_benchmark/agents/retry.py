@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from tool_agent_shift_benchmark.core.memory import POLICY_MEMORY_CONTRACT, MemoryOperation, MemoryWrite
 from tool_agent_shift_benchmark.core.requery import REQUERY_ACTION_TYPE, TOOL_REQUERY_CONTRACT
 from tool_agent_shift_benchmark.core.serialization import stable_hash
 from tool_agent_shift_benchmark.core.types import AgentAction, AgentDecision
@@ -11,8 +12,9 @@ from .base import BaseAgent
 
 class RetryAgent(BaseAgent):
     name = "retry"
-    version = "2.0.0"
-    capabilities = (TOOL_REQUERY_CONTRACT,)
+    version = "3.0.0"
+    capabilities = (TOOL_REQUERY_CONTRACT, POLICY_MEMORY_CONTRACT)
+    stateful_memory = True
 
     def __init__(self) -> None:
         self._seen_response_hashes: set[str] = set()
@@ -55,9 +57,45 @@ class RetryAgent(BaseAgent):
         if issues and repeated:
             issues.extend(["repeated_response", "persistent_fault_suspected"])
 
+        memory_issues: list[str] = []
+        memory_operations: list[MemoryOperation] = []
+        memory = context.memory
+        if memory is not None:
+            memory_operations.append(MemoryOperation("validate", "last_observation", "validate_before_use"))
+            previous = memory.get("last_observation")
+            if memory.revision > 0 and previous is None:
+                memory_issues.append("memory_entry_missing")
+            elif previous is not None:
+                if previous.source != response.tool_name:
+                    memory_issues.append("memory_source_untrusted")
+                if previous.confidence < 0.5:
+                    memory_issues.append("memory_confidence_invalid")
+                if previous.observed_at > context.current_time or context.current_time - previous.observed_at > 5000:
+                    memory_issues.append("memory_timestamp_invalid")
+                if not isinstance(previous.value, dict) or "visible_response_hash" not in previous.value:
+                    memory_issues.append("memory_value_invalid")
+        # A trustworthy current tool response can supersede suspicious memory.
+        # If the current response is also questionable, reobserve or abstain.
+        if issues:
+            issues.extend(memory_issues)
+
+        memory_write = MemoryWrite(
+            "last_observation",
+            {
+                "visible_response_hash": fingerprint,
+                "schema_version": observation.schema_version,
+                "observation_timestamp": observation.timestamp,
+                "lifecycle_phase": (data.get("lifecycle") or {}).get("phase"),
+            },
+            response.tool_name,
+            context.response_received_at,
+            1.0,
+        )
+
         remaining = int(attempt_state.get("remaining_requeries", 0))
         attempt_number = int(attempt_state.get("attempt_number", 1))
         if issues and remaining > 0:
+            memory_operations.append(MemoryOperation("reobserve", None, issues[0]))
             return AgentDecision(
                 self.name,
                 AgentAction(
@@ -75,8 +113,11 @@ class RetryAgent(BaseAgent):
                     "missing": missing,
                     "clean_tool_bypass_prevented": True,
                 },
+                (memory_write,),
+                tuple(memory_operations),
             )
         if issues:
+            memory_operations.append(MemoryOperation("abstain", None, "unresolved_memory_or_observation_risk"))
             return AgentDecision(
                 self.name,
                 AgentAction("abstain", abstain=True, reason="requery_exhausted"),
@@ -92,7 +133,18 @@ class RetryAgent(BaseAgent):
                     "clean_tool_bypass_prevented": True,
                     "safe_abstention": True,
                 },
+                (memory_write,),
+                tuple(memory_operations),
             )
+        if memory_issues:
+            memory_operations.extend(
+                (
+                    MemoryOperation("ignore", "last_observation", "current_observation_valid"),
+                    MemoryOperation("overwrite", "last_observation", "replace_suspicious_memory"),
+                )
+            )
+        elif memory is not None:
+            memory_operations.append(MemoryOperation("overwrite", "last_observation", "refresh_clean_memory"))
         action = context.recommended_action(data)
         return AgentDecision(
             self.name,
@@ -105,4 +157,6 @@ class RetryAgent(BaseAgent):
                 "attempt_number": attempt_number,
                 "remaining_requeries": remaining,
             },
+            (memory_write,),
+            tuple(memory_operations),
         )

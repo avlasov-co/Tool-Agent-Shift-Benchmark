@@ -23,6 +23,11 @@ from tool_agent_shift_benchmark.core.identity import (
     build_experiment_identity,
 )
 from tool_agent_shift_benchmark.core.lifecycle import STEP_LIFECYCLE_CONTRACT, StateTransition
+from tool_agent_shift_benchmark.core.memory import (
+    POLICY_MEMORY_CONTRACT,
+    MemoryCorruptionRequest,
+    PolicyMemoryChannel,
+)
 from tool_agent_shift_benchmark.core.requery import (
     TOOL_CALL_COST_UNITS,
     TOOL_REQUERY_CONTRACT,
@@ -586,7 +591,13 @@ class EpisodeRunner:
         step: int,
         attempt_number: int,
         maximum_attempts: int,
-    ) -> tuple[ToolResponse, ToolResponse, list[dict[str, Any]], dict[str, Any]]:
+    ) -> tuple[
+        ToolResponse,
+        ToolResponse,
+        list[dict[str, Any]],
+        dict[str, Any],
+        tuple[MemoryCorruptionRequest, ...],
+    ]:
         clean = env_obj.tool_response()
         self._validate_observation_identity(
             item,
@@ -596,6 +607,7 @@ class EpisodeRunner:
         )
         shifted = clean
         schedule_provenance: list[dict[str, Any]] = []
+        memory_requests: list[MemoryCorruptionRequest] = []
         for schedule in item.fault_schedules:
             provenance = {**schedule.provenance(step), "attempt_number": attempt_number}
             schedule_provenance.append(provenance)
@@ -618,6 +630,10 @@ class EpisodeRunner:
                 ) % (2**63)
                 shift_obj = self.catalog.get("shift", name)(severity=scheduled_severity)
                 shifted = shift_obj.apply(shifted, env_obj, Random(shift_rng_seed))
+                if getattr(shift_obj, "channel", "tool_response") == "policy_memory":
+                    memory_requests.append(
+                        MemoryCorruptionRequest(schedule.schedule_id, scheduled_severity, shift_rng_seed)
+                    )
                 self._validate_observation_identity(
                     item,
                     shifted.observation.env_name,
@@ -679,7 +695,7 @@ class EpisodeRunner:
             "timing": timing.to_dict(),
             "clean_response_exposed": False,
         }
-        return shifted, policy_response, schedule_provenance, response_provenance
+        return shifted, policy_response, schedule_provenance, response_provenance, tuple(memory_requests)
 
     def run(self, item: EpisodeSpec) -> Episode:
         env_obj = self.catalog.get("environment", item.environment)(
@@ -694,6 +710,8 @@ class EpisodeRunner:
         )
         shift_objs = {name: self.catalog.get("shift", name)(severity=item.severity) for name in shift_names}
         evaluator = HiddenStateEvaluator()
+        memory_channel = PolicyMemoryChannel()
+        stateful_memory = bool(getattr(agent_obj, "stateful_memory", False))
         monitor_factory = self.catalog.get("monitor", self.spec.monitor)
         monitor = monitor_factory() if self.spec.monitor != "composite" else CompositeMonitor()
         self._validate_runtime_descriptor(item, env_obj, item.identity.environment, "environment_descriptor")
@@ -749,7 +767,13 @@ class EpisodeRunner:
             policy_attempts: list[dict[str, Any]] = []
             evaluator_attempts: list[dict[str, Any]] = []
             for attempt_number in range(1, maximum_attempts + 1):
-                shifted, policy_response, schedule_provenance, response_provenance = self._observe_through_schedule(
+                (
+                    shifted,
+                    policy_response,
+                    schedule_provenance,
+                    response_provenance,
+                    memory_requests,
+                ) = self._observe_through_schedule(
                     item,
                     env_obj,
                     step=step,
@@ -758,11 +782,17 @@ class EpisodeRunner:
                 )
                 total_tool_calls += 1
                 total_tool_cost_units += TOOL_CALL_COST_UNITS
+                memory_read = memory_channel.read(
+                    step=step,
+                    stateful_agent=stateful_memory,
+                    requests=memory_requests,
+                )
                 context = ObservationContext.from_environment(
                     env_obj,
                     policy_response.observation,
                     response_latency_ms=policy_response.latency_ms,
                     response_received_at=int(policy_response.metadata["timing"]["response_received_at"]),
+                    memory=memory_read.policy_view,
                 )
                 decision = agent_obj.decide(context, policy_response)
                 self._mismatch(
@@ -773,6 +803,12 @@ class EpisodeRunner:
                     phase="agent_decision",
                     descriptor=item.identity.agent,
                 )
+                memory_write_receipts = memory_channel.write(decision.memory_writes, step=step)
+                response_provenance["memory"] = {
+                    **memory_read.evaluator_dict(),
+                    "writes": [entry.to_dict() for entry in memory_write_receipts],
+                    "operations": [operation.to_dict() for operation in decision.memory_operations],
+                }
                 requery_requested = decision.action.is_requery
                 can_requery = attempt_number < maximum_attempts
                 outcome = (
@@ -798,7 +834,14 @@ class EpisodeRunner:
                     visible_response_hash=str(policy_response.metadata["requery"]["visible_response_hash"]),
                     response_provenance=response_provenance,
                 )
-                policy_attempts.append(attempt_record.policy_dict())
+                policy_attempts.append(
+                    {
+                        **attempt_record.policy_dict(),
+                        "memory": memory_read.policy_dict(),
+                        "memory_writes": [entry.to_dict() for entry in memory_write_receipts],
+                        "memory_operations": [operation.to_dict() for operation in decision.memory_operations],
+                    }
+                )
                 evaluator_attempts.append(attempt_record.to_dict())
                 if requery_requested and can_requery:
                     total_requeries += 1
@@ -869,6 +912,9 @@ class EpisodeRunner:
                     "response_latency_ms": policy_response.latency_ms,
                     "execution_timestamp": int(state_after["current_time"]),
                     "environment_clock": int(env_obj.current_time),
+                    "memory": memory_read.policy_dict(),
+                    "memory_writes": [entry.to_dict() for entry in memory_write_receipts],
+                    "memory_operations": [operation.to_dict() for operation in decision.memory_operations],
                 }
             )
             score = evaluator.score(env_obj, action, execution)
@@ -933,6 +979,9 @@ class EpisodeRunner:
             "fault_effect_applications": len(fault_effects),
             "maximum_realized_effect_magnitude": maximum_realized_effect,
             "requery_contract": TOOL_REQUERY_CONTRACT,
+            "policy_memory_contract": POLICY_MEMORY_CONTRACT,
+            "stateful_policy_memory": stateful_memory,
+            "final_memory_reference_hash": memory_channel.pristine_reference_hash(),
             "causal_latency_contract": CAUSAL_LATENCY_CONTRACT,
             "maximum_requeries_per_step": self.spec.requery_attempts,
             "total_tool_calls": total_tool_calls,

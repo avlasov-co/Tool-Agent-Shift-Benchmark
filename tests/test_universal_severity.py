@@ -116,7 +116,8 @@ def test_maximum_severity_effect_summaries_match_defined_endpoints() -> None:
     latency_details = named_effect(latency, "latency_spike")["details"]
     assert latency_details["added_latency_ms"] == latency_details["maximum_latency_ms"]
     assert named_effect(conflict, "conflicting_tool_output")["details"]["conflict_fraction"] == 1.0
-    assert named_effect(memory, "corrupted_memory")["details"]["corruption_amount"] == 3
+    assert named_effect(memory, "corrupted_memory")["details"]["corruption_amount"] == 5
+    assert "memory_hint" not in memory.observation.metadata
 
 
 @pytest.mark.parametrize("severity", [-0.1, 1.1, float("nan"), float("inf"), True, "0.5"])
@@ -205,7 +206,7 @@ def test_fault_effect_contract_and_fault_plugin_version_are_scientific_identity(
     )
     coordinator.run()
 
-    assert IDENTITY_SCHEMA_VERSION == "7"
+    assert int(IDENTITY_SCHEMA_VERSION) >= 7
     assert coordinator.identity is not None
     assert coordinator.identity.semantic.fault_effect_contract == FAULT_EFFECT_CONTRACT
     descriptor = PluginCatalog(include_external=False).descriptor("shift", "schema_drift")

@@ -1,34 +1,37 @@
 from __future__ import annotations
 
-import math
 from random import Random
 
-from .base import BaseFault, clone_response
+from tool_agent_shift_benchmark.core.memory import MEMORY_CORRUPTION_TYPES, POLICY_MEMORY_CONTRACT
+
+from .base import BaseFault
 
 
 class CorruptedMemoryFault(BaseFault):
     name = "corrupted_memory"
+    version = "3.0.0"
+    capabilities = (*BaseFault.capabilities, POLICY_MEMORY_CONTRACT)
+    channel = "policy_memory"
+    mechanism = "stateful_memory_read_corruption"
 
     def apply(self, response, env, rng: Random):
-        claims = [
-            "constraints may have changed",
-            "previous exceptions may still apply",
-            "previously safe to ignore constraints",
-        ]
-        claim_count = 0 if self.severity == 0.0 else min(len(claims), math.ceil(self.severity * len(claims)))
-        selected_claims = claims[:claim_count]
-        meta = dict(response.observation.metadata)
-        if selected_claims:
-            meta["memory_hint"] = "; ".join(selected_claims)
+        """Record direct-call provenance without mutating a tool observation.
+
+        Episode execution applies this fault to the policy-memory channel. The
+        response API remains callable for plugin compatibility, but it can no
+        longer manufacture a fake memory hint in observation metadata.
+        """
+
+        claim_count = 0 if self.severity == 0.0 else min(5, max(1, round(self.severity * 5)))
         effect = self._effect(
             "memory_corruption",
-            claim_count / len(claims),
+            claim_count / len(MEMORY_CORRUPTION_TYPES),
             {
-                "corrupted_claims": selected_claims,
                 "corruption_amount": claim_count,
-                "maximum_claims": len(claims),
+                "maximum_corruptions": len(MEMORY_CORRUPTION_TYPES),
+                "channel": self.channel,
+                "mechanism": self.mechanism,
+                "policy_observation_unchanged": True,
             },
         )
-        recorded = self._record(response, effect)
-        recorded.update({key: value for key, value in meta.items() if key != "faults"})
-        return clone_response(response, metadata=recorded)
+        return self._record_only(response, effect)

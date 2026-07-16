@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Tuple
 
+from tool_agent_shift_benchmark.core.memory import PolicyMemoryView
 from tool_agent_shift_benchmark.core.types import AgentAction, Observation, ToolResponse
 
 EVALUATOR_ONLY_OBSERVATION_METADATA_KEYS = {"faults", "fault_schedule_provenance"}
@@ -51,6 +52,7 @@ class ObservationContext:
     constraints: Dict[str, Any] = field(default_factory=dict)
     task_hint: str = ""
     task_parameters: Dict[str, Any] = field(default_factory=dict)
+    memory: PolicyMemoryView | None = None
 
     @classmethod
     def from_environment(
@@ -60,6 +62,7 @@ class ObservationContext:
         *,
         response_latency_ms: int = 0,
         response_received_at: int | None = None,
+        memory: PolicyMemoryView | None = None,
     ) -> "ObservationContext":
         current_time = int(getattr(env, "current_time", observation.timestamp))
         return cls(
@@ -73,6 +76,7 @@ class ObservationContext:
             constraints=dict(observation.constraints),
             task_hint=str(getattr(env, "task", "")),
             task_parameters=dict(getattr(env, "public_task_description", lambda: {})()),
+            memory=memory,
         )
 
     def recommended_action(self, data: Dict[str, Any]) -> AgentAction:

@@ -4,6 +4,7 @@ import math
 from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import Any, Dict, List, Optional
 
+from tool_agent_shift_benchmark.core.memory import MemoryOperation, MemoryWrite
 from tool_agent_shift_benchmark.core.requery import REQUERY_ACTION_TYPE
 from tool_agent_shift_benchmark.core.serialization import canonical_dumps, register_dataclass
 from tool_agent_shift_benchmark.core.serialization import stable_hash as stable_hash
@@ -108,6 +109,8 @@ class AgentDecision:
     confidence: float
     reasons: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    memory_writes: tuple[MemoryWrite, ...] = ()
+    memory_operations: tuple[MemoryOperation, ...] = ()
 
     def __post_init__(self) -> None:
         _require_non_empty("agent_name", self.agent_name)
