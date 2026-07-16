@@ -13,7 +13,7 @@
 
 ## Current checkpoint
 
-Checkpoint 14 — non-destructive release verification — complete.
+Checkpoint 15 — CI — complete.
 
 ## Checkpoint evidence
 
@@ -155,3 +155,25 @@ commit. The final section will retain baseline failures and remaining risks.
   `/tmp/tasb-release-verification-zci_1e68`, including architecture rendering
   and distribution smoke (the final phase took 39.262 seconds). Focused
   verifier/archive tests, lint, formatting, and `git diff --check` passed.
+
+### Checkpoint 15 — CI
+
+- Replaced the single mutable-action workflow with focused, timeout-bounded
+  jobs for quality, tests across Python 3.10--3.14, branch coverage,
+  configuration validation, package builds, isolated installation, one
+  designated deterministic release verification, documentation checks, and a
+  macOS distribution smoke on Python 3.12.
+- All CI jobs use the two hash-checked lockfiles through `make setup` and
+  setup-python's lock-aware pip cache. The expensive reproducibility and
+  architecture workflow runs only once on Linux; the macOS lane independently
+  verifies both distribution formats without relying on a checkout import.
+- Added concurrency cancellation, a read-only default token, explicit shell
+  strict mode, immutable action references with human-readable version
+  comments, and failure-only upload of retained release/distribution logs.
+- Added `scripts/check_docs.py`, which validates local Markdown links without
+  mechanically rewriting historical documents. The two intentionally generated
+  architecture-render references are allowed only because strict architecture
+  rendering is separately enforced by the release-verification job.
+- Local validation parsed the workflow YAML, checked all 35 Markdown files,
+  and passed `git diff --check`. Security workflow and dependency automation
+  are added next in Checkpoint 16.

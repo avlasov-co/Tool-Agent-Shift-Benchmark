@@ -4,27 +4,215 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
 jobs:
-  test:
+  quality:
+    name: quality (Python 3.14)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            requirements/runtime.txt
+            requirements/development.txt
+      - name: Install locked development environment
+        run: make setup PYTHON=python
+      - name: Lint, format, and type-check
+        run: |
+          set -euo pipefail
+          make lint PYTHON=python
+          make format-check PYTHON=python
+          make typecheck PYTHON=python
+
+  test:
+    name: tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: |
+            requirements/runtime.txt
+            requirements/development.txt
+      - name: Install locked development environment
+        run: make setup PYTHON=python
+      - name: Test
+        run: make test PYTHON=python
+
+  coverage:
+    name: branch coverage (Python 3.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
-      - name: Install
-        run: python -m pip install -r requirements.txt
-      - name: Compile
-        run: python -m compileall -q src tests
-      - name: Tests
-        run: PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q
-      - name: Repro smoke
-        run: bash scripts/run_repro.sh
-      - name: Render architecture
+          cache: pip
+          cache-dependency-path: requirements/development.txt
+      - name: Install and measure branch coverage
         run: |
-          npx --yes @puppeteer/browsers@2.7.1 install chrome@131.0.6778.204 --path "$HOME/.cache/puppeteer"
-          svg_before=$(sha256sum docs/architecture.svg | awk '{print $1}')
-          png_before=$(sha256sum docs/architecture.png | awk '{print $1}')
-          TASB_REQUIRE_MERMAID=1 bash scripts/render_architecture.sh
-          test "$svg_before" = "$(sha256sum docs/architecture.svg | awk '{print $1}')"
-          test "$png_before" = "$(sha256sum docs/architecture.png | awk '{print $1}')"
+          set -euo pipefail
+          make setup PYTHON=python
+          make coverage PYTHON=python
+
+  configuration:
+    name: configuration validation (Python 3.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements/development.txt
+      - name: Install and validate packaged configurations
+        run: |
+          set -euo pipefail
+          make setup PYTHON=python
+          tasb config list
+          tasb validate-config small
+          tasb plan --config small --scenario-index 0
+
+  package-build:
+    name: package build (Python 3.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements/development.txt
+      - name: Build standard distributions
+        run: |
+          set -euo pipefail
+          make setup PYTHON=python
+          rm -rf ci-artifacts
+          python -m build --sdist --wheel --outdir ci-artifacts
+          python -m twine check ci-artifacts/*
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: package-build
+          path: ci-artifacts/
+          if-no-files-found: error
+
+  isolated-install:
+    name: isolated distributions (Python 3.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements/runtime.txt
+            requirements/development.txt
+      - name: Install and independently smoke-test sdist and wheel
+        run: |
+          set -euo pipefail
+          make setup PYTHON=python
+          python scripts/distribution_smoke.py --python python --timeout 300
+      - name: Upload distribution smoke logs on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: isolated-distribution-logs
+          path: /tmp/tasb-distribution-smoke-*/logs/
+          if-no-files-found: ignore
+
+  release-verification:
+    name: deterministic release verification (Python 3.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements/runtime.txt
+            requirements/development.txt
+      - name: Run retained non-destructive release verification
+        run: |
+          set -euo pipefail
+          make setup PYTHON=python
+          make verify-release PYTHON=python
+      - name: Upload release-verification logs on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-verification-logs
+          path: /tmp/tasb-release-verification-*/
+          if-no-files-found: ignore
+
+  documentation:
+    name: documentation checks (Python 3.11)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements/development.txt
+      - name: Check local documentation links and whitespace
+        run: |
+          set -euo pipefail
+          make setup PYTHON=python
+          python scripts/check_docs.py
+          git diff --check
+
+  macos-distribution:
+    name: macOS distribution smoke (Python 3.12)
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements/runtime.txt
+            requirements/development.txt
+      - name: Independently exercise macOS sdist and wheel installs
+        run: |
+          set -euo pipefail
+          make setup PYTHON=python
+          python scripts/distribution_smoke.py --python python --timeout 300
+      - name: Upload macOS smoke logs on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: macos-distribution-logs
+          path: /tmp/tasb-distribution-smoke-*/logs/
+          if-no-files-found: ignore
