@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List
 
 from tool_agent_shift_benchmark.agents import AGENTS
+from tool_agent_shift_benchmark.core.action_records import ACTION_RECORD_CONTRACT, EPISODE_RECORD_VERSION
 from tool_agent_shift_benchmark.core.competence import run_clean_competence_preflight
 from tool_agent_shift_benchmark.core.config import load_config
 from tool_agent_shift_benchmark.core.episode import Episode
@@ -203,10 +204,55 @@ def write_outputs(
     write_jsonl(
         "results/episodes.jsonl", (episode.to_dict() for episode in sorted(episodes, key=lambda e: e.episode_id))
     )
+    action_record_rows = [
+        {
+            "episode_id": episode.episode_id,
+            "agent_name": episode.agent_name,
+            "environment": episode.env_name,
+            "fault": episode.fault.name,
+            "oversight_mode": episode.metadata.get("oversight_mode", "hard_gate"),
+            "monitor_mode": episode.metadata.get("monitor_mode", "full_composite_monitor"),
+            "sequence": record.sequence,
+            "status": record.status,
+            "proposed_action_type": record.proposed_action.action_type if record.proposed_action else "",
+            "proposed_target": (record.proposed_action.target if record.proposed_action else None) or "",
+            "executed_action_type": record.executed_action.action_type if record.executed_action else "",
+            "executed_target": (record.executed_action.target if record.executed_action else None) or "",
+            "intervention_type": record.intervention.intervention_type if record.intervention else "",
+            "monitor_name": record.monitor_decision.monitor_name if record.monitor_decision else "",
+            "monitor_allow_action": record.monitor_decision.allow_action if record.monitor_decision else "",
+            "execution_success": record.execution_result.success if record.execution_result else "",
+            "execution_unsafe": record.execution_result.unsafe if record.execution_result else "",
+            "stop_reason": record.stop_reason,
+            "policy_explanation_json": canonical_dumps(
+                record.policy_explanation.to_dict() if record.policy_explanation else {}
+            ),
+            "intervention_json": canonical_dumps(record.intervention.to_dict() if record.intervention else {}),
+            "execution_result_json": canonical_dumps(
+                record.execution_result.to_dict() if record.execution_result else {}
+            ),
+            "evaluator_labels_json": canonical_dumps(record.evaluator_labels),
+        }
+        for episode in episodes
+        for record in episode.action_records
+    ]
+    write_csv("results/action_records.csv", action_record_rows)
+    write_jsonl(
+        "results/action_records.jsonl",
+        (
+            {"episode_id": episode.episode_id, "action_record": record.to_dict()}
+            for episode in episodes
+            for record in episode.action_records
+        ),
+    )
     write_jsonl(
         "results/evaluator_traces.jsonl",
         (
-            {"episode_id": episode.episode_id, "trace": episode.metadata.get("evaluator_trace", [])}
+            {
+                "episode_id": episode.episode_id,
+                "trace": episode.metadata.get("evaluator_trace", []),
+                "action_records": [record.to_dict() for record in episode.action_records],
+            }
             for episode in episodes
         ),
     )
@@ -223,6 +269,7 @@ def write_outputs(
     for e in episodes:
         if e.execution.unsafe:
             fc = e.failure_case()
+            final_record = e.action_records[-1]
             monitor_summary = ";".join(r for m in e.monitor_decisions for r in m.reasons)
             failure_rows.append(
                 {
@@ -234,7 +281,12 @@ def write_outputs(
                     "agent": fc.agent_name,
                     "fault_name": fc.fault_name,
                     "fault": fc.fault_name,
-                    "action_type": e.decision.action.action_type,
+                    "action_type": final_record.executed_action.action_type,
+                    "proposed_action_type": final_record.proposed_action.action_type,
+                    "executed_action_type": final_record.executed_action.action_type,
+                    "intervention_type": final_record.intervention.intervention_type,
+                    "stop_reason": final_record.stop_reason,
+                    "evaluator_labels_json": canonical_dumps(final_record.evaluator_labels),
                     "unsafe_reasons": ";".join(fc.unsafe_reasons),
                     "observation_summary": canonical_dumps(_safe_summary(e.tool_response.observation.data)),
                     "monitor_summary": monitor_summary,
@@ -258,6 +310,11 @@ def write_outputs(
             "fault_name",
             "fault",
             "action_type",
+            "proposed_action_type",
+            "executed_action_type",
+            "intervention_type",
+            "stop_reason",
+            "evaluator_labels_json",
             "unsafe_reasons",
             "observation_summary",
             "monitor_summary",
@@ -268,7 +325,8 @@ def write_outputs(
     )
     monitor_rows = []
     for e in episodes:
-        for m in e.monitor_decisions:
+        for sequence, m in enumerate(e.monitor_decisions):
+            record = e.action_records[sequence] if sequence < len(e.action_records) else None
             monitor_rows.append(
                 {
                     "episode_id": e.episode_id,
@@ -278,6 +336,10 @@ def write_outputs(
                     "monitor_mode": e.metadata.get("monitor_mode", "full_composite_monitor"),
                     "oversight_mode": e.metadata.get("oversight_mode", "hard_gate"),
                     "monitor_name": m.monitor_name,
+                    "sequence": sequence,
+                    "proposed_action_type": record.proposed_action.action_type if record else "",
+                    "executed_action_type": record.executed_action.action_type if record else "",
+                    "intervention_type": record.intervention.intervention_type if record else "",
                     "allow_action": m.allow_action,
                     "risk_score": m.risk_score,
                     "reasons": ";".join(m.reasons),
@@ -291,6 +353,8 @@ def write_outputs(
             "seed": seed,
             "run_id": run_id,
             "config_digest": config_digest,
+            "episode_record_version": EPISODE_RECORD_VERSION,
+            "action_record_contract": ACTION_RECORD_CONTRACT,
             "identity": identity,
             "config": config,
             "normalized_config": config,

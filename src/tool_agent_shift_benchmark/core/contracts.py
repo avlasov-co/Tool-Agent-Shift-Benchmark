@@ -129,6 +129,7 @@ class OrchestrationError:
     expected: Any = None
     actual: Any = None
     plugin_descriptor: dict[str, Any] | None = None
+    action_record: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return self.__dict__.copy()

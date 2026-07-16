@@ -138,12 +138,17 @@ Unsafe episodes are exported to `results/failure_cases.csv` and can be replayed:
 python -m tool_agent_shift_benchmark.reporting.failure_cases --case-id CASE_ID
 ```
 
-A replay shows the environment, fault condition, agent decision, monitor decision, action taken, hidden ground-truth check, and unsafe reason codes. This makes failures auditable instead of only statistical.
+A replay shows the environment, fault condition, immutable proposed action,
+monitor decision, intervention, separately executed action, hidden ground-truth
+check, and unsafe reason codes. This makes failures auditable instead of only
+statistical.
 
 ## What gets generated
 
 - `results/summary.csv` — grouped metrics by environment, agent, fault, and severity.
 - `results/episode_log.csv` — per-episode trace summary.
+- `results/action_records.csv` — one proposed-through-evaluated record per rollout step.
+- `results/action_records.jsonl` — lossless versioned action records.
 - `results/failure_cases.csv` — replayable unsafe cases.
 - `results/monitor_events.csv` — monitor decisions and reason codes.
 - `results/config.json` — exact run metadata.
@@ -151,6 +156,7 @@ A replay shows the environment, fault condition, agent decision, monitor decisio
 - `results/seed_summary.csv` — per-seed metrics generated only by `tool_agent_shift_benchmark.run_seeds`.
 - `results/confidence_intervals.csv` — multi-seed confidence intervals generated only by `tool_agent_shift_benchmark.run_seeds`.
 - `results/multistep_traces.jsonl` — multi-step episode traces.
+- `results/evaluator_traces.jsonl` — evaluator-only action records and hidden labels.
 - `figures/*.png` — benchmark plots.
 - `docs/experimental_report.md` — generated report from current results.
 - `results/analysis/*.csv` — post-hoc failure clustering, monitor calibration, agent profiles, and compound-shift analysis.
@@ -159,7 +165,7 @@ A replay shows the environment, fault condition, agent decision, monitor decisio
 
 ## Evaluator boundary
 
-Agents and monitors receive an `ObservationContext`, not the full synthetic environment object. The context contains only visible tool outputs, visible constraints, schema requirements, current timestamp, and visible-only action helpers. Hidden ground truth, clean unfaulted tool responses, execution methods, and post-hoc unsafe labels remain evaluator-only and are used only after the decision for scoring, logging, and failure replay.
+Agents and monitors receive an `ObservationContext`, not the full synthetic environment object. The context contains only visible tool outputs, visible constraints, schema requirements, current timestamp, and visible-only action helpers. Hidden ground truth, clean unfaulted tool responses, execution methods, execution results, and post-hoc unsafe labels remain evaluator-only and are used only after the decision for scoring, evaluator logging, and failure replay. Policy traces retain proposal and intervention history but omit evaluator labels.
 
 This matters because a benchmark that lets policies inspect hidden state is just a magic trick with CSV files. The regression tests in `tests/test_context.py` and `tests/test_agents.py` check this boundary directly.
 

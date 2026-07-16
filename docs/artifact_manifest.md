@@ -29,6 +29,8 @@ For `small` with `--all-envs --all-agents`:
 Expected files after the smoke run:
 
 - `results/episode_log.csv`: 252 data rows
+- `results/action_records.csv`: one row per rollout step
+- `results/action_records.jsonl`: one lossless versioned record per rollout step
 - `results/summary.csv`: 126 data rows
 - `results/failure_cases.csv`: zero or more unsafe-case rows
 - `results/monitor_events.csv`: one or more monitor rows per episode
@@ -118,4 +120,4 @@ This checks compile, tests, smoke benchmark outputs, generated reports, post-hoc
 - optional `runs/<run-name>/run_manifest.json` when using the CLI run directory workflow.
 # Run bundle format
 
-Completed runs are self-contained under `runs/<name>/`: `run_manifest.json`, a copied `config.json`, legacy CSV exports, structured `results/episodes.jsonl`, policy/evaluator traces, figures, reports, and replay data. The manifest records schema and contract versions, config digest, plugin catalog, episode count, checkpoint information, and SHA-256 checksums for every generated file.
+Completed runs are self-contained under `runs/<name>/`: `run_manifest.json`, a copied `config.json`, legacy CSV exports, structured `results/episodes.jsonl`, versioned `results/action_records.jsonl`, action-record CSV, policy/evaluator traces, figures, reports, and replay data. The manifest records identity, episode-record, and action-record versions, config digest, plugin catalog, episode count, checkpoint information, and SHA-256 checksums for every generated file.

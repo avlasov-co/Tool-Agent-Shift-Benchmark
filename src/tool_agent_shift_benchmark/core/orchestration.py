@@ -8,6 +8,11 @@ from dataclasses import field as dataclass_field
 from pathlib import Path
 from typing import Any
 
+from tool_agent_shift_benchmark.core.action_records import (
+    ACTION_RECORD_CONTRACT,
+    EPISODE_RECORD_VERSION,
+    ActionRecord,
+)
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
 from tool_agent_shift_benchmark.core.context import ObservationContext, redact_response_for_policy
 from tool_agent_shift_benchmark.core.contracts import IdentityMismatchError, OrchestrationError, PluginDescriptor
@@ -833,6 +838,7 @@ class EpisodeRunner:
             descriptor=item.identity.environment,
         )
         monitors: list[MonitorDecision] = []
+        action_records: list[ActionRecord] = []
         step_trace: list[dict[str, Any]] = []
         evaluator_trace: list[dict[str, Any]] = []
         final_response = final_decision = final_execution = None
@@ -969,15 +975,32 @@ class EpisodeRunner:
                 unsafe_reasons=tuple(execution.unsafe_reasons),
                 consequence=dict(execution.metadata),
             )
+            score = evaluator.score(env_obj, action, execution)
+            action_record = ActionRecord.complete(
+                sequence=step,
+                decision=decision,
+                monitor=monitor_decision,
+                oversight_mode=item.identity.oversight_mode,
+                executed_action=action,
+                execution=execution,
+                stop_reason=str(status["stop_reason"] or "in_progress"),
+                evaluator_labels=score,
+            )
+            action_records.append(action_record)
             state_transitions.append(transition.to_dict())
+            policy_transition = {
+                key: value
+                for key, value in transition.to_dict().items()
+                if key not in {"unsafe", "unsafe_reasons", "consequence"}
+            }
             step_trace.append(
                 {
                     "step": step,
                     "tool_response": policy_response.to_dict(),
                     "decision": decision.to_dict(),
                     "monitor": monitor_decision.to_dict(),
-                    "execution": execution.to_dict(),
-                    "transition": transition.to_dict(),
+                    "action_record": action_record.policy_dict(),
+                    "transition": policy_transition,
                     "attempt_count": len(policy_attempts),
                     "attempts": policy_attempts,
                     "observation_timestamp": policy_response.observation.timestamp,
@@ -989,13 +1012,13 @@ class EpisodeRunner:
                     "memory_operations": [operation.to_dict() for operation in decision.memory_operations],
                 }
             )
-            score = evaluator.score(env_obj, action, execution)
             evaluator_trace.append(
                 {
                     "step": step,
                     "shift_provenance": shifted.observation.metadata.get("faults", []),
                     "fault_schedule_provenance": schedule_provenance,
                     "tool_attempts": evaluator_attempts,
+                    "action_record": action_record.to_dict(),
                     **score,
                 }
             )
@@ -1011,6 +1034,10 @@ class EpisodeRunner:
             env_obj.mark_budget_exhausted()
             final_status = env_obj.lifecycle_status()
             stop_reason = str(final_status["stop_reason"])
+            if action_records and action_records[-1].stop_reason == "in_progress":
+                action_records[-1] = replace(action_records[-1], stop_reason=stop_reason)
+                evaluator_trace[-1]["action_record"] = action_records[-1].to_dict()
+                step_trace[-1]["action_record"] = action_records[-1].policy_dict()
         intermediate_failure_count = sum(
             not transition["transition_completed"] and not transition["terminal"] for transition in state_transitions
         )
@@ -1047,6 +1074,8 @@ class EpisodeRunner:
             "fault_schedules": [schedule.to_dict() for schedule in item.fault_schedules],
             "fault_effect_contract": FAULT_EFFECT_CONTRACT,
             "fault_composition_contract": FAULT_COMPOSITION_CONTRACT,
+            "action_record_contract": ACTION_RECORD_CONTRACT,
+            "episode_record_version": EPISODE_RECORD_VERSION,
             "monitor_mode": item.identity.monitor_mode,
             "monitor_composition": (
                 monitor_composition(item.identity.monitor_mode)
@@ -1083,10 +1112,10 @@ class EpisodeRunner:
             "intermediate_failure_count": intermediate_failure_count,
         }
         episode = Episode(
-            item.environment,
-            item.scenario_id,
-            item.agent,
-            FaultConfig(
+            env_name=item.environment,
+            scenario_id=item.scenario_id,
+            agent_name=item.agent,
+            fault=FaultConfig(
                 item.shift,
                 item.severity,
                 {
@@ -1095,17 +1124,19 @@ class EpisodeRunner:
                     "maximum_realized_effect_magnitude": maximum_realized_effect,
                 },
             ),
-            item.seed,
-            item.run_id,
-            item.episode_id,
-            final_response,
-            final_decision,
-            monitors,
-            final_execution,
-            metadata,
-            item.scenario_pair_id,
-            item.identity.identity_schema_version,
-            item.identity.to_dict(),
+            seed=item.seed,
+            run_id=item.run_id,
+            episode_id=item.episode_id,
+            tool_response=final_response,
+            decision=final_decision,
+            monitor_decisions=monitors,
+            execution=final_execution,
+            metadata=metadata,
+            scenario_pair_id=item.scenario_pair_id,
+            identity_schema_version=item.identity.identity_schema_version,
+            planned_identity=item.identity.to_dict(),
+            episode_record_version=EPISODE_RECORD_VERSION,
+            action_records=action_records,
         )
         for field, expected, actual in (
             ("run_id", item.run_id, episode.run_id),
@@ -1157,6 +1188,11 @@ class EpisodeScheduler:
             except Exception as exc:
                 if attempt <= self.retry_attempts and not isinstance(exc, IdentityMismatchError):
                     continue
+                failure_record = ActionRecord.infrastructure_failure(
+                    error_type=type(exc).__name__,
+                    message=str(exc),
+                    phase=exc.phase if isinstance(exc, IdentityMismatchError) else "episode",
+                )
                 if isinstance(exc, IdentityMismatchError):
                     error = OrchestrationError(
                         item.episode_id,
@@ -1168,9 +1204,17 @@ class EpisodeScheduler:
                         exc.expected,
                         exc.actual,
                         exc.plugin_descriptor,
+                        failure_record.to_dict(),
                     )
                 else:
-                    error = OrchestrationError(item.episode_id, "episode", type(exc).__name__, str(exc), attempt)
+                    error = OrchestrationError(
+                        item.episode_id,
+                        "episode",
+                        type(exc).__name__,
+                        str(exc),
+                        attempt,
+                        action_record=failure_record.to_dict(),
+                    )
                 self.errors.append(error)
                 if self.failure_policy == "fail_fast":
                     raise
@@ -1227,6 +1271,11 @@ class RunCoordinator:
                     plugin_descriptor=EpisodeRunner._descriptor_dict(scenario_generator),
                     episode_id=episode_id,
                 )
+                failure_record = ActionRecord.infrastructure_failure(
+                    error_type=type(mismatch).__name__,
+                    message=str(mismatch),
+                    phase=mismatch.phase,
+                )
                 self.errors = [
                     OrchestrationError(
                         episode_id,
@@ -1238,6 +1287,7 @@ class RunCoordinator:
                         mismatch.expected,
                         mismatch.actual,
                         mismatch.plugin_descriptor,
+                        failure_record.to_dict(),
                     )
                 ]
                 raise mismatch
@@ -1257,6 +1307,8 @@ class RunCoordinator:
                     path,
                     {
                         "run_id": planner.run_id,
+                        "episode_record_version": EPISODE_RECORD_VERSION,
+                        "action_record_contract": ACTION_RECORD_CONTRACT,
                         "completed_episode_ids": sorted(completed or set()),
                         "completed_scenario_pair_ids": sorted(
                             {
@@ -1278,6 +1330,8 @@ class RunCoordinator:
                 path,
                 {
                     "run_id": planner.run_id,
+                    "episode_record_version": EPISODE_RECORD_VERSION,
+                    "action_record_contract": ACTION_RECORD_CONTRACT,
                     "completed_episode_ids": sorted((completed or set()) | {e.episode_id for e in episodes}),
                     "completed_scenario_pair_ids": sorted(
                         {

@@ -15,8 +15,8 @@
 
 ## Current checkpoint
 
-Checkpoints 27–32 complete; Checkpoint 33 — proposed, intervened, and executed
-action records (in progress).
+Checkpoints 27–33 complete; Checkpoint 34 — pure counterfactual intervention
+scoring (next).
 
 ## Checkpoint evidence
 
@@ -207,12 +207,46 @@ action records (in progress).
   statements and 1,900 branches. Ruff lint/format, strict mypy, compilation,
   and `git diff --check` passed.
 
+### Checkpoint 33 — immutable proposed-through-evaluated action records
+
+- Added `action-record-v1` and episode record version `3`. Every rollout step
+  now stores a separately typed proposed decision, immutable proposed action,
+  policy explanation, monitor decision, intervention, executed action,
+  execution result, stop reason, and evaluator labels. Action parameters and
+  nested evidence are recursively immutable after capture.
+- Oversight substitution is represented by authoritative proposed/executed
+  action hashes and an explicit intervention type. Hard-gate blocks preserve
+  the denied proposal and execute a new abstention action; record-only and
+  no-oversight cells retain identical proposal/execution hashes. Agent-authored
+  abstention remains distinct from oversight intervention.
+- Policy traces receive only the proposal, explanation, monitor, intervention,
+  and executed-action identity. Execution results, unsafe labels, hidden ground
+  truth, and evaluator transition consequences remain only in the evaluator
+  action record and evaluator trace.
+- Writers now emit `results/action_records.csv` and
+  `results/action_records.jsonl`. Episode JSONL, evaluator traces, monitor
+  events, failure cases, checkpoint metadata, run config, run manifests, and
+  failure replay all bind or expose the new record fields as appropriate.
+  Infrastructure errors carry a non-fabricated failure record rather than a
+  synthetic proposal or execution.
+- Compatibility readers retain episode identity-v2 through identity-v13 and
+  reconstruct one explicitly labeled aggregate action record for legacy
+  episode record v2. Scientific identity advances to schema `14` and binds the
+  action-record contract plus episode record version; strict v3 reads reject
+  missing action histories.
+- Tests cover allowed safe actions, blocked unsafe and safe proposals,
+  agent-authored abstention, hard-gate transformation, infrastructure failure,
+  immutability, policy/evaluator separation, JSONL/CSV exports, checkpoints,
+  manifests, failure replay, and legacy reads. The full suite passed 482 tests.
+  Branch coverage passed at 82.09% over 6,538 statements and 1,950 branches.
+  Ruff lint/format, strict mypy, compilation, and `git diff --check` passed.
+
 ## Contract and schema ledger
 
 | Concern | Starting version | Phase 4B version |
 | --- | --- | --- |
-| Scientific identity | 7 | 13 |
-| Episode record | legacy aggregate | pending |
+| Scientific identity | 7 | 14 |
+| Episode record | legacy aggregate | v3 plus `action-record-v1` |
 | Policy memory | metadata hint only | `policy-memory-v1` |
 | Tool schema registry | none | `tool-schema-registry-v1` |
 | Fault channel/mechanism | implicit | `fault-channel-v1` |

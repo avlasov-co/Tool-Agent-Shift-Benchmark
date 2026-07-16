@@ -105,7 +105,9 @@ def test_stateless_agent_is_unaffected_by_scheduled_memory_corruption() -> None:
     assert [step["decision"]["action"] for step in shifted_steps] == [
         step["decision"]["action"] for step in clean_steps
     ]
-    assert [step["execution"] for step in shifted_steps] == [step["execution"] for step in clean_steps]
+    assert [record.execution_result for record in shifted.action_records] == [
+        record.execution_result for record in clean.action_records
+    ]
     assert all(step["memory"]["view"] is None for step in shifted_steps)
     assert shifted.metadata["stateful_policy_memory"] is False
 

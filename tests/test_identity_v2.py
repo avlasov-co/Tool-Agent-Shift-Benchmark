@@ -208,6 +208,8 @@ def test_identity_document_contains_required_typed_fields() -> None:
     assert semantic.shift_chains[0][0].version == "3.0.0"
     assert semantic.fault_channel_contract == "fault-channel-v1"
     assert semantic.fault_composition_contract == "fault-composition-v1"
+    assert semantic.action_record_contract == "action-record-v1"
+    assert semantic.episode_record_version == "3"
     assert semantic.monitor_composition_contract == "monitor-composition-v1"
     assert semantic.monitor_modes == ("full_composite_monitor",)
     assert semantic.monitor_compositions[0].components == (

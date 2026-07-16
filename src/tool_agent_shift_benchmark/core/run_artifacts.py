@@ -154,6 +154,8 @@ def snapshot_outputs(
         "git_commit": get_git_commit(),
         "run_id": config_payload.get("run_id", metadata.get("run_id", "unknown")),
         "identity_schema_version": identity_payload.get("schema_version", "1"),
+        "episode_record_version": config_payload.get("episode_record_version", "2"),
+        "action_record_contract": config_payload.get("action_record_contract", "legacy"),
         "normalized_semantic_identity": identity_payload.get("semantic"),
         "operational_settings": identity_payload.get("operational"),
         "legacy_run_id": identity_payload.get("legacy_run_id"),
