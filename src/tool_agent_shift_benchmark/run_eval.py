@@ -12,7 +12,7 @@ from tool_agent_shift_benchmark.core.serialization import canonical_dumps, write
 from tool_agent_shift_benchmark.environments.calendar_ops import CalendarOpsEnvironment
 from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
 from tool_agent_shift_benchmark.environments.risk_ops import RiskOpsEnvironment
-from tool_agent_shift_benchmark.metrics.aggregation import aggregate
+from tool_agent_shift_benchmark.metrics.aggregation import aggregate, within_scenario_deltas
 
 ENVS = {
     "file_ops": FileOpsEnvironment,
@@ -176,6 +176,7 @@ def write_outputs(
     write_csv("results/episode_log.csv", [e.to_row() for e in episodes])
     write_csv("results/summary.csv", aggregate(episodes))
     write_csv("results/static_vs_dynamic.csv", _static_dynamic_rows(episodes))
+    write_csv("results/within_scenario_deltas.csv", within_scenario_deltas(episodes))
     write_jsonl(
         "results/multistep_traces.jsonl",
         (
@@ -270,6 +271,15 @@ def write_outputs(
             "normalized_config": config,
             "operational_request": operational_request or {},
             "episodes": len(episodes),
+            "unique_scenarios": len(
+                {
+                    (episode.metadata.get("scenario_manifest") or {}).get("content_hash", episode.scenario_id)
+                    for episode in episodes
+                }
+            ),
+            "unique_scenario_pairs": len(
+                {episode.scenario_pair_id for episode in episodes if episode.scenario_pair_id}
+            ),
             "orchestration_errors": orchestration_errors or [],
         },
     )

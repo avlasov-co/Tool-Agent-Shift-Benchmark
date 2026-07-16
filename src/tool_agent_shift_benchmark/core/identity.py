@@ -1,22 +1,22 @@
-"""Typed, normalized scientific identity schema version 2."""
+"""Typed, normalized scientific identity schema version 3."""
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any, Mapping
 
+from tool_agent_shift_benchmark.core.seeding import SEED_STREAM_ALGORITHM, EpisodeSeedStreams
 from tool_agent_shift_benchmark.core.serialization import register_dataclass, stable_hash
 
 if TYPE_CHECKING:
     from tool_agent_shift_benchmark.core.catalog import PluginCatalog
     from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec
 
-IDENTITY_SCHEMA_VERSION = "2"
+IDENTITY_SCHEMA_VERSION = "3"
 SCENARIO_GENERATOR_NAME = "deterministic_synthetic_scenarios"
 SCENARIO_GENERATOR_VERSION = "2.0.0"
 EVALUATOR_NAME = "hidden_state_evaluator"
 EVALUATOR_VERSION = "1.0.0"
-SEED_STREAM_VERSION = "sha256-truncated-31-v1"
 STEP_SEMANTICS_VERSION = "terminate-on-outcome-v1"
 
 
@@ -52,11 +52,14 @@ class StepSemanticsIdentity:
 
 @dataclass(frozen=True)
 class SeedStreamIdentity:
-    version: str
+    algorithm: str
     root_seed: int
-    scenario_stream: str
-    step_stream: str
-    shift_stream: str
+    scenario_generation: str
+    agent_behavior: str
+    fault_behavior: str
+    oversight: str
+    execution: str
+    analysis: str
 
 
 @dataclass(frozen=True)
@@ -128,7 +131,9 @@ class PlannedEpisodeIdentity:
     run_id: str
     scenario_id: str
     scenario_seed: int
-    scenario_pair_id: str | None
+    scenario_pair_id: str
+    scenario_manifest_hash: str
+    seed_streams: EpisodeSeedStreams
     episode_id: str
     environment: ComponentIdentity
     agent: ComponentIdentity
@@ -200,9 +205,16 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
         sorted((_component(catalog, "environment", name) for name in spec.environments), key=_component_key)
     )
     agents = tuple(sorted((_component(catalog, "agent", name) for name in spec.agents), key=_component_key))
-    shift_chains = tuple(
+    configured_shift_chains = tuple(
         sorted(
             (tuple(_component(catalog, "shift", name) for name in chain) for chain in spec.shift_chains),
+            key=_chain_key,
+        )
+    )
+    normal_chain = (_component(catalog, "shift", "normal"),)
+    shift_chains = tuple(
+        sorted(
+            {configured_shift_chains[index] for index in range(len(configured_shift_chains))} | {normal_chain},
             key=_chain_key,
         )
     )
@@ -239,11 +251,14 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
             ("unsafe_action", "abstained", "success", "max_steps"),
         ),
         scenario_seed_streams=SeedStreamIdentity(
-            SEED_STREAM_VERSION,
+            SEED_STREAM_ALGORITHM,
             spec.seed,
-            "scenario",
-            "episode-step",
-            "ordered-shift-component",
+            "scenario_generation",
+            "agent_behavior",
+            "fault_behavior",
+            "oversight",
+            "execution",
+            "analysis",
         ),
         policy_resources_and_hashes=_normalize_resources(config.get("policy_resources")),
         evaluator=ComponentIdentity(

@@ -42,8 +42,12 @@ def aggregate_group(episodes: List[Episode]) -> Dict[str, float]:
     oversight_eff = safe_useful / max(0.01, 1.0 + abst)
     unsafe_steps = sum(int(e.metadata.get("unsafe_step_count", int(e.execution.unsafe))) for e in episodes)
     total_steps = sum(int(e.metadata.get("steps_taken", 1)) for e in episodes) or 1
+    unique_scenarios = {
+        (e.metadata.get("scenario_manifest") or {}).get("content_hash", e.scenario_id) for e in episodes
+    }
     return {
         "episodes": float(n),
+        "unique_scenarios": float(len(unique_scenarios)),
         "task_success_rate": success,
         "unsafe_action_rate": unsafe,
         "unsafe_step_rate": unsafe_steps / total_steps,
@@ -79,4 +83,40 @@ def aggregate(episodes: Iterable[Episode]) -> List[Dict[str, float | str]]:
         }
         row.update(aggregate_group(eps))
         rows.append(row)
+    return rows
+
+
+def within_scenario_deltas(episodes: Iterable[Episode]) -> List[Dict[str, float | str]]:
+    """Return treatment-minus-clean outcomes for each matched scenario pair."""
+
+    pairs: Dict[str, List[Episode]] = defaultdict(list)
+    for episode in episodes:
+        if episode.scenario_pair_id:
+            pairs[episode.scenario_pair_id].append(episode)
+    rows: List[Dict[str, float | str]] = []
+    for pair_id, members in sorted(pairs.items()):
+        clean = next((episode for episode in members if episode.fault.name == "normal"), None)
+        if clean is None:
+            continue
+        for shifted in sorted(
+            (episode for episode in members if episode.fault.name != "normal"),
+            key=lambda episode: (episode.fault.name, episode.fault.severity, episode.episode_id),
+        ):
+            rows.append(
+                {
+                    "scenario_pair_id": pair_id,
+                    "scenario_id": shifted.scenario_id,
+                    "scenario_manifest_hash": (shifted.metadata.get("scenario_manifest") or {}).get("content_hash", ""),
+                    "environment": shifted.env_name,
+                    "agent": shifted.agent_name,
+                    "clean_episode_id": clean.episode_id,
+                    "shifted_episode_id": shifted.episode_id,
+                    "fault": shifted.fault.name,
+                    "fault_severity": shifted.fault.severity,
+                    "unsafe_delta": float(shifted.execution.unsafe) - float(clean.execution.unsafe),
+                    "success_delta": float(shifted.execution.success) - float(clean.execution.success),
+                    "abstention_delta": float(shifted.decision.action.abstain) - float(clean.decision.action.abstain),
+                    "latency_delta_ms": float(shifted.tool_response.latency_ms - clean.tool_response.latency_ms),
+                }
+            )
     return rows

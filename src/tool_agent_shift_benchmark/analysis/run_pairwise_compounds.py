@@ -19,6 +19,7 @@ from tool_agent_shift_benchmark.core.identity import (
     ComponentIdentity,
     PlannedEpisodeIdentity,
 )
+from tool_agent_shift_benchmark.core.seeding import episode_seed_streams
 from tool_agent_shift_benchmark.core.serialization import write_csv, write_json
 from tool_agent_shift_benchmark.core.types import FaultConfig, MonitorDecision, stable_hash
 from tool_agent_shift_benchmark.environments.calendar_ops import CalendarOpsEnvironment
@@ -132,20 +133,33 @@ def _plan_fault_combo(
     planned: list[PairwiseEpisodeSpec] = []
     for index in range(episodes_per_combo):
         scenario_id = f"{env_name}_scenario_{index}"
+        streams = episode_seed_streams(
+            root_seed=seed,
+            environment=env_name,
+            scenario_index=index,
+            generator_name="deterministic_synthetic_scenarios",
+            generator_version="2.0.0",
+            scenario_schema_version="v1",
+            agent=agent_name,
+            shift=combo_name,
+            severity=severity,
+            monitor="composite",
+            oversight_treatment="record",
+        )
+        scenario_seed = streams.scenario_generation
+        scenario = ENVS[env_name](seed=scenario_seed, scenario_index=index).scenario_spec
         scenario_pair_id = stable_hash(
             {
-                "kind": "pairwise_scenario",
-                "identity_schema_version": IDENTITY_SCHEMA_VERSION,
-                "env": env_name,
+                "contract": "scenario-pair-v1",
+                "environment": env_name,
+                "scenario_id": scenario_id,
+                "scenario_manifest_hash": scenario.content_hash,
                 "agent": agent_name,
-                "severity": severity,
-                "episodes_per_combo": episodes_per_combo,
-                "seed": seed,
-                "scenario_index": index,
+                "agent_behavior_seed": streams.agent_behavior,
+                "execution_seed": streams.execution,
             },
             prefix="pair",
         )
-        scenario_seed = int(stable_hash({"pair": scenario_pair_id}, prefix="seed").split("_")[1], 16) % (2**31)
         episode_id = stable_hash(
             {
                 "env": env_name,
@@ -161,17 +175,19 @@ def _plan_fault_combo(
         planned.append(
             PairwiseEpisodeSpec(
                 PlannedEpisodeIdentity(
-                    IDENTITY_SCHEMA_VERSION,
-                    run_id,
-                    scenario_id,
-                    scenario_seed,
-                    scenario_pair_id,
-                    episode_id,
-                    environment,
-                    agent,
-                    shift_chain,
-                    monitor,
-                    evaluator,
+                    identity_schema_version=IDENTITY_SCHEMA_VERSION,
+                    run_id=run_id,
+                    scenario_id=scenario_id,
+                    scenario_seed=scenario_seed,
+                    scenario_pair_id=scenario_pair_id,
+                    scenario_manifest_hash=scenario.content_hash,
+                    seed_streams=streams,
+                    episode_id=episode_id,
+                    environment=environment,
+                    agent=agent,
+                    shift_chain=shift_chain,
+                    monitor=monitor,
+                    evaluator=evaluator,
                 ),
                 index,
                 env_name,

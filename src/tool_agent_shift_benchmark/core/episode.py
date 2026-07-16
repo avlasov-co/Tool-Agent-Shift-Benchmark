@@ -81,7 +81,7 @@ class Episode:
             )
             if episode_id != expected_legacy_id:
                 raise ValueError(f"legacy episode_id mismatch: expected {expected_legacy_id!r}, got {episode_id!r}")
-        elif identity_schema_version != "2":
+        elif identity_schema_version not in {"2", "3"}:
             raise ValueError(f"unsupported episode identity schema: {identity_schema_version!r}")
         planned_identity = value.get("planned_identity", {})
         if planned_identity:
@@ -98,6 +98,12 @@ class Episode:
                     raise ValueError(
                         f"serialized planned identity mismatch for {name}: expected {expected!r}, got {actual!r}"
                     )
+            if identity_schema_version == "3":
+                manifest_hash = (value.get("metadata", {}).get("scenario_manifest") or {}).get("content_hash")
+                if planned_identity.get("scenario_manifest_hash") != manifest_hash:
+                    raise ValueError("serialized planned identity mismatch for scenario_manifest_hash")
+                if planned_identity.get("seed_streams") != value.get("metadata", {}).get("seed_streams"):
+                    raise ValueError("serialized planned identity mismatch for seed_streams")
         return cls(
             value["env_name"],
             value["scenario_id"],
@@ -125,6 +131,7 @@ class Episode:
             "environment": self.env_name,
             "scenario_id": self.scenario_id,
             "scenario_pair_id": self.scenario_pair_id or "",
+            "scenario_manifest_hash": (self.metadata.get("scenario_manifest") or {}).get("content_hash", ""),
             "agent_name": self.agent_name,
             "agent": self.agent_name,
             "fault_name": self.fault.name,

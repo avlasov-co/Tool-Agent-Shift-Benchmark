@@ -18,7 +18,7 @@
 
 ## Current checkpoint
 
-Checkpoint 19 — scenario manifests — complete; preparing Checkpoint 20.
+Checkpoint 20 — matched clean/shift pairs — complete; preparing Checkpoint 21.
 
 ## Checkpoint evidence
 
@@ -81,6 +81,35 @@ diagnostic checks remain visible here.
   The full suite passed (175 tests). Compilation, strict mypy, Ruff lint and
   format, and `git diff --check` passed after four files were mechanically
   formatted.
+
+### Checkpoint 20 — matched clean/shift pairs
+
+- Rebuilt canonical planning around scenario units. Each environment/scenario
+  is materialized once, then expanded for each agent into one clean reference
+  and every configured shifted severity treatment. A shift-only config now
+  receives its required clean match automatically.
+- Added stable `scenario-pair-v1` identifiers derived from scenario manifest
+  content, agent identity, agent-behavior seed, and execution seed. Pair IDs do
+  not depend on run ID, fault selection, severity, worker count, selectors, or
+  execution order.
+- Every member of a pair carries byte-identical hidden ground truth, task and
+  constraints, initial state, manifest hash, scenario seed, agent seed, and
+  execution seed. Only fault descriptor, severity, fault stream, and episode
+  ID differ by declared treatment.
+- Scientific identity advanced to schema `3`. Its seed-stream contract now
+  names all six domain-separated streams, planned identity binds the scenario
+  manifest hash and complete seed record, and identity-v2 episodes remain
+  readable as legacy provenance.
+- Worker partitions now assign complete scenario pairs rather than individual
+  treatment episodes. Pair identity and manifest hashes persist through
+  episode/scenario filters, pagination, checkpoint, resume, replay, and sorted
+  parallel results. Checkpoints record completed pair IDs and manifest hashes.
+- Added treatment-minus-clean `within_scenario_deltas.csv`, per-group unique
+  scenario counts, and run metadata that reports total episodes, unique
+  scenarios, and unique scenario pairs separately.
+- Focused pairing/identity/manifest/pairwise tests passed (55 tests). The full
+  suite passed (180 tests). Compilation, strict mypy, Ruff lint and formatting,
+  and `git diff --check` passed after mechanical formatting/import ordering.
 
 ## Contract versions
 

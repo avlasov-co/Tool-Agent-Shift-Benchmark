@@ -229,9 +229,8 @@ class EpisodeSpec:
         return str(self.identity.scenario_id)
 
     @property
-    def scenario_pair_id(self) -> str | None:
-        value = self.identity.scenario_pair_id
-        return None if value is None else str(value)
+    def scenario_pair_id(self) -> str:
+        return str(self.identity.scenario_pair_id)
 
     @property
     def seed(self) -> int:
@@ -331,73 +330,88 @@ class ExperimentPlanner:
         """Construct every semantic episode before applying selectors."""
 
         planned: list[EpisodeSpec] = []
+        treatments: list[tuple[tuple[str, ...], float]] = [(("normal",), 1.0)]
+        seen_treatments: set[tuple[tuple[str, ...], float]] = {(("normal",), 1.0)}
+        for chain in self.spec.shift_chains:
+            for severity in self.spec.severities:
+                treatment = (chain, float(severity))
+                if chain == ("normal",) and severity != 1.0:
+                    continue
+                if treatment not in seen_treatments:
+                    treatments.append(treatment)
+                    seen_treatments.add(treatment)
         for env in self.spec.environments:
-            for agent in self.spec.agents:
-                for chain in self.spec.shift_chains:
-                    shift = "+".join(chain)
-                    for severity in self.spec.severities:
-                        if shift == "normal" and severity != 1.0:
-                            continue
-                        for index in range(self.spec.episodes_per_combo):
-                            if (
-                                self.spec.semantic_scenario_indices is not None
-                                and index not in self.spec.semantic_scenario_indices
-                            ):
-                                continue
-                            scenario_id = f"{env}_scenario_{index}"
-                            generator = self.identity.semantic.scenario_generator
-                            streams = episode_seed_streams(
-                                root_seed=self.spec.seed,
-                                environment=env,
-                                scenario_index=index,
-                                generator_name=generator.name,
-                                generator_version=generator.version,
-                                scenario_schema_version=self.identity.semantic.scenario_schema_version,
-                                agent=agent,
-                                shift=shift,
-                                severity=severity,
-                                monitor=self.spec.monitor,
-                                oversight_treatment=self.spec.monitor_policy,
-                            )
-                            seed = streams.scenario_generation
-                            scenario = self._materialize_scenario(env, index, streams)
-                            episode_id = stable_hash(
-                                {
-                                    "env": env,
-                                    "scenario": scenario_id,
-                                    "agent": agent,
-                                    "fault": shift,
-                                    "severity": severity,
-                                    "seed": seed,
-                                    "scenario_manifest_hash": scenario.content_hash,
-                                    "run_id": self.run_id,
-                                },
-                                prefix="ep",
-                            )
-                            planned_identity = PlannedEpisodeIdentity(
-                                identity_schema_version=self.identity.schema_version,
-                                run_id=self.run_id,
-                                scenario_id=scenario_id,
-                                scenario_seed=seed,
-                                scenario_pair_id=None,
-                                episode_id=episode_id,
-                                environment=_component_identity(self.catalog, "environment", env),
-                                agent=_component_identity(self.catalog, "agent", agent),
-                                shift_chain=tuple(_component_identity(self.catalog, "shift", name) for name in chain),
-                                monitor=self.identity.semantic.monitor,
-                                evaluator=self.identity.semantic.evaluator,
-                            )
-                            item = EpisodeSpec(
-                                planned_identity,
-                                env,
-                                agent,
-                                shift,
-                                severity,
-                                index,
-                                streams,
-                                scenario,
-                            )
-                            planned.append(item)
+            for index in range(self.spec.episodes_per_combo):
+                if self.spec.semantic_scenario_indices is not None and index not in self.spec.semantic_scenario_indices:
+                    continue
+                for agent in self.spec.agents:
+                    for chain, severity in treatments:
+                        shift = "+".join(chain)
+                        scenario_id = f"{env}_scenario_{index}"
+                        generator = self.identity.semantic.scenario_generator
+                        streams = episode_seed_streams(
+                            root_seed=self.spec.seed,
+                            environment=env,
+                            scenario_index=index,
+                            generator_name=generator.name,
+                            generator_version=generator.version,
+                            scenario_schema_version=self.identity.semantic.scenario_schema_version,
+                            agent=agent,
+                            shift=shift,
+                            severity=severity,
+                            monitor=self.spec.monitor,
+                            oversight_treatment=self.spec.monitor_policy,
+                        )
+                        seed = streams.scenario_generation
+                        scenario = self._materialize_scenario(env, index, streams)
+                        pair_id = stable_hash(
+                            {
+                                "contract": "scenario-pair-v1",
+                                "environment": env,
+                                "scenario_id": scenario_id,
+                                "scenario_manifest_hash": scenario.content_hash,
+                                "agent": agent,
+                                "agent_behavior_seed": streams.agent_behavior,
+                                "execution_seed": streams.execution,
+                            },
+                            prefix="pair",
+                        )
+                        episode_id = stable_hash(
+                            {
+                                "pair_id": pair_id,
+                                "fault": shift,
+                                "severity": severity,
+                                "fault_seed": streams.fault_behavior,
+                                "run_id": self.run_id,
+                            },
+                            prefix="ep",
+                        )
+                        planned_identity = PlannedEpisodeIdentity(
+                            identity_schema_version=self.identity.schema_version,
+                            run_id=self.run_id,
+                            scenario_id=scenario_id,
+                            scenario_seed=seed,
+                            scenario_pair_id=pair_id,
+                            scenario_manifest_hash=scenario.content_hash,
+                            seed_streams=streams,
+                            episode_id=episode_id,
+                            environment=_component_identity(self.catalog, "environment", env),
+                            agent=_component_identity(self.catalog, "agent", agent),
+                            shift_chain=tuple(_component_identity(self.catalog, "shift", name) for name in chain),
+                            monitor=self.identity.semantic.monitor,
+                            evaluator=self.identity.semantic.evaluator,
+                        )
+                        item = EpisodeSpec(
+                            planned_identity,
+                            env,
+                            agent,
+                            shift,
+                            severity,
+                            index,
+                            streams,
+                            scenario,
+                        )
+                        planned.append(item)
         return planned
 
     def plan(self) -> list[EpisodeSpec]:
@@ -418,15 +432,19 @@ class ExperimentPlanner:
         if selected_ids:
             ids = set(selected_ids)
             selected = [item for item in selected if item.episode_id in ids]
+        pair_order = list(dict.fromkeys(item.scenario_pair_id for item in selected))
         if self.spec.partition_count is not None:
-            selected = [
-                item
-                for position, item in enumerate(selected)
+            included_pairs = {
+                pair_id
+                for position, pair_id in enumerate(pair_order)
                 if position % self.spec.partition_count == self.spec.partition_index
-            ]
+            }
+            selected = [item for item in selected if item.scenario_pair_id in included_pairs]
+            pair_order = [pair_id for pair_id in pair_order if pair_id in included_pairs]
         start = self.spec.selection_offset
         stop = None if self.spec.selection_limit is None else start + self.spec.selection_limit
-        return selected[start:stop]
+        selected_pairs = set(pair_order[start:stop])
+        return [item for item in selected if item.scenario_pair_id in selected_pairs]
 
 
 class EpisodeRunner:
@@ -535,6 +553,7 @@ class EpisodeRunner:
             scenario_spec=item.scenario_spec,
         )
         agent_obj = self.catalog.get("agent", item.agent)()
+        setattr(agent_obj, "behavior_seed", item.seed_streams.agent_behavior)
         shift_objs = [self.catalog.get("shift", name)(severity=item.severity) for name in item.shift.split("+")]
         evaluator = HiddenStateEvaluator()
         monitor_factory = self.catalog.get("monitor", self.spec.monitor)
@@ -682,6 +701,10 @@ class EpisodeRunner:
             "seed_streams": item.seed_streams.to_dict(),
             "scenario_generator": self.identity_generator_metadata(item),
             "scenario_manifest": item.scenario_spec.public_reference(),
+            "agent_initialization": {
+                "behavior_seed": item.seed_streams.agent_behavior,
+                "shared_across_treatments": True,
+            },
             "episode_steps": self.spec.episode_steps,
             "steps_taken": len(step_trace),
             "multi_step": self.spec.episode_steps > 1,
@@ -860,6 +883,14 @@ class RunCoordinator:
                     {
                         "run_id": planner.run_id,
                         "completed_episode_ids": sorted(completed or set()),
+                        "completed_scenario_pair_ids": sorted(
+                            {
+                                item.scenario_pair_id
+                                for item in canonical_plan
+                                if item.episode_id in set(completed or set())
+                            }
+                        ),
+                        "scenario_manifest_hashes": sorted(scenario.content_hash for scenario in self.scenario_specs),
                         "errors": [e.to_dict() for e in self.errors],
                     },
                 )
@@ -873,6 +904,14 @@ class RunCoordinator:
                 {
                     "run_id": planner.run_id,
                     "completed_episode_ids": sorted((completed or set()) | {e.episode_id for e in episodes}),
+                    "completed_scenario_pair_ids": sorted(
+                        {
+                            item.scenario_pair_id
+                            for item in canonical_plan
+                            if item.episode_id in ((completed or set()) | {episode.episode_id for episode in episodes})
+                        }
+                    ),
+                    "scenario_manifest_hashes": sorted(scenario.content_hash for scenario in self.scenario_specs),
                     "errors": [e.to_dict() for e in self.errors],
                 },
             )

@@ -159,8 +159,10 @@ def test_non_commutative_component_order_changes_identity() -> None:
     )
 
     assert forward.run_id != reverse.run_id
-    forward_names = [component.name for component in forward.identity.semantic.shift_chains[0]]
-    reverse_names = [component.name for component in reverse.identity.semantic.shift_chains[0]]
+    forward_chain = next(chain for chain in forward.identity.semantic.shift_chains if len(chain) > 1)
+    reverse_chain = next(chain for chain in reverse.identity.semantic.shift_chains if len(chain) > 1)
+    forward_names = [component.name for component in forward_chain]
+    reverse_names = [component.name for component in reverse_chain]
     assert forward_names == ["missing_field", "schema_drift"]
     assert reverse_names == ["schema_drift", "missing_field"]
 
@@ -204,6 +206,7 @@ def test_identity_document_contains_required_typed_fields() -> None:
     assert semantic.oversight_treatment == "gate"
     assert semantic.step_semantics.maximum_steps == 2
     assert semantic.scenario_seed_streams.root_seed == 42
+    assert semantic.scenario_seed_streams.algorithm == "sha256-domain-separated-63-v1"
     assert semantic.evaluator.name == "hidden_state_evaluator"
 
 
