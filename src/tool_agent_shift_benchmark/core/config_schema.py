@@ -466,9 +466,13 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
     if pairwise and not fault_pairs:
         raise _error(source, "$.fault_pairs", "pairwise configuration requires at least one fault pair")
 
-    scenario_generator = _string(root.get("scenario_generator", "synthetic_indexed"), source, "$.scenario_generator")
+    scenario_generator = _string(
+        root.get("scenario_generator", "deterministic_synthetic_scenarios"),
+        source,
+        "$.scenario_generator",
+    )
     scenario_generator_version = _string(
-        root.get("scenario_generator_version", "1.0.0"), source, "$.scenario_generator_version"
+        root.get("scenario_generator_version", "2.0.0"), source, "$.scenario_generator_version"
     )
     scenario_schema_version = _string(root.get("scenario_schema_version", "v1"), source, "$.scenario_schema_version")
     scenario_split = _string(root.get("scenario_split", "default"), source, "$.scenario_split")

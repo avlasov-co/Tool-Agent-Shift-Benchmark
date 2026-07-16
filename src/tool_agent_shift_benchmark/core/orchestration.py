@@ -20,6 +20,7 @@ from tool_agent_shift_benchmark.core.identity import (
     PlannedEpisodeIdentity,
     build_experiment_identity,
 )
+from tool_agent_shift_benchmark.core.seeding import EpisodeSeedStreams, episode_seed_streams
 from tool_agent_shift_benchmark.core.serialization import canonical_loads, write_json
 from tool_agent_shift_benchmark.core.types import (
     AgentAction,
@@ -208,6 +209,7 @@ class EpisodeSpec:
     shift: str
     severity: float
     scenario_index: int
+    seed_streams: EpisodeSeedStreams
 
     @property
     def run_id(self) -> str:
@@ -242,6 +244,7 @@ class EpisodeSpec:
             "severity": self.severity,
             "scenario_index": self.scenario_index,
             "seed": self.seed,
+            "seed_streams": self.seed_streams.to_dict(),
             "identity": self.identity.to_dict(),
         }
 
@@ -286,19 +289,21 @@ class ExperimentPlanner:
                             ):
                                 continue
                             scenario_id = f"{env}_scenario_{index}"
-                            identity = {
-                                "run": self.run_id,
-                                "environment": env,
-                                "agent": agent,
-                                "shift": shift,
-                                "severity": severity,
-                                "scenario_index": index,
-                                "scenario": scenario_id,
-                            }
-                            seed = int(
-                                stable_hash({"seed": self.spec.seed, **identity}, prefix="seed").split("_")[1],
-                                16,
-                            ) % (2**31)
+                            generator = self.identity.semantic.scenario_generator
+                            streams = episode_seed_streams(
+                                root_seed=self.spec.seed,
+                                environment=env,
+                                scenario_index=index,
+                                generator_name=generator.name,
+                                generator_version=generator.version,
+                                scenario_schema_version=self.identity.semantic.scenario_schema_version,
+                                agent=agent,
+                                shift=shift,
+                                severity=severity,
+                                monitor=self.spec.monitor,
+                                oversight_treatment=self.spec.monitor_policy,
+                            )
+                            seed = streams.scenario_generation
                             episode_id = stable_hash(
                                 {
                                     "env": env,
@@ -331,6 +336,7 @@ class ExperimentPlanner:
                                 shift,
                                 severity,
                                 index,
+                                streams,
                             )
                             planned.append(item)
         return planned
@@ -610,6 +616,8 @@ class EpisodeRunner:
         metadata = {
             "config_path": self.spec.config.get("_config_path", ""),
             "combo_seed": item.seed,
+            "seed_streams": item.seed_streams.to_dict(),
+            "scenario_generator": self.identity_generator_metadata(item),
             "episode_steps": self.spec.episode_steps,
             "steps_taken": len(step_trace),
             "multi_step": self.spec.episode_steps > 1,
@@ -653,6 +661,16 @@ class EpisodeRunner:
                 descriptor=item.identity.environment,
             )
         return episode
+
+    def identity_generator_metadata(self, item: EpisodeSpec) -> dict[str, str]:
+        generator = item.identity.environment
+        configured = self.spec.config
+        return {
+            "name": str(configured.get("scenario_generator", "deterministic_synthetic_scenarios")),
+            "version": str(configured.get("scenario_generator_version", "2.0.0")),
+            "scenario_schema_version": str(configured.get("scenario_schema_version", "v1")),
+            "environment_version": generator.version,
+        }
 
 
 class EpisodeScheduler:

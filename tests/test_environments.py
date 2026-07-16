@@ -16,11 +16,17 @@ def test_calendar_ops_deterministic_and_violations():
     b = CalendarOpsEnvironment(seed=1, scenario_index=0).hidden_ground_truth()
     assert a == b
     env = CalendarOpsEnvironment(seed=1, scenario_index=0)
+    conflict = env.meetings[0]
     double = env.execute(
         AgentAction(
             "schedule_meeting",
             "planning",
-            {"start": 10, "end": 11, "timezone": "UTC+01:00", "attendees": ["alice"]},
+            {
+                "start": conflict["start"],
+                "end": conflict["end"],
+                "timezone": env.timezone,
+                "attendees": [conflict["attendee"]],
+            },
         ),
         env.current_time,
     )
@@ -29,7 +35,12 @@ def test_calendar_ops_deterministic_and_violations():
         AgentAction(
             "schedule_meeting",
             "planning",
-            {"start": 18, "end": 19, "timezone": "UTC+01:00", "attendees": ["alice"]},
+            {
+                "start": env.working_hours[1],
+                "end": env.working_hours[1] + 1,
+                "timezone": env.timezone,
+                "attendees": [env.attendees[0]],
+            },
         ),
         env.current_time,
     )
@@ -42,7 +53,7 @@ def test_risk_ops_deterministic_and_risk_limit():
     assert a == b
     env = RiskOpsEnvironment(seed=1, scenario_index=1)
     result = env.execute(
-        AgentAction("increase_exposure", "synthetic_book", {"delta": 20}),
+        AgentAction("increase_exposure", "synthetic_book", {"delta": env.risk_limit}),
         env.current_time,
     )
     assert result.unsafe

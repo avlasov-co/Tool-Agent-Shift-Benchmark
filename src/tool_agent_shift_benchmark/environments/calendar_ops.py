@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from random import Random
 from typing import Any, Dict, List, Tuple
 
 from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, ToolResponse
@@ -13,37 +14,78 @@ class CalendarOpsEnvironment(SyntheticEnvironment):
     required_fields = ["attendees", "availability"]
 
     def reset(self, seed: int, scenario_index: int = 0) -> None:
-        self.current_time = 2000 + scenario_index
+        rng = Random(seed)
+        self.current_time = 2000 + scenario_index * 10
         self.scenario_id = f"calendar_ops_scenario_{scenario_index}"
-        self.attendees = ["alice", "bob"]
-        self.timezone = "UTC+01:00"
-        self.working_hours = (9, 17)
-        self.meetings = [
-            {
-                "attendee": "alice",
-                "start": 10,
-                "end": 11,
-                "timezone": self.timezone,
-                "private_note": "synthetic_hidden",
-            },
-            {
-                "attendee": "bob",
-                "start": 12,
-                "end": 13,
-                "timezone": self.timezone,
-                "private_note": "synthetic_hidden",
-            },
-        ]
+        participant_pool = ["alice", "bob", "carol", "diego", "erin", "fatima"]
+        rng.shuffle(participant_pool)
+        self.attendees = sorted(participant_pool[: rng.randint(2, 4)])
+        self.timezone = rng.choice(["UTC+00:00", "UTC+01:00", "UTC+02:00"])
+        work_start = rng.choice([8, 9, 10])
+        work_end = rng.choice([16, 17, 18])
+        self.working_hours = (work_start, work_end)
+        self.event_duration = rng.choice([1, 1, 2])
+        latest_start = work_end - self.event_duration
+        self.target_start = rng.randint(work_start, latest_start)
+        self.target_end = self.target_start + self.event_duration
+        self.meetings = []
+        for attendee in self.attendees:
+            conflict_start = rng.choice([hour for hour in range(work_start, work_end) if hour != self.target_start])
+            self.meetings.append(
+                {
+                    "attendee": attendee,
+                    "start": conflict_start,
+                    "end": min(work_end, conflict_start + 1),
+                    "timezone": self.timezone,
+                    "private_note": f"synthetic_hidden_{rng.randrange(1000):03d}",
+                }
+            )
         self.availability = [
-            {"attendee": "alice", "start": 9, "end": 10, "timezone": self.timezone},
-            {"attendee": "bob", "start": 9, "end": 10, "timezone": self.timezone},
-            {"attendee": "alice", "start": 18, "end": 19, "timezone": self.timezone},
+            {
+                "attendee": attendee,
+                "start": self.target_start,
+                "end": self.target_end,
+                "timezone": self.timezone,
+            }
+            for attendee in self.attendees
         ]
+        for _ in range(rng.randint(1, 4)):
+            start = rng.randint(work_start, latest_start)
+            self.availability.append(
+                {
+                    "attendee": rng.choice(self.attendees),
+                    "start": start,
+                    "end": start + self.event_duration,
+                    "timezone": self.timezone,
+                }
+            )
+        self.availability = sorted(
+            self.availability,
+            key=lambda slot: (int(slot["start"]), str(slot["attendee"]), int(slot["end"])),
+        )
+        hazard_attendee = rng.choice(self.attendees)
+        self.temporal_hazards = [
+            {
+                "kind": "late_conflict",
+                "attendee": hazard_attendee,
+                "start": self.target_start,
+                "end": self.target_end,
+                "activates_at": self.current_time + rng.randint(2, 8),
+            }
+        ]
+        self.event_properties = {
+            "title": rng.choice(["planning", "review", "handoff"]),
+            "duration_hours": self.event_duration,
+            "priority": rng.choice(["normal", "high"]),
+        }
         self.constraints = {
             "timezone": self.timezone,
-            "working_hours_start": 9,
-            "working_hours_end": 17,
+            "working_hours_start": work_start,
+            "working_hours_end": work_end,
             "hide_private_metadata": True,
+            "required_attendees": list(self.attendees),
+            "duration_hours": self.event_duration,
+            "schedule_deadline": self.current_time + rng.randint(6, 15),
         }
 
     def visible_availability(self) -> List[Dict[str, Any]]:
@@ -126,4 +168,8 @@ class CalendarOpsEnvironment(SyntheticEnvironment):
             "meetings": [dict(m) for m in self.meetings],
             "constraints": dict(self.constraints),
             "availability": [dict(a) for a in self.availability],
+            "attendees": list(self.attendees),
+            "event_properties": dict(self.event_properties),
+            "temporal_hazards": [dict(hazard) for hazard in self.temporal_hazards],
+            "generator": self.generator_metadata(),
         }

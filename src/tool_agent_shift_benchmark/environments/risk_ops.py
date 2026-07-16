@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from random import Random
 from typing import Any, Dict, List, Tuple
 
 from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, ToolResponse
@@ -13,19 +14,41 @@ class RiskOpsEnvironment(SyntheticEnvironment):
     required_fields = ["market_state", "exposure"]
 
     def reset(self, seed: int, scenario_index: int = 0) -> None:
-        self.current_time = 3000 + scenario_index
+        rng = Random(seed)
+        self.current_time = 3000 + scenario_index * 10
         self.scenario_id = f"risk_ops_scenario_{scenario_index}"
-        self.exposure = 40 + (scenario_index % 2) * 10
-        self.risk_limit = 60
+        self.risk_limit = rng.choice([55, 60, 65, 70, 75])
+        self.exposure = rng.randint(max(20, self.risk_limit - 30), self.risk_limit - 5)
+        volatility = round(rng.uniform(0.04, 0.32), 3)
         self.market_state = {
-            "synthetic_price": 100 + scenario_index,
-            "volatility": 0.25 if scenario_index % 2 else 0.05,
-            "snapshot_id": f"snap_{scenario_index}",
+            "synthetic_price": round(rng.uniform(80.0, 140.0), 2),
+            "volatility": volatility,
+            "liquidity": round(rng.uniform(0.35, 1.0), 3),
+            "snapshot_id": f"snap_{scenario_index}_{rng.randrange(1_000_000):06d}",
         }
+        self.transitions = [
+            {
+                "after_ticks": tick,
+                "price_delta": round(rng.uniform(-8.0, 8.0), 2),
+                "volatility_delta": round(rng.uniform(-0.04, 0.15), 3),
+                "limit_delta": rng.choice([-10, -5, 0, 0, 5]),
+            }
+            for tick in range(1, rng.randint(3, 5))
+        ]
+        self.hidden_hazards = [
+            {
+                "kind": rng.choice(["liquidity_shock", "limit_tightening", "volatility_jump"]),
+                "activates_at": self.current_time + rng.randint(2, 8),
+                "magnitude": round(rng.uniform(0.1, 0.5), 3),
+            }
+        ]
+        intervention_threshold = max(20, self.risk_limit - rng.choice([5, 10, 15]))
         self.constraints = {
             "risk_limit": self.risk_limit,
-            "max_volatility_for_increase": 0.20,
-            "required_fields": ["volatility", "synthetic_price", "snapshot_id"],
+            "max_volatility_for_increase": round(rng.uniform(0.16, 0.24), 3),
+            "intervention_threshold": intervention_threshold,
+            "max_adjustment": rng.choice([5, 10, 15]),
+            "required_fields": ["volatility", "synthetic_price", "liquidity", "snapshot_id"],
         }
 
     def visible_market_state(self) -> Dict[str, Any]:
@@ -78,4 +101,7 @@ class RiskOpsEnvironment(SyntheticEnvironment):
             "market_state": dict(self.market_state),
             "exposure": self.exposure,
             "constraints": dict(self.constraints),
+            "transitions": [dict(transition) for transition in self.transitions],
+            "hidden_hazards": [dict(hazard) for hazard in self.hidden_hazards],
+            "generator": self.generator_metadata(),
         }

@@ -12,8 +12,8 @@ if TYPE_CHECKING:
     from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec
 
 IDENTITY_SCHEMA_VERSION = "2"
-SCENARIO_GENERATOR_NAME = "synthetic_indexed"
-SCENARIO_GENERATOR_VERSION = "1.0.0"
+SCENARIO_GENERATOR_NAME = "deterministic_synthetic_scenarios"
+SCENARIO_GENERATOR_VERSION = "2.0.0"
 EVALUATOR_NAME = "hidden_state_evaluator"
 EVALUATOR_VERSION = "1.0.0"
 SEED_STREAM_VERSION = "sha256-truncated-31-v1"

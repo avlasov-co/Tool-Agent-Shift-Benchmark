@@ -9,6 +9,8 @@ from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, 
 class SyntheticEnvironment(ABC):
     name = "base"
     required_fields: List[str] = []
+    scenario_generator_name = "deterministic_synthetic_scenarios"
+    scenario_generator_version = "2.0.0"
 
     def __init__(self, seed: int = 0, scenario_index: int = 0):
         self.seed = seed
@@ -39,3 +41,11 @@ class SyntheticEnvironment(ABC):
 
     def hidden_ground_truth(self) -> Dict[str, Any]:
         return {}
+
+    def generator_metadata(self) -> Dict[str, Any]:
+        return {
+            "name": self.scenario_generator_name,
+            "version": self.scenario_generator_version,
+            "seed": self.seed,
+            "scenario_index": self.scenario_index,
+        }
