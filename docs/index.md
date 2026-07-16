@@ -17,6 +17,7 @@ Start here if you are evaluating the repository.
 7. [`docs/release_process.md`](release_process.md) — release validation and archive checklist.
 8. [`docs/analysis_layer.md`](analysis_layer.md) — post-hoc analysis, pairwise compound analysis, and release verification.
 9. [`docs/development/phase-4b-handoff.md`](development/phase-4b-handoff.md) — Phase 4A contract, migration, evidence, limitations, and Phase 4B continuation map.
+10. [`docs/development/phase-5a-handoff.md`](development/phase-5a-handoff.md) — Phase 4B terminal contracts, validation evidence, compatibility, limitations, and Phase 5A starting decisions.
 
 ## Run first
 
@@ -52,7 +53,7 @@ The replay shows the environment, fault, agent decision, monitor decision, actio
 ## What to look for
 
 - Whether unsafe action rates increase under shift.
-- Whether monitor-gated and validation-heavy agents reduce unsafe behavior.
+- Whether independent monitor and oversight treatments reduce unsafe behavior.
 - Whether safety gains come with coverage or abstention costs.
 - Whether compound faults expose failures that single faults do not.
 - Whether failure cases are inspectable and reproducible.

@@ -15,8 +15,8 @@
 
 ## Current checkpoint
 
-Checkpoints 27–35 complete; terminal validation and the Phase 5A handoff are
-next.
+Checkpoints 27–35 and terminal validation are complete. The exact Phase 5A
+starting contract is recorded in [`phase-5a-handoff.md`](phase-5a-handoff.md).
 
 ## Checkpoint evidence
 
@@ -344,4 +344,43 @@ next.
 
 ## Phase 5A handoff
 
-Pending completion of Checkpoints 27–35 and the terminal validation matrix.
+### Terminal validation evidence
+
+- The focused terminal matrix passed 350 tests covering clean/shift and
+  lifecycle integration, memory and requery, schema migration, every causal
+  fault channel, compound order, monitor/oversight treatments, immutable action
+  records, counterfactual purity, scenario manifests, split integrity, context
+  redaction, and anti-shortcut checks.
+- `make test` compiled `src` and `tests` and passed all 501 tests.
+  `make coverage` passed at 82.02% branch coverage over 6,973 statements and
+  2,116 branches. Ruff lint and format-check, strict mypy, and
+  `git diff --check` passed.
+- `make distribution-smoke` passed all 27 isolated distribution checks.
+  `make verify-release` passed all 27 phases in a temporary checkout, including
+  a locked environment, compilation, static checks, tests, coverage, config and
+  plan validation, two fixed-seed run bundles, canonical deterministic-output
+  comparison, analysis, plots, reports, pinned-browser architecture rendering,
+  package builds, isolated installation, and installed CLI smoke.
+- The non-destructive audit passed 18 of 19 diagnostics. Its only finding is
+  intentional historical evidence staleness: the untouched checked-in Phase 4A
+  outputs do not include the newer `results/episodes.jsonl`. Package build,
+  wheel inspection, isolated installation, all CLI/config/plan smoke checks,
+  metadata, and every code check passed. Root results, figures, and generated
+  reports were not rewritten to suppress the finding.
+- Final source inspection found no first-party agent/monitor references to
+  scenario IDs, split IDs, challenge labels, or fixed behavior seeds; no
+  generated evidence was staged.
+
+### Continuation
+
+Start Phase 5A from the terminal handoff commit whose source parent is
+Checkpoint 35 commit `fe451a1`. Preserve identity-v2 through identity-v15 and
+scenario-manifest v1/v2 readers, the policy/evaluator boundary, the three
+independent oversight treatments, immutable proposal history, pure
+counterfactual scoring, and disjoint split namespaces. Treat root publication
+evidence as the historical Phase 4A snapshot until a separately scoped,
+command-recorded evidence release is approved.
+
+The detailed contract ledger, deprecated aliases, limitations, validation
+commands, and proposed first Phase 5A decision points are in
+[`phase-5a-handoff.md`](phase-5a-handoff.md).
