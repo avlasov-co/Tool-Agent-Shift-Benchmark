@@ -37,22 +37,38 @@ class ObservationContext:
     This object is intentionally built from public task metadata and the current
     tool observation. It must not retain the environment object, hidden ground
     truth, clean unfaulted tool responses, or evaluator-only execution methods.
+    Timing fields describe only the current visible response on the deterministic
+    millisecond clock.
     """
 
     env_name: str
     scenario_id: str
     current_time: int
+    observation_timestamp: int
+    response_latency_ms: int
+    response_received_at: int
     required_fields: Tuple[str, ...]
     constraints: Dict[str, Any] = field(default_factory=dict)
     task_hint: str = ""
     task_parameters: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_environment(cls, env: object, observation: Observation) -> "ObservationContext":
+    def from_environment(
+        cls,
+        env: object,
+        observation: Observation,
+        *,
+        response_latency_ms: int = 0,
+        response_received_at: int | None = None,
+    ) -> "ObservationContext":
+        current_time = int(getattr(env, "current_time", observation.timestamp))
         return cls(
             env_name=observation.env_name,
             scenario_id=observation.scenario_id,
-            current_time=int(getattr(env, "current_time", observation.timestamp)),
+            current_time=current_time,
+            observation_timestamp=observation.timestamp,
+            response_latency_ms=response_latency_ms,
+            response_received_at=current_time if response_received_at is None else response_received_at,
             required_fields=tuple(getattr(env, "required_fields", ())),
             constraints=dict(observation.constraints),
             task_hint=str(getattr(env, "task", "")),

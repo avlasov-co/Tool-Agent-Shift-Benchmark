@@ -199,7 +199,7 @@ def test_identity_document_contains_required_typed_fields() -> None:
     assert identity.schema_version == IDENTITY_SCHEMA_VERSION
     assert semantic.identity_schema_version == IDENTITY_SCHEMA_VERSION
     assert semantic.scenario_generator.name == "deterministic_synthetic_scenarios"
-    assert semantic.scenario_generator.version == "2.0.0"
+    assert semantic.scenario_generator.version == "2.1.0"
     assert semantic.scenario_schema_version == "v1"
     assert semantic.environments[0].version == "1.0.0"
     assert semantic.agents[0].version == "1.0.0"
@@ -207,6 +207,7 @@ def test_identity_document_contains_required_typed_fields() -> None:
     assert semantic.oversight_treatment == "gate"
     assert semantic.step_semantics.maximum_steps == 2
     assert semantic.step_semantics.requery_contract == "tool-requery-v1"
+    assert semantic.step_semantics.clock_contract == "causal-latency-v1"
     assert semantic.step_semantics.maximum_requeries_per_step == 2
     assert semantic.scenario_seed_streams.root_seed == 42
     assert semantic.scenario_seed_streams.algorithm == "sha256-domain-separated-63-v1"

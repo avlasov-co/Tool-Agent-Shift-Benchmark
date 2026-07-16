@@ -579,7 +579,7 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
         "$.scenario_generator",
     )
     scenario_generator_version = _string(
-        root.get("scenario_generator_version", "2.0.0"), source, "$.scenario_generator_version"
+        root.get("scenario_generator_version", "2.1.0"), source, "$.scenario_generator_version"
     )
     scenario_schema_version = _string(root.get("scenario_schema_version", "v1"), source, "$.scenario_schema_version")
     scenario_split = _string(root.get("scenario_split", "default"), source, "$.scenario_split")

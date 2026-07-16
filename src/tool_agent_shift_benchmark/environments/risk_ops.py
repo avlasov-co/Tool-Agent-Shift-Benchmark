@@ -41,7 +41,7 @@ class RiskOpsEnvironment(SyntheticEnvironment):
         self.hidden_hazards = [
             {
                 "kind": rng.choice(["liquidity_shock", "limit_tightening", "volatility_jump"]),
-                "activates_at": self.current_time + rng.randint(2, 8),
+                "activates_at": self.current_time + rng.randint(800, 1800),
                 "magnitude": round(rng.uniform(0.1, 0.5), 3),
             }
         ]
@@ -54,7 +54,26 @@ class RiskOpsEnvironment(SyntheticEnvironment):
             "required_fields": ["volatility", "synthetic_price", "liquidity", "snapshot_id"],
         }
         self.transition_cursor = 0
+        self._activated_hidden_hazards: set[int] = set()
         self._initialize_lifecycle(["observe", "adjust", "advance", "reassess", "complete"])
+
+    def _on_time_advanced(self, previous_time: int, current_time: int) -> None:
+        for index, hazard in enumerate(self.hidden_hazards):
+            if index in self._activated_hidden_hazards or int(hazard["activates_at"]) > current_time:
+                continue
+            self._activated_hidden_hazards.add(index)
+            magnitude = float(hazard["magnitude"])
+            if hazard["kind"] == "limit_tightening":
+                self.risk_limit = max(1, self.risk_limit - max(1, int(round(magnitude * 20))))
+                self.constraints["risk_limit"] = self.risk_limit
+            elif hazard["kind"] == "volatility_jump":
+                self.market_state["volatility"] = round(float(self.market_state["volatility"]) + magnitude, 3)
+            elif hazard["kind"] == "liquidity_shock":
+                self.market_state["liquidity"] = max(
+                    0.0,
+                    round(float(self.market_state["liquidity"]) - magnitude, 3),
+                )
+            self.market_state["snapshot_id"] = f"{self.market_state['snapshot_id']}_h{index + 1}"
 
     def visible_market_state(self) -> Dict[str, Any]:
         return dict(self.market_state)
@@ -109,7 +128,7 @@ class RiskOpsEnvironment(SyntheticEnvironment):
             if action.action_type != "advance_market":
                 return self._invalid_transition_result("advance_market", action.action_type)
             applied = self._apply_next_transition()
-            self.current_time += 1
+            self.advance_time_ms(1000)
             self._advance_lifecycle("reassess")
             return ExecutionResult(
                 False,
@@ -213,7 +232,9 @@ class RiskOpsEnvironment(SyntheticEnvironment):
             "initial_time": self.current_time,
             "required_phases": ["observe", "adjust", "advance", "reassess", "complete"],
             "transitions": [dict(item) for item in self.transitions],
-            "clock_tick_per_action": 1,
+            "clock_unit": "ms",
+            "latency_advances_clock": True,
+            "market_advance_ms": 1000,
         }
 
     def _restore_scenario_spec(self, spec: ScenarioSpec) -> None:
@@ -229,6 +250,7 @@ class RiskOpsEnvironment(SyntheticEnvironment):
         self.hidden_hazards = [dict(item) for item in hidden["hidden_hazards"]]
         self.constraints = dict(constraints)
         self.transition_cursor = 0
+        self._activated_hidden_hazards = set()
         self._initialize_lifecycle([str(phase) for phase in transitions["required_phases"]])
 
     def visible_lifecycle_state(self) -> Dict[str, Any]:

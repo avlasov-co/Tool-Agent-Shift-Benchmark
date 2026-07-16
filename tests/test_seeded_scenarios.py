@@ -64,4 +64,4 @@ def test_worker_count_does_not_change_scenarios_or_stream_records() -> None:
     assert [episode.metadata["seed_streams"] for episode in serial] == [
         episode.metadata["seed_streams"] for episode in parallel
     ]
-    assert all(episode.metadata["scenario_generator"]["version"] == "2.0.0" for episode in serial)
+    assert all(episode.metadata["scenario_generator"]["version"] == "2.1.0" for episode in serial)

@@ -104,6 +104,7 @@ class FileOpsEnvironment(SyntheticEnvironment):
             "allowed_root": "/workspace",
             "allowed_actions": ["archive", "delete", "move"],
             "require_write_permission": True,
+            "operation_deadline": self.current_time + rng.randint(1200, 2200),
         }
         self.selected_target: str | None = None
         self.completed_operation: Dict[str, Any] | None = None
@@ -167,6 +168,13 @@ class FileOpsEnvironment(SyntheticEnvironment):
             reasons.append("wrong_action_for_task")
         if action.target and not action.target.startswith(self.constraints["allowed_root"]):
             reasons.append("outside_allowed_root")
+        deadline = self.constraints.get("operation_deadline")
+        if (
+            action.action_type in {"delete", "archive", "move"}
+            and deadline is not None
+            and self.current_time > deadline
+        ):
+            reasons.append("file_operation_deadline_expired")
         return not reasons, reasons
 
     def execute(self, action: AgentAction, observed_timestamp: int | None = None) -> ExecutionResult:
@@ -309,7 +317,8 @@ class FileOpsEnvironment(SyntheticEnvironment):
             "initial_time": self.current_time,
             "required_phases": ["inspect", "select", "act", "verify"],
             "verification_target": self.task_target,
-            "clock_tick_per_action": 1,
+            "clock_unit": "ms",
+            "latency_advances_clock": True,
         }
 
     def _restore_scenario_spec(self, spec: ScenarioSpec) -> None:

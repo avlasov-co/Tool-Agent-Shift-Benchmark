@@ -135,7 +135,7 @@ def _plan_fault_combo(
             environment=env_name,
             scenario_index=index,
             generator_name="deterministic_synthetic_scenarios",
-            generator_version="2.0.0",
+            generator_version="2.1.0",
             scenario_schema_version="v1",
             agent=agent_name,
             shift=combo_name,

@@ -18,7 +18,7 @@
 
 ## Current checkpoint
 
-Checkpoint 24 — real retry and requery — complete; preparing Checkpoint 25.
+Checkpoint 25 — causal latency — complete; preparing Checkpoint 26.
 
 ## Checkpoint evidence
 
@@ -251,6 +251,50 @@ diagnostic checks remain visible here.
   full suite passed (207 tests). Compilation, strict mypy, Ruff lint/format,
   and `git diff --check` passed.
 
+### Checkpoint 25 — causal latency
+
+- Added `causal-latency-v1` and formalized every first-party environment clock
+  as deterministic simulated milliseconds. A response is timestamped before
+  service, then the environment advances by exactly `ToolResponse.latency_ms`
+  before policy decision or execution. Zero latency preserves the clock.
+- Every visible response now carries timing with clock unit, observation
+  timestamp, response latency, pre-response environment clock, and response-
+  received timestamp. `ObservationContext` exposes the same documented visible
+  fields. Step traces additionally record execution timestamp and final
+  environment clock; evaluator attempt provenance keeps the full causal timing
+  record for every original query and requery.
+- Latency composes across requeries. Each subsequent call observes the clock
+  left by the preceding response, while the schedule remains on the same
+  lifecycle step. Tests prove the final clock delta equals the sum of attempt
+  latencies and all combined latency+schema responses remain shifted.
+- Freshness monitoring now computes age against the post-latency context clock.
+  RiskMonitor consumes `context.response_latency_ms` rather than probing the
+  `Observation` for a nonexistent latency attribute, and records the visible
+  latency contribution to its score.
+- FileOps now revalidates a generated operation deadline at execution.
+  CalendarOps activates late conflicts as time advances, removes invalidated
+  availability, and revalidates its scheduling deadline. RiskOps activates
+  deterministic liquidity, volatility, or limit hazards and revalidates the
+  current risk envelope; its explicit market-advance transition advances the
+  same clock by one simulated second.
+- Scenario generator identity advanced to
+  `deterministic_synthetic_scenarios@2.1.0` because generated deadlines and
+  timed hazard semantics changed. Scientific identity advanced to schema `6`
+  and records the causal clock contract. Stored manifests remain authoritative
+  under their recorded generator version, and identity-v2 through identity-v5
+  episode records remain readable.
+- A newly reachable clean Calendar distractor collision under the new scenario
+  seed stream was retained as a diagnostic failure until the generator was
+  repaired: only the declared target slot can now contain all required
+  attendees, while distractor variation remains.
+- Tests cover exact clock arithmetic, negative/inconsistent timing rejection,
+  policy-visible timing, deterministic latency traces, all three environment
+  runners, File deadline expiry, Calendar conflict/deadline activation, Risk
+  limit tightening, monitor field use, latency/requery/fault composition, and
+  identity/generator versioning. The full suite passed (216 tests).
+  Compilation, strict mypy, Ruff lint/format, and `git diff --check` passed
+  after mechanical formatting.
+
 ## Contract versions
 
 - Starting identity schema: `2`.
@@ -259,9 +303,11 @@ diagnostic checks remain visible here.
 - Starting plugin contract: `1`.
 - Starting canonical serialization schema: `1`.
 - Starting scenario semantic label: `v1` (not a complete manifest schema).
-- Current identity and planned-identity schema: `5`.
+- Current identity and planned-identity schema: `6`.
 - Current fault-schedule contract: `fault-schedule-v2`.
 - Current tool-requery contract: `tool-requery-v1`.
+- Current causal-latency contract: `causal-latency-v1`.
+- Current scenario generator: `deterministic_synthetic_scenarios@2.1.0`.
 - Current scenario-manifest contract: `scenario-manifest-v2`.
 - Current step-lifecycle contract: `environment-state-machine-v2`.
 

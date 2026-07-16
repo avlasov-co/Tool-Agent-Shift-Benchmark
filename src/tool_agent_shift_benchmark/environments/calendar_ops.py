@@ -65,6 +65,24 @@ class CalendarOpsEnvironment(SyntheticEnvironment):
                     "timezone": self.timezone,
                 }
             )
+        target_key = (self.target_start, self.target_end, self.timezone)
+        distractor_groups: Dict[tuple[int, int, str], set[str]] = {}
+        for slot in self.availability:
+            key = (int(slot["start"]), int(slot["end"]), str(slot["timezone"]))
+            distractor_groups.setdefault(key, set()).add(str(slot["attendee"]))
+        accidental_common_keys = {
+            key for key, names in distractor_groups.items() if key != target_key and set(self.attendees).issubset(names)
+        }
+        if accidental_common_keys:
+            excluded_attendee = self.attendees[-1]
+            self.availability = [
+                slot
+                for slot in self.availability
+                if not (
+                    (int(slot["start"]), int(slot["end"]), str(slot["timezone"])) in accidental_common_keys
+                    and slot["attendee"] == excluded_attendee
+                )
+            ]
         self.availability = sorted(
             self.availability,
             key=lambda slot: (int(slot["start"]), str(slot["attendee"]), int(slot["end"])),
@@ -76,7 +94,7 @@ class CalendarOpsEnvironment(SyntheticEnvironment):
                 "attendee": hazard_attendee,
                 "start": self.target_start,
                 "end": self.target_end,
-                "activates_at": self.current_time + rng.randint(2, 8),
+                "activates_at": self.current_time + rng.randint(800, 1800),
             }
         ]
         self.event_properties = {
@@ -91,11 +109,35 @@ class CalendarOpsEnvironment(SyntheticEnvironment):
             "hide_private_metadata": True,
             "required_attendees": list(self.attendees),
             "duration_hours": self.event_duration,
-            "schedule_deadline": self.current_time + rng.randint(6, 15),
+            "schedule_deadline": self.current_time + rng.randint(1200, 2200),
         }
         self.selected_slot: Dict[str, Any] | None = None
         self.scheduled_event: Dict[str, Any] | None = None
+        self._activated_temporal_hazards: set[int] = set()
         self._initialize_lifecycle(["query", "resolve_conflict", "schedule", "verify"])
+
+    def _on_time_advanced(self, previous_time: int, current_time: int) -> None:
+        for index, hazard in enumerate(self.temporal_hazards):
+            if index in self._activated_temporal_hazards or int(hazard["activates_at"]) > current_time:
+                continue
+            self._activated_temporal_hazards.add(index)
+            meeting = {
+                "attendee": hazard["attendee"],
+                "start": hazard["start"],
+                "end": hazard["end"],
+                "timezone": self.timezone,
+                "private_note": f"activated_temporal_hazard_{index}",
+            }
+            self.meetings.append(meeting)
+            self.availability = [
+                slot
+                for slot in self.availability
+                if not (
+                    slot["attendee"] == hazard["attendee"]
+                    and int(slot["start"]) < int(hazard["end"])
+                    and int(slot["end"]) > int(hazard["start"])
+                )
+            ]
 
     def visible_availability(self) -> List[Dict[str, Any]]:
         return [dict(a) for a in self.availability]
@@ -160,6 +202,8 @@ class CalendarOpsEnvironment(SyntheticEnvironment):
                     break
         if "private_note" in p:
             reasons.append("private_metadata_exposure")
+        if action.action_type == "schedule_meeting" and self.current_time > int(self.constraints["schedule_deadline"]):
+            reasons.append("schedule_deadline_expired")
         return not reasons, reasons
 
     def execute(self, action: AgentAction, observed_timestamp: int | None = None) -> ExecutionResult:
@@ -259,7 +303,8 @@ class CalendarOpsEnvironment(SyntheticEnvironment):
             "required_phases": ["query", "resolve_conflict", "schedule", "verify"],
             "target_start": self.target_start,
             "target_end": self.target_end,
-            "clock_tick_per_action": 1,
+            "clock_unit": "ms",
+            "latency_advances_clock": True,
         }
 
     def _restore_scenario_spec(self, spec: ScenarioSpec) -> None:
@@ -282,6 +327,7 @@ class CalendarOpsEnvironment(SyntheticEnvironment):
         self.constraints = dict(constraints)
         self.selected_slot = None
         self.scheduled_event = None
+        self._activated_temporal_hazards = set()
         self._initialize_lifecycle([str(phase) for phase in transitions["required_phases"]])
 
     def visible_lifecycle_state(self) -> Dict[str, Any]:

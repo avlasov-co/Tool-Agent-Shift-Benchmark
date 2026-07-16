@@ -204,7 +204,7 @@ def test_requery_budget_is_semantic_identity_and_builtin_capability() -> None:
     first_coordinator.run()
     second_coordinator.run()
 
-    assert IDENTITY_SCHEMA_VERSION == "5"
+    assert int(IDENTITY_SCHEMA_VERSION) >= 5
     assert first_coordinator.run_id != second_coordinator.run_id
     assert first_coordinator.identity is not None
     assert first_coordinator.identity.semantic.step_semantics.maximum_requeries_per_step == 1

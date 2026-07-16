@@ -19,5 +19,10 @@ class FreshnessMonitor(BaseMonitor):
             not reasons,
             0.8 if reasons else 0.0,
             reasons,
-            {"age": age, "max_age": self.max_age},
+            {
+                "age": age,
+                "max_age": self.max_age,
+                "response_latency_ms": context.response_latency_ms,
+                "response_received_at": context.response_received_at,
+            },
         )

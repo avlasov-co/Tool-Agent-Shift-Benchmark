@@ -15,7 +15,7 @@ class SyntheticEnvironment(ABC):
     name = "base"
     required_fields: List[str] = []
     scenario_generator_name = "deterministic_synthetic_scenarios"
-    scenario_generator_version = "2.0.0"
+    scenario_generator_version = "2.1.0"
 
     def __init__(
         self,
@@ -57,6 +57,18 @@ class SyntheticEnvironment(ABC):
 
     def hidden_ground_truth(self) -> Dict[str, Any]:
         return {}
+
+    def advance_time_ms(self, duration_ms: int) -> None:
+        """Advance the deterministic environment clock and activate timed state."""
+
+        if not isinstance(duration_ms, int) or isinstance(duration_ms, bool) or duration_ms < 0:
+            raise ValueError("duration_ms must be a non-negative integer")
+        previous_time = self.current_time
+        self.current_time += duration_ms
+        self._on_time_advanced(previous_time, self.current_time)
+
+    def _on_time_advanced(self, previous_time: int, current_time: int) -> None:
+        """Apply environment-specific state whose activation lies in this interval."""
 
     def _initialize_lifecycle(self, phases: List[str]) -> None:
         if not phases:

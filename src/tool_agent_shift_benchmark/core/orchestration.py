@@ -35,6 +35,7 @@ from tool_agent_shift_benchmark.core.scenarios import (
 )
 from tool_agent_shift_benchmark.core.seeding import EpisodeSeedStreams, episode_seed_streams
 from tool_agent_shift_benchmark.core.serialization import canonical_loads, write_json
+from tool_agent_shift_benchmark.core.timing import CAUSAL_LATENCY_CONTRACT, ResponseTiming
 from tool_agent_shift_benchmark.core.types import (
     AgentAction,
     AgentDecision,
@@ -628,6 +629,22 @@ class EpisodeRunner:
             shifted,
             observation=replace(shifted.observation, metadata=shifted_observation_metadata),
         )
+        environment_clock_before = int(getattr(env_obj, "current_time", shifted.observation.timestamp))
+        advance_time = getattr(env_obj, "advance_time_ms", None)
+        if callable(advance_time):
+            advance_time(shifted.latency_ms)
+        elif shifted.latency_ms:
+            raise RuntimeError("environment does not support causal latency clock advancement")
+        response_received_at = int(getattr(env_obj, "current_time", environment_clock_before))
+        timing = ResponseTiming(
+            contract=CAUSAL_LATENCY_CONTRACT,
+            clock_unit="ms",
+            observation_timestamp=shifted.observation.timestamp,
+            response_latency_ms=shifted.latency_ms,
+            environment_clock_before=environment_clock_before,
+            response_received_at=response_received_at,
+        )
+        shifted = replace(shifted, metadata={**shifted.metadata, "timing": timing.to_dict()})
         policy_response = redact_response_for_policy(shifted)
         visible_response_hash = stable_hash(policy_response.to_dict(), prefix="visible")
         tool_call_id = stable_hash(
@@ -658,6 +675,7 @@ class EpisodeRunner:
             "visible_response_hash": visible_response_hash,
             "schedule_evaluations": schedule_provenance,
             "realized_faults": shifted.observation.metadata.get("faults", []),
+            "timing": timing.to_dict(),
             "clean_response_exposed": False,
         }
         return shifted, policy_response, schedule_provenance, response_provenance
@@ -739,7 +757,12 @@ class EpisodeRunner:
                 )
                 total_tool_calls += 1
                 total_tool_cost_units += TOOL_CALL_COST_UNITS
-                context = ObservationContext.from_environment(env_obj, policy_response.observation)
+                context = ObservationContext.from_environment(
+                    env_obj,
+                    policy_response.observation,
+                    response_latency_ms=policy_response.latency_ms,
+                    response_received_at=int(policy_response.metadata["timing"]["response_received_at"]),
+                )
                 decision = agent_obj.decide(context, policy_response)
                 self._mismatch(
                     item,
@@ -841,6 +864,10 @@ class EpisodeRunner:
                     "transition": transition.to_dict(),
                     "attempt_count": len(policy_attempts),
                     "attempts": policy_attempts,
+                    "observation_timestamp": policy_response.observation.timestamp,
+                    "response_latency_ms": policy_response.latency_ms,
+                    "execution_timestamp": int(state_after["current_time"]),
+                    "environment_clock": int(env_obj.current_time),
                 }
             )
             score = evaluator.score(env_obj, action, execution)
@@ -890,6 +917,7 @@ class EpisodeRunner:
             },
             "fault_schedules": [schedule.to_dict() for schedule in item.fault_schedules],
             "requery_contract": TOOL_REQUERY_CONTRACT,
+            "causal_latency_contract": CAUSAL_LATENCY_CONTRACT,
             "maximum_requeries_per_step": self.spec.requery_attempts,
             "total_tool_calls": total_tool_calls,
             "total_requeries": total_requeries,
@@ -950,7 +978,7 @@ class EpisodeRunner:
         configured = self.spec.config
         return {
             "name": str(configured.get("scenario_generator", "deterministic_synthetic_scenarios")),
-            "version": str(configured.get("scenario_generator_version", "2.0.0")),
+            "version": str(configured.get("scenario_generator_version", "2.1.0")),
             "scenario_schema_version": str(configured.get("scenario_schema_version", "v1")),
             "environment_version": generator.version,
         }
