@@ -15,8 +15,7 @@
 
 ## Current checkpoint
 
-Checkpoint 7 complete and pending commit: authoritative planned runtime
-identity.
+Checkpoint 8 complete and pending commit: strict canonical serialization.
 
 ## Checkpoint evidence
 
@@ -75,6 +74,28 @@ identity.
   authoritative episode/scenario seeds, and a `scenario_pair_id` shared by the
   clean, single-fault, and paired-fault variants of the same scenario.
 
+### Checkpoint 8 — strict canonical serialization
+
+- Added canonical serialization schema version `1`. One recursive validator and
+  UTF-8 encoder now supplies scientific JSON, JSON Lines, nested CSV values, and
+  hash bytes.
+- Supported values are limited to null, booleans, integers, finite binary64
+  floats, strings, string-keyed mappings, ordered lists/tuples, and explicitly
+  registered dataclasses/enums. Paths, bytes, sets, arbitrary objects,
+  non-string keys, unregistered types, NaN, and infinities fail with an exact
+  field path.
+- Hashes, identities, normalized run metadata, plugin descriptors, traces,
+  checkpoints, failure records, episodes, analysis JSON, manifests, artifact
+  metadata, and audit reports use the canonical implementation. No scientific
+  writer uses `default=str`, `default=json_default`, or permissive malformed
+  record swallowing.
+- JSON files end with one newline; JSONL uses compact canonical records.
+  Mapping keys are sorted while ordered sequences retain order. The finite-float
+  and UTF-8 policies are documented in
+  `docs/development/serialization-policy.md`.
+- Compatibility readers accept JSON-shaped legacy values but apply the same
+  finite/type validation. Unsupported legacy data now fails explicitly.
+
 ## Identity field matrix
 
 | Field group | Scientific identity | Normalization |
@@ -99,6 +120,7 @@ identity.
   and 9.
 - Episode planned-identity schema: `2`; schema-v1 compatibility reads validate
   the stored legacy ID.
+- Canonical serialization schema: `1`.
 
 ## Compatibility decisions
 
@@ -137,6 +159,15 @@ identity.
 - Checkpoint 7 Ruff lint/format, strict mypy, compilation, and
   `git diff --check`: passed.
 - Checkpoint 7 pre-commit audit passed every executable/source/package check;
+  it recorded only the expected in-progress dirty tree and unchanged absent
+  evidence corpus.
+- Checkpoint 8 focused canonical serialization/identity/artifact/analysis/
+  reporting/reproducibility suite: 80 passed.
+- Checkpoint 8 full suite and branch coverage: 116 passed; 77.08% branch
+  coverage against the 73% floor.
+- Checkpoint 8 Ruff lint/format, strict mypy, compilation, cross-process and
+  cross-directory hashing, and `git diff --check`: passed.
+- Checkpoint 8 pre-commit audit passed every executable/source/package check;
   it recorded only the expected in-progress dirty tree and unchanged absent
   evidence corpus.
 

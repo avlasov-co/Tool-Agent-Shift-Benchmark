@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 from pathlib import Path
 from typing import Any
+
+from src.core.serialization import canonical_dumps, canonical_loads
 
 
 def _read_csv(path: str | Path) -> list[dict[str, str]]:
@@ -23,7 +24,7 @@ def _cluster_lookup(case_id: str, analysis_dir: str | Path = "results/analysis")
         with examples_path.open("r", encoding="utf-8") as f:
             for line in f:
                 if line.strip():
-                    examples.append(json.loads(line))
+                    examples.append(canonical_loads(line))
     cluster_id = ""
     for item in examples:
         if item.get("case_id") == case_id:
@@ -49,7 +50,7 @@ def replay_case(
         raise FileNotFoundError(path)
     for row in _read_csv(p):
         if row.get("case_id") == case_id:
-            trace = json.loads(row.get("trace_json") or "{}")
+            trace = canonical_loads(row.get("trace_json") or "{}")
             cluster = _cluster_lookup(case_id, analysis_dir)
             return {
                 "case_id": case_id,
@@ -71,7 +72,7 @@ def replay_case(
 
 def format_replay(data: dict[str, Any], fmt: str = "json") -> str:
     if fmt == "json":
-        return json.dumps(data, indent=2, sort_keys=True)
+        return canonical_dumps(data, pretty=True)
     if fmt == "markdown":
         lines = [
             f"# Failure replay: `{data['case_id']}`",

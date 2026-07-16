@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any, Mapping
 
-from src.core.types import stable_hash
+from src.core.serialization import register_dataclass, stable_hash
 
 if TYPE_CHECKING:
     from src.core.catalog import PluginCatalog
@@ -279,3 +279,17 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
         semantic=semantic,
         operational=operational,
     )
+
+
+for _serializable_dataclass in (
+    ComponentIdentity,
+    ResourceIdentity,
+    FaultScheduleIdentity,
+    StepSemanticsIdentity,
+    SeedStreamIdentity,
+    SemanticIdentity,
+    OperationalIdentity,
+    ExperimentIdentity,
+    PlannedEpisodeIdentity,
+):
+    register_dataclass(_serializable_dataclass)

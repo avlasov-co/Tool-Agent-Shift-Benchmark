@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +19,7 @@ from src.core.identity import (
     PlannedEpisodeIdentity,
     build_experiment_identity,
 )
+from src.core.serialization import canonical_loads, write_json
 from src.core.types import (
     AgentAction,
     AgentDecision,
@@ -682,7 +682,7 @@ class RunCoordinator:
         )
         canonical_plan = planner.canonical_plan()
         if checkpoint_path and Path(checkpoint_path).exists():
-            saved = json.loads(Path(checkpoint_path).read_text(encoding="utf-8"))
+            saved = canonical_loads(Path(checkpoint_path).read_text(encoding="utf-8"))
             saved_run_id = saved.get("run_id")
             if saved_run_id is not None and saved_run_id != planner.run_id:
                 scenario_generator = planner.identity.semantic.scenario_generator
@@ -721,33 +721,25 @@ class RunCoordinator:
             if checkpoint_path:
                 path = Path(checkpoint_path)
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(
-                    json.dumps(
-                        {
-                            "run_id": planner.run_id,
-                            "completed_episode_ids": sorted(completed or set()),
-                            "errors": [e.to_dict() for e in self.errors],
-                        },
-                        indent=2,
-                        sort_keys=True,
-                    ),
-                    encoding="utf-8",
+                write_json(
+                    path,
+                    {
+                        "run_id": planner.run_id,
+                        "completed_episode_ids": sorted(completed or set()),
+                        "errors": [e.to_dict() for e in self.errors],
+                    },
                 )
             raise
         self.errors = sorted(scheduler.errors, key=lambda error: error.episode_id)
         if checkpoint_path:
             path = Path(checkpoint_path)
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(
-                json.dumps(
-                    {
-                        "run_id": planner.run_id,
-                        "completed_episode_ids": sorted((completed or set()) | {e.episode_id for e in episodes}),
-                        "errors": [e.to_dict() for e in self.errors],
-                    },
-                    indent=2,
-                    sort_keys=True,
-                ),
-                encoding="utf-8",
+            write_json(
+                path,
+                {
+                    "run_id": planner.run_id,
+                    "completed_episode_ids": sorted((completed or set()) | {e.episode_id for e in episodes}),
+                    "errors": [e.to_dict() for e in self.errors],
+                },
             )
         return sorted(episodes, key=lambda e: e.episode_id)

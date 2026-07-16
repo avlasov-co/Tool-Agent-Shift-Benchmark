@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -20,6 +19,7 @@ from src.core.run_artifacts import (
     run_results_dir,
     snapshot_outputs,
 )
+from src.core.serialization import canonical_dumps, canonical_loads
 from src.generate_report import main as generate_report_main
 from src.plot_results import main as plot_results_main
 from src.reporting.failure_cases import format_replay, replay_case
@@ -38,7 +38,7 @@ def _run_command(args: argparse.Namespace) -> None:
         episodes_path = run_dir / "results" / "episodes.jsonl"
         if episodes_path.exists():
             existing = [
-                Episode.from_dict(json.loads(line))
+                Episode.from_dict(canonical_loads(line))
                 for line in episodes_path.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
@@ -111,7 +111,7 @@ def _plan_command(args: argparse.Namespace) -> None:
     planner = ExperimentPlanner(spec)
     plan = planner.plan()
     print(
-        json.dumps(
+        canonical_dumps(
             {
                 "run_id": planner.run_id,
                 "config_digest": planner.config_digest,
@@ -128,8 +128,7 @@ def _plan_command(args: argparse.Namespace) -> None:
                     "traces/evaluator/",
                 ],
             },
-            indent=2,
-            sort_keys=True,
+            pretty=True,
         )
     )
 
@@ -139,7 +138,7 @@ def _inspect_run_command(args: argparse.Namespace) -> None:
     if run_dir is None:
         raise FileNotFoundError("no run found")
     manifest = run_dir / "run_manifest.json"
-    print(manifest.read_text(encoding="utf-8") if manifest.exists() else json.dumps({"run_dir": str(run_dir)}))
+    print(manifest.read_text(encoding="utf-8") if manifest.exists() else canonical_dumps({"run_dir": str(run_dir)}))
 
 
 def _render_architecture_command(args: argparse.Namespace) -> None:
@@ -162,7 +161,7 @@ def _analyze_command(args: argparse.Namespace) -> None:
             command=["tasb", "analyze"],
             extra_metadata={"analysis_outputs": manifest.get("outputs", {})},
         )
-    print(json.dumps(manifest["outputs"], indent=2, sort_keys=True))
+    print(canonical_dumps(manifest["outputs"], pretty=True))
 
 
 def _pairwise_command(args: argparse.Namespace) -> None:
@@ -176,7 +175,7 @@ def _pairwise_command(args: argparse.Namespace) -> None:
             command=["tasb", "pairwise"],
             extra_metadata={"pairwise_rows": manifest.get("rows", 0)},
         )
-    print(json.dumps(manifest, indent=2, sort_keys=True))
+    print(canonical_dumps(manifest, pretty=True))
 
 
 def _plot_command(args: argparse.Namespace) -> None:

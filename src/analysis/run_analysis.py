@@ -2,13 +2,23 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from src.core.episode import Episode
-from src.core.types import json_default
+from src.core.serialization import (
+    canonical_loads,
+)
+from src.core.serialization import (
+    write_csv as canonical_write_csv,
+)
+from src.core.serialization import (
+    write_json as canonical_write_json,
+)
+from src.core.serialization import (
+    write_jsonl as canonical_write_jsonl,
+)
 
 RESULTS_DIR = Path("results")
 ANALYSIS_DIR = RESULTS_DIR / "analysis"
@@ -29,7 +39,7 @@ def read_episode_rows(results_dir: str | Path) -> list[dict[str, Any]]:
     structured = root / "episodes.jsonl"
     if structured.exists():
         return [
-            Episode.from_dict(json.loads(line)).to_row()
+            Episode.from_dict(canonical_loads(line)).to_row()
             for line in structured.read_text(encoding="utf-8").splitlines()
             if line.strip()
         ]
@@ -41,34 +51,15 @@ def write_csv_rows(
     rows: Iterable[Mapping[str, Any]],
     fieldnames: list[str] | None = None,
 ) -> None:
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    materialized = [dict(r) for r in rows]
-    if fieldnames is None:
-        fieldnames = []
-        for row in materialized:
-            for key in row:
-                if key not in fieldnames:
-                    fieldnames.append(key)
-    with p.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for row in materialized:
-            writer.writerow({key: row.get(key, "") for key in fieldnames})
+    canonical_write_csv(path, [dict(row) for row in rows], fieldnames)
 
 
 def write_json(path: str | Path, data: Any) -> None:
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(data, indent=2, sort_keys=True, default=json_default), encoding="utf-8")
+    canonical_write_json(path, data)
 
 
 def write_jsonl(path: str | Path, rows: Iterable[Mapping[str, Any]]) -> None:
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("w", encoding="utf-8") as f:
-        for row in rows:
-            f.write(json.dumps(dict(row), sort_keys=True, default=json_default) + "\n")
+    canonical_write_jsonl(path, (dict(row) for row in rows))
 
 
 def safe_float(value: Any, default: float = 0.0) -> float:

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
+from src.core.serialization import canonical_loads
 from src.core.types import AgentAction, AgentDecision
 
 from .base import BaseAgent
@@ -21,7 +21,7 @@ class OfflineLLMFixtureAgent(BaseAgent):
     def __init__(self, policy_path: str = "fixtures/offline_llm_policy/policy_cases.json"):
         self.policy_path = policy_path
         p = Path(policy_path)
-        self.policy = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+        self.policy = canonical_loads(p.read_text(encoding="utf-8")) if p.exists() else {}
 
     def decide(self, context, response):
         obs = response.observation

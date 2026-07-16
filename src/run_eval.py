@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 from typing import List
 
@@ -9,8 +8,7 @@ from src.agents import AGENTS
 from src.core.config import load_config
 from src.core.episode import Episode
 from src.core.orchestration import ExperimentSpec, RunCoordinator
-from src.core.serialization import write_csv, write_json
-from src.core.types import json_default
+from src.core.serialization import canonical_dumps, write_csv, write_json, write_jsonl
 from src.environments.calendar_ops import CalendarOpsEnvironment
 from src.environments.file_ops import FileOpsEnvironment
 from src.environments.risk_ops import RiskOpsEnvironment
@@ -156,43 +154,25 @@ def write_outputs(
     write_csv("results/episode_log.csv", [e.to_row() for e in episodes])
     write_csv("results/summary.csv", aggregate(episodes))
     write_csv("results/static_vs_dynamic.csv", _static_dynamic_rows(episodes))
-    with Path("results/multistep_traces.jsonl").open("w", encoding="utf-8") as f:
-        for e in episodes:
-            f.write(
-                json.dumps(
-                    {
-                        "episode_id": e.episode_id,
-                        "step_trace": e.metadata.get("step_trace", []),
-                    },
-                    sort_keys=True,
-                    default=json_default,
-                )
-                + "\n"
-            )
-    with Path("results/episodes.jsonl").open("w", encoding="utf-8") as f:
-        for e in sorted(episodes, key=lambda episode: episode.episode_id):
-            f.write(json.dumps(e.to_dict(), sort_keys=True, default=json_default) + "\n")
-    Path("results/evaluator_traces.jsonl").write_text(
-        "".join(
-            json.dumps(
-                {
-                    "episode_id": e.episode_id,
-                    "trace": e.metadata.get("evaluator_trace", []),
-                },
-                sort_keys=True,
-                default=json_default,
-            )
-            + "\n"
-            for e in episodes
+    write_jsonl(
+        "results/multistep_traces.jsonl",
+        (
+            {"episode_id": episode.episode_id, "step_trace": episode.metadata.get("step_trace", [])}
+            for episode in episodes
         ),
-        encoding="utf-8",
+    )
+    write_jsonl(
+        "results/episodes.jsonl", (episode.to_dict() for episode in sorted(episodes, key=lambda e: e.episode_id))
+    )
+    write_jsonl(
+        "results/evaluator_traces.jsonl",
+        (
+            {"episode_id": episode.episode_id, "trace": episode.metadata.get("evaluator_trace", [])}
+            for episode in episodes
+        ),
     )
     errors = orchestration_errors or []
-    Path("results/orchestration_errors.jsonl").write_text(
-        "".join(json.dumps(error, sort_keys=True, default=json_default) + "\n" for error in errors)
-        or '{"orchestration_errors": []}\n',
-        encoding="utf-8",
-    )
+    write_jsonl("results/orchestration_errors.jsonl", errors or [{"orchestration_errors": []}])
     failure_rows = []
     for e in episodes:
         if e.execution.unsafe:
@@ -210,19 +190,13 @@ def write_outputs(
                     "fault": fc.fault_name,
                     "action_type": e.decision.action.action_type,
                     "unsafe_reasons": ";".join(fc.unsafe_reasons),
-                    "observation_summary": json.dumps(
-                        _safe_summary(e.tool_response.observation.data),
-                        sort_keys=True,
-                        default=json_default,
-                    ),
+                    "observation_summary": canonical_dumps(_safe_summary(e.tool_response.observation.data)),
                     "monitor_summary": monitor_summary,
-                    "ground_truth_summary": json.dumps(
-                        _safe_summary((e.metadata.get("evaluator_trace") or [{}])[-1].get("hidden_ground_truth", {})),
-                        sort_keys=True,
-                        default=json_default,
+                    "ground_truth_summary": canonical_dumps(
+                        _safe_summary((e.metadata.get("evaluator_trace") or [{}])[-1].get("hidden_ground_truth", {}))
                     ),
                     "seed": fc.seed,
-                    "trace_json": json.dumps(fc.trace, sort_keys=True, default=json_default),
+                    "trace_json": canonical_dumps(fc.trace),
                 }
             )
     write_csv(
@@ -259,7 +233,7 @@ def write_outputs(
                     "allow_action": m.allow_action,
                     "risk_score": m.risk_score,
                     "reasons": ";".join(m.reasons),
-                    "metadata_json": json.dumps(m.metadata, sort_keys=True, default=json_default),
+                    "metadata_json": canonical_dumps(m.metadata),
                 }
             )
     write_csv("results/monitor_events.csv", monitor_rows)

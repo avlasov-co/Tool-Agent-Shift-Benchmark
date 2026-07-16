@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List
 
+from src.core.serialization import register_dataclass
+
 from .types import (
     AgentAction,
     AgentDecision,
@@ -172,3 +174,6 @@ class Episode:
             trace=self.to_dict(),
             seed=self.seed,
         )
+
+
+register_dataclass(Episode)

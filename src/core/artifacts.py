@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from src.core.run_artifacts import snapshot_outputs
-from src.core.types import json_default
+from src.core.serialization import write_jsonl
 
 
 class ArtifactStore:
@@ -26,10 +25,7 @@ class ArtifactStore:
     def write_jsonl(self, relative_path: str, rows: Iterable[Mapping[str, Any]]) -> Path:
         path = self.run_dir / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            "".join(json.dumps(dict(row), sort_keys=True, default=json_default) + "\n" for row in rows),
-            encoding="utf-8",
-        )
+        write_jsonl(path, (dict(row) for row in rows))
         return path
 
     def finalize(self, command: list[str] | None = None, metadata: dict[str, Any] | None = None) -> dict[str, Any]:

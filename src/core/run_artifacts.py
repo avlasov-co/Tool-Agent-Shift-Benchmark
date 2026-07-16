@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 import shutil
 import subprocess
@@ -9,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from src.core.types import json_default, stable_hash
+from src.core.serialization import canonical_loads, stable_hash, write_json
 
 RUNS_DIR = Path("runs")
 RESULTS_DIR = Path("results")
@@ -112,49 +111,37 @@ def snapshot_outputs(
         for line in legacy_trace.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
-            item = json.loads(line)
+            item = canonical_loads(line)
             episode_id = item.get("episode_id", "episode")
-            (run_path / "traces" / "policy" / f"{episode_id}.json").write_text(
-                json.dumps(
-                    {
-                        "episode_id": episode_id,
-                        "step_trace": item.get("step_trace", []),
-                    },
-                    sort_keys=True,
-                    indent=2,
-                ),
-                encoding="utf-8",
+            write_json(
+                run_path / "traces" / "policy" / f"{episode_id}.json",
+                {
+                    "episode_id": episode_id,
+                    "step_trace": item.get("step_trace", []),
+                },
             )
     evaluator_source = run_path / "results" / "evaluator_traces.jsonl"
     if evaluator_source.exists():
         for line in evaluator_source.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
-            item = json.loads(line)
+            item = canonical_loads(line)
             episode_id = item.get("episode_id", "episode")
-            (run_path / "traces" / "evaluator" / f"{episode_id}.json").write_text(
-                json.dumps(item, sort_keys=True, indent=2), encoding="utf-8"
-            )
+            write_json(run_path / "traces" / "evaluator" / f"{episode_id}.json", item)
     files = sorted(p for p in run_path.rglob("*") if p.is_file() and p.name != "run_manifest.json")
     checksums = {str(p.relative_to(run_path)): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
     metadata = extra_metadata or {}
     config_payload = {}
     config_path = run_path / "config.json"
     if config_path.exists():
-        try:
-            config_payload = json.loads(config_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            config_payload = {}
+        config_payload = canonical_loads(config_path.read_text(encoding="utf-8"))
     episode_count = config_payload.get("episodes")
     seed_list = []
     episode_stream = run_path / "results" / "episodes.jsonl"
     if episode_stream.exists():
         for line in episode_stream.read_text(encoding="utf-8").splitlines():
             if line.strip():
-                try:
-                    seed_list.append(json.loads(line).get("seed"))
-                except json.JSONDecodeError:
-                    pass
+                seed_list.append(canonical_loads(line).get("seed"))
     finished_at = datetime.now(timezone.utc).isoformat()
     identity_payload = config_payload.get("identity", {})
     manifest = {
@@ -192,7 +179,7 @@ def snapshot_outputs(
 def write_manifest(run_dir: str | Path, manifest: dict[str, Any]) -> None:
     path = Path(run_dir) / "run_manifest.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(manifest, indent=2, sort_keys=True, default=json_default), encoding="utf-8")
+    write_json(path, manifest)
 
 
 def latest_run(runs_dir: str | Path = RUNS_DIR) -> Path | None:

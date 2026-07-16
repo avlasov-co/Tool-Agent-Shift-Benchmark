@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import csv
-import json
 from pathlib import Path
 
 from src.core.episode import Episode
+from src.core.serialization import canonical_loads
 from src.metrics.aggregation import aggregate
 
 
@@ -14,7 +14,7 @@ def _rows(path):
         structured = p.parent / "episodes.jsonl"
         if structured.exists():
             episodes = [
-                Episode.from_dict(json.loads(line))
+                Episode.from_dict(canonical_loads(line))
                 for line in structured.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
@@ -34,7 +34,7 @@ def generate_markdown_report(summary_path="results/summary.csv", out_path="docs/
     cfg = {}
     config_path = results_dir / "config.json"
     if config_path.exists():
-        cfg = json.loads(config_path.read_text(encoding="utf-8"))
+        cfg = canonical_loads(config_path.read_text(encoding="utf-8"))
     best = sorted(
         rows,
         key=lambda r: (

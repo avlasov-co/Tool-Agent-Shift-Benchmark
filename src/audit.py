@@ -8,7 +8,6 @@ those can mutate checked-in benchmark evidence.
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import shutil
 import subprocess
@@ -18,6 +17,8 @@ import zipfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable, Sequence
+
+from src.core.serialization import write_json
 
 DEFAULT_TIMEOUT_SECONDS = 180
 
@@ -155,7 +156,7 @@ class AuditRunner:
             "checks": [asdict(result) for result in self.results],
         }
         path = self.output_dir / "report.json"
-        path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        write_json(path, report)
         return path
 
 

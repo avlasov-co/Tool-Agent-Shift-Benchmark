@@ -12,6 +12,7 @@ from random import Random
 from typing import Any, Protocol
 
 from src.core.context import ObservationContext
+from src.core.serialization import register_dataclass
 from src.core.types import (
     AgentAction,
     AgentDecision,
@@ -163,3 +164,15 @@ class IdentityMismatchError(RuntimeError):
             "actual": self.actual,
             "plugin_descriptor": self.plugin_descriptor,
         }
+
+
+for _serializable_dataclass in (
+    PluginDescriptor,
+    VisibleObservation,
+    AgentPolicyContext,
+    ShiftResult,
+    PolicyTraceVisible,
+    EvaluatorTrace,
+    OrchestrationError,
+):
+    register_dataclass(_serializable_dataclass)

@@ -1,31 +1,14 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import asdict, dataclass, field, is_dataclass
-from enum import Enum
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-
-def json_default(value: Any) -> Any:
-    """Serialize declared scientific value types without string coercion."""
-    if is_dataclass(value) and not isinstance(value, type):
-        return asdict(value)
-    if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, Path):
-        return str(value)
-    raise TypeError(f"{type(value).__name__} is not a supported JSON value")
+from src.core.serialization import canonical_dumps, register_dataclass
+from src.core.serialization import stable_hash as stable_hash
 
 
 def canonical_json(value: Any) -> str:
-    return str(json.dumps(value, sort_keys=True, separators=(",", ":"), default=json_default))
-
-
-def stable_hash(value: Any, prefix: str = "id") -> str:
-    digest = hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()[:16]
-    return f"{prefix}_{digest}"
+    return canonical_dumps(value)
 
 
 def _require_non_empty(name: str, value: str) -> None:
@@ -188,3 +171,17 @@ def dataclass_to_dict(obj: Any) -> Dict[str, Any]:
     if not is_dataclass(obj):
         raise TypeError("expected dataclass instance")
     return asdict(obj)
+
+
+for _serializable_dataclass in (
+    FaultConfig,
+    Observation,
+    ToolResponse,
+    AgentAction,
+    AgentDecision,
+    MonitorDecision,
+    MetricRecord,
+    FailureCase,
+    ExecutionResult,
+):
+    register_dataclass(_serializable_dataclass)
