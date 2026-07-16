@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.shift_context_helpers import shift_context
+
 from tool_agent_shift_benchmark.core.fault_composition import (
     FAULT_COMPOSITION_CONTRACT,
     compose_fault_chain,
@@ -23,14 +25,14 @@ def test_schema_then_missing_is_distinct_from_missing_then_schema() -> None:
     clean = environment.tool_response()
     forward, forward_record = compose_fault_chain(
         clean,
-        environment,
+        shift_context(environment, clean, 0),
         (("schema_drift", SchemaDriftFault(1.0), 11), ("missing_field", MissingFieldFault(1.0), 13)),
         schedule_id="forward",
         scheduled_severity=1.0,
     )
     reverse, reverse_record = compose_fault_chain(
         clean,
-        environment,
+        shift_context(environment, clean, 0),
         (("missing_field", MissingFieldFault(1.0), 13), ("schema_drift", SchemaDriftFault(1.0), 11)),
         schedule_id="reverse",
         scheduled_severity=1.0,
@@ -50,7 +52,7 @@ def test_latency_and_staleness_compose_with_a_complete_hash_chain() -> None:
     clean = environment.tool_response()
     shifted, record = compose_fault_chain(
         clean,
-        environment,
+        shift_context(environment, clean, 0),
         (("latency_spike", LatencySpikeFault(0.8), 17), ("stale_observation", StaleObservationFault(0.8), 19)),
         schedule_id="latency-staleness",
         scheduled_severity=0.8,
@@ -68,9 +70,10 @@ def test_latency_and_staleness_compose_with_a_complete_hash_chain() -> None:
 def test_component_application_is_independently_reproducible() -> None:
     def execute():
         environment = FileOpsEnvironment(seed=107)
+        response = environment.tool_response()
         return compose_fault_chain(
-            environment.tool_response(),
-            environment,
+            response,
+            shift_context(environment, response, 0),
             (
                 ("stale_observation", StaleObservationFault(0.9), 23),
                 ("latency_spike", LatencySpikeFault(0.9), 29),

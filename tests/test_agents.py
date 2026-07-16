@@ -1,4 +1,4 @@
-from random import Random
+from tests.shift_context_helpers import shift_context
 
 from tool_agent_shift_benchmark.agents import AGENTS
 from tool_agent_shift_benchmark.core.context import ObservationContext
@@ -11,9 +11,14 @@ def _context(env, resp):
     return ObservationContext.from_environment(env, resp.observation)
 
 
+def _faulted(name, environment, seed=1):
+    response = environment.tool_response()
+    return FAULTS[name]().apply(response, shift_context(environment, response, seed))
+
+
 def test_common_interface_and_different_behavior():
     env = FileOpsEnvironment(seed=1, scenario_index=0)
-    resp = FAULTS["stale_observation"]().apply(env.tool_response(), env, Random(1))
+    resp = _faulted("stale_observation", env)
     ctx = _context(env, resp)
     decisions = {name: cls().decide(ctx, resp) for name, cls in AGENTS.items()}
     assert all(hasattr(d, "action") for d in decisions.values())
@@ -23,7 +28,7 @@ def test_common_interface_and_different_behavior():
 
 def test_retry_agent_does_not_bypass_fault_with_clean_tool_response():
     env = FileOpsEnvironment(seed=1, scenario_index=0)
-    resp = FAULTS["schema_drift"]().apply(env.tool_response(), env, Random(1))
+    resp = _faulted("schema_drift", env)
     ctx = _context(env, resp)
 
     def forbidden_clean_retry():  # would be evaluator leakage after fault injection
@@ -38,7 +43,7 @@ def test_retry_agent_does_not_bypass_fault_with_clean_tool_response():
 
 def test_validate_blocks_invalid_outputs():
     env = FileOpsEnvironment(seed=1, scenario_index=0)
-    resp = FAULTS["schema_drift"]().apply(env.tool_response(), env, Random(1))
+    resp = _faulted("schema_drift", env)
     d = AGENTS["validate_then_act"]().decide(_context(env, resp), resp)
     assert d.action.abstain
 

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from random import Random
 
 import pytest
+from tests.shift_context_helpers import shift_context
 
 from tool_agent_shift_benchmark.agents.retry import RetryAgent
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
@@ -37,6 +37,11 @@ def context(environment: object, response: ToolResponse) -> ObservationContext:
     return ObservationContext.from_environment(environment, response.observation)
 
 
+def apply_fault(name, environment, seed):
+    response = environment.tool_response()
+    return FAULTS[name]().apply(response, shift_context(environment, response, seed))
+
+
 @pytest.mark.parametrize(
     ("environment", "fault_name", "expected_reason"),
     [
@@ -50,7 +55,7 @@ def test_retry_agent_requests_requery_for_invalid_incomplete_and_conflicting_out
     fault_name: str,
     expected_reason: str,
 ) -> None:
-    faulted = FAULTS[fault_name]().apply(environment.tool_response(), environment, Random(1))
+    faulted = apply_fault(fault_name, environment, 1)
     response = attempt_response(faulted, attempt=1, remaining=2, fingerprint=fault_name)
     decision = RetryAgent().decide(context(environment, response), response)
 
@@ -63,7 +68,7 @@ def test_retry_agent_requests_requery_for_invalid_incomplete_and_conflicting_out
 
 def test_retry_agent_detects_repeated_persistent_output_then_exhausts_safely() -> None:
     environment = FileOpsEnvironment(seed=37)
-    faulted = FAULTS["schema_drift"]().apply(environment.tool_response(), environment, Random(2))
+    faulted = apply_fault("schema_drift", environment, 2)
     agent = RetryAgent()
 
     first = attempt_response(faulted, attempt=1, remaining=2, fingerprint="same-shifted-response")
@@ -85,7 +90,7 @@ def test_retry_agent_detects_repeated_persistent_output_then_exhausts_safely() -
 
 def test_retry_agent_acts_when_a_later_shifted_observation_recovers() -> None:
     environment = FileOpsEnvironment(seed=39)
-    faulted = FAULTS["schema_drift"]().apply(environment.tool_response(), environment, Random(3))
+    faulted = apply_fault("schema_drift", environment, 3)
     first = attempt_response(faulted, attempt=1, remaining=2, fingerprint="invalid")
     recovered = attempt_response(environment.tool_response(), attempt=2, remaining=1, fingerprint="recovered")
     agent = RetryAgent()

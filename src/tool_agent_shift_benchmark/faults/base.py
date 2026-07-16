@@ -2,25 +2,25 @@ from __future__ import annotations
 
 import math
 from dataclasses import replace
-from random import Random
 from typing import Any
 
 from tool_agent_shift_benchmark.core.contracts import PLUGIN_CONFIGURATION_SCHEMA_VERSION
 from tool_agent_shift_benchmark.core.fault_channels import FAULT_CHANNEL_CONTRACT, FaultChannelDescriptor
 from tool_agent_shift_benchmark.core.fault_effects import FAULT_EFFECT_CONTRACT, FaultEffect
+from tool_agent_shift_benchmark.core.shift_context import SHIFT_CONTEXT_SCHEMA_VERSION, ShiftContext
 from tool_agent_shift_benchmark.core.types import ToolResponse
 
 
 class BaseFault:
     name = "normal"
-    version = "3.0.0"
+    version = "4.0.0"
     channel = "none"
     mechanism = "identity_noop"
     severity_semantics = "always zero realized effect"
     schedule_behavior = "records schedule activation without changing policy-visible state"
     detection_path = "no detection required"
     adaptation_path = "ordinary policy execution"
-    capabilities = (FAULT_EFFECT_CONTRACT, FAULT_CHANNEL_CONTRACT)
+    capabilities = (FAULT_EFFECT_CONTRACT, FAULT_CHANNEL_CONTRACT, SHIFT_CONTEXT_SCHEMA_VERSION)
     configuration_schema = {
         "schema_version": PLUGIN_CONFIGURATION_SCHEMA_VERSION,
         "type": "object",
@@ -84,7 +84,7 @@ class BaseFault:
     def _record_only(self, response: ToolResponse, effect: FaultEffect) -> ToolResponse:
         return replace(response, observation=replace(response.observation, metadata=self._record(response, effect)))
 
-    def apply(self, response: ToolResponse, env: object, rng: Random) -> ToolResponse:
+    def apply(self, response: ToolResponse, context: ShiftContext) -> ToolResponse:
         return self._record_only(response, self._effect("no_fault", 0.0, {"reason": "normal_channel"}))
 
 

@@ -1,4 +1,4 @@
-from random import Random
+from tests.shift_context_helpers import shift_context
 
 from tool_agent_shift_benchmark.core.context import ObservationContext
 from tool_agent_shift_benchmark.core.types import AgentAction
@@ -10,13 +10,18 @@ from tool_agent_shift_benchmark.monitors.freshness import FreshnessMonitor
 from tool_agent_shift_benchmark.monitors.schema import SchemaMonitor
 
 
+def apply_fault(name, environment, seed=1):
+    response = environment.tool_response()
+    return FAULTS[name]().apply(response, shift_context(environment, response, seed))
+
+
 def _context(env, resp):
     return ObservationContext.from_environment(env, resp.observation)
 
 
 def test_schema_errors_detected():
     env = FileOpsEnvironment(seed=1, scenario_index=0)
-    resp = FAULTS["schema_drift"]().apply(env.tool_response(), env, Random(1))
+    resp = apply_fault("schema_drift", env)
     dec = SchemaMonitor().check(_context(env, resp), resp.observation, AgentAction("abstain", abstain=True))
     assert not dec.allow_action
     assert dec.reasons
@@ -26,7 +31,7 @@ def test_stale_detected_without_hidden_constraint_leakage():
     env = FileOpsEnvironment(seed=1, scenario_index=0)
     env.execute(AgentAction("inspect_files"), env.current_time)
     env.execute(AgentAction("select_file", "/workspace/tmp/protected.tmp"), env.current_time)
-    resp = FAULTS["stale_observation"]().apply(env.tool_response(), env, Random(1))
+    resp = apply_fault("stale_observation", env)
     ctx = _context(env, resp)
     action = AgentAction("delete", "/workspace/tmp/protected.tmp")
     assert not FreshnessMonitor().check(ctx, resp.observation, action).allow_action
@@ -51,7 +56,7 @@ def test_visible_protected_file_detected_when_visible_in_observation():
 
 def test_composite_combines_reasons_and_deterministic():
     env = FileOpsEnvironment(seed=1, scenario_index=0)
-    resp = FAULTS["compound_shift"]().apply(env.tool_response(), env, Random(1))
+    resp = apply_fault("compound_shift", env)
     ctx = _context(env, resp)
     action = AgentAction("delete", "/workspace/tmp/protected.tmp")
     a = CompositeMonitor().check(ctx, resp.observation, action)

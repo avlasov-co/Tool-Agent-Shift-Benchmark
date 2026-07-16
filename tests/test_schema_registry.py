@@ -4,6 +4,7 @@ from dataclasses import replace
 from random import Random
 
 import pytest
+from tests.shift_context_helpers import shift_context
 
 from tool_agent_shift_benchmark.agents.validate_then_act import ValidateThenActAgent
 from tool_agent_shift_benchmark.core.context import ObservationContext, redact_response_for_policy
@@ -25,12 +26,16 @@ from tool_agent_shift_benchmark.monitors.schema import SchemaMonitor
 ENVIRONMENTS = (FileOpsEnvironment, CalendarOpsEnvironment, RiskOpsEnvironment)
 
 
+def apply_drift(fault, environment, response, seed):
+    return fault.apply(response, shift_context(environment, response, seed))
+
+
 @pytest.mark.parametrize("environment_type", ENVIRONMENTS)
 @pytest.mark.parametrize("family", SCHEMA_CHANGE_FAMILIES)
 def test_every_schema_family_has_a_versioned_delta_in_every_environment(environment_type: type, family: str) -> None:
     environment = environment_type(seed=1201)
     clean = environment.tool_response()
-    shifted = SchemaDriftFault(1.0, family=family).apply(clean, environment, Random(5))
+    shifted = apply_drift(SchemaDriftFault(1.0, family=family), environment, clean, 5)
     info = shifted.metadata["schema_info"]
 
     assert info["contract"] == SCHEMA_REGISTRY_CONTRACT
@@ -72,7 +77,8 @@ def test_repairable_schema_changes_have_explicit_reverse_migrations(environment_
 
 def test_validating_agent_repairs_declared_alias_and_acts() -> None:
     environment = FileOpsEnvironment(seed=1231)
-    shifted = SchemaDriftFault(1.0, family="alias_rename").apply(environment.tool_response(), environment, Random(13))
+    clean = environment.tool_response()
+    shifted = apply_drift(SchemaDriftFault(1.0, family="alias_rename"), environment, clean, 13)
     context = ObservationContext.from_environment(environment, shifted.observation)
     decision = ValidateThenActAgent().decide(context, shifted)
 
@@ -85,7 +91,7 @@ def test_validating_agent_repairs_declared_alias_and_acts() -> None:
 def test_breaking_schema_changes_fail_closed_without_coercion(family: str) -> None:
     environment = FileOpsEnvironment(seed=1237)
     clean = environment.tool_response()
-    shifted = SchemaDriftFault(1.0, family=family).apply(clean, environment, Random(17))
+    shifted = apply_drift(SchemaDriftFault(1.0, family=family), environment, clean, 17)
     context = ObservationContext.from_environment(environment, shifted.observation)
     decision = ValidateThenActAgent().decide(context, shifted)
     delta = SCHEMA_REGISTRY.delta(environment.name, severity=1.0, rng=Random(17), families=(family,))
@@ -112,12 +118,9 @@ def test_incorrect_unit_coercion_is_an_explicit_adaptation_failure() -> None:
 def test_schema_monitor_allows_declared_repairable_delta_and_blocks_breaking_delta() -> None:
     environment = FileOpsEnvironment(seed=1259)
     context = ObservationContext.from_environment(environment, environment.tool_response().observation)
-    repairable = SchemaDriftFault(1.0, family="nested_field_move").apply(
-        environment.tool_response(), environment, Random(23)
-    )
-    breaking = SchemaDriftFault(1.0, family="required_field_removal").apply(
-        environment.tool_response(), environment, Random(23)
-    )
+    clean = environment.tool_response()
+    repairable = apply_drift(SchemaDriftFault(1.0, family="nested_field_move"), environment, clean, 23)
+    breaking = apply_drift(SchemaDriftFault(1.0, family="required_field_removal"), environment, clean, 23)
     monitor = SchemaMonitor()
 
     allowed = monitor.check(context, repairable.observation, AgentAction("abstain", abstain=True))
@@ -131,7 +134,8 @@ def test_schema_monitor_allows_declared_repairable_delta_and_blocks_breaking_del
 
 def test_schema_information_is_intended_policy_data_without_fault_or_hidden_labels() -> None:
     environment = RiskOpsEnvironment(seed=1277)
-    shifted = SchemaDriftFault(0.5).apply(environment.tool_response(), environment, Random(29))
+    clean = environment.tool_response()
+    shifted = apply_drift(SchemaDriftFault(0.5), environment, clean, 29)
     policy = redact_response_for_policy(shifted)
     payload = canonical_dumps(policy.to_dict())
 
@@ -148,9 +152,9 @@ def test_schema_information_is_intended_policy_data_without_fault_or_hidden_labe
 def test_severity_controls_schema_change_count_and_incompatibility() -> None:
     environment = FileOpsEnvironment(seed=1283)
     clean = environment.tool_response()
-    low = SchemaDriftFault(0.1).apply(clean, environment, Random(31))
-    medium = SchemaDriftFault(0.5).apply(clean, environment, Random(31))
-    maximum = SchemaDriftFault(1.0).apply(clean, environment, Random(31))
+    low = apply_drift(SchemaDriftFault(0.1), environment, clean, 31)
+    medium = apply_drift(SchemaDriftFault(0.5), environment, clean, 31)
+    maximum = apply_drift(SchemaDriftFault(1.0), environment, clean, 31)
 
     infos = [response.metadata["schema_info"] for response in (low, medium, maximum)]
     assert [len(info["schema_delta"]["changes"]) for info in infos] == [1, 4, 7]
@@ -163,7 +167,8 @@ def test_severity_controls_schema_change_count_and_incompatibility() -> None:
 
 def test_unknown_or_tampered_schema_delta_is_not_silently_trusted() -> None:
     environment = FileOpsEnvironment(seed=1291)
-    shifted = SchemaDriftFault(1.0, family="alias_rename").apply(environment.tool_response(), environment, Random(37))
+    clean = environment.tool_response()
+    shifted = apply_drift(SchemaDriftFault(1.0, family="alias_rename"), environment, clean, 37)
     tampered_info = dict(shifted.metadata["schema_info"])
     tampered_delta = dict(tampered_info["schema_delta"])
     tampered_delta["delta_hash"] = "schema_delta_tampered"

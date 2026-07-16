@@ -5,11 +5,11 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from random import Random
 from typing import Any
 
 from tool_agent_shift_benchmark.core.context import redact_response_for_policy
 from tool_agent_shift_benchmark.core.serialization import register_dataclass, stable_hash
+from tool_agent_shift_benchmark.core.shift_context import ShiftContext
 from tool_agent_shift_benchmark.core.types import ToolResponse
 
 FAULT_COMPOSITION_CONTRACT = "fault-composition-v1"
@@ -78,7 +78,7 @@ class FaultCompositionRecord:
 
 def compose_fault_chain(
     response: ToolResponse,
-    env: object,
+    context: ShiftContext,
     components: Sequence[tuple[str, Any, int]],
     *,
     schedule_id: str,
@@ -103,7 +103,7 @@ def compose_fault_chain(
             )
         input_hash = stable_hash(current.to_dict(), prefix="response")
         initial_effect_count = len(current.observation.metadata.get("faults", ()))
-        output = fault.apply(current, env, Random(rng_seed))
+        output = fault.apply(current, context.with_rng_seed(rng_seed))
         component_effects = tuple(output.observation.metadata.get("faults", ()))[initial_effect_count:]
         if not component_effects:
             raise ValueError(f"fault component {declared_name!r} did not record an effect")

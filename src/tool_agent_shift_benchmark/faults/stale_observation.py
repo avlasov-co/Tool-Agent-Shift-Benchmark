@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-from random import Random
 
 from .base import BaseFault, clone_response
 
@@ -15,7 +14,7 @@ class StaleObservationFault(BaseFault):
     detection_path = "compare observation timestamp and snapshot values with the visible clock"
     adaptation_path = "reobserve, revalidate at execution, or abstain"
 
-    def apply(self, response, env, rng: Random):
+    def apply(self, response, context):
         if self.severity == 0.0:
             return self._record_only(
                 response,

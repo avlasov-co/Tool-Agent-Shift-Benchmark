@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from random import Random
-
 from tool_agent_shift_benchmark.core.memory import MEMORY_CORRUPTION_TYPES, POLICY_MEMORY_CONTRACT
 
 from .base import BaseFault
@@ -9,7 +7,7 @@ from .base import BaseFault
 
 class CorruptedMemoryFault(BaseFault):
     name = "corrupted_memory"
-    version = "3.0.0"
+    version = "4.0.0"
     capabilities = (*BaseFault.capabilities, POLICY_MEMORY_CONTRACT)
     channel = "policy_memory"
     mechanism = "stateful_memory_read_corruption"
@@ -18,7 +16,7 @@ class CorruptedMemoryFault(BaseFault):
     detection_path = "validate memory source, confidence, timestamp, shape, and expected presence"
     adaptation_path = "overwrite, ignore, reobserve, or abstain without mutating the pristine reference"
 
-    def apply(self, response, env, rng: Random):
+    def apply(self, response, context):
         """Record direct-call provenance without mutating a tool observation.
 
         Episode execution applies this fault to the policy-memory channel. The

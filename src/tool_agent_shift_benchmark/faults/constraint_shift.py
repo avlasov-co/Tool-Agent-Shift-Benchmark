@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-from random import Random
 from typing import Any
 
 from tool_agent_shift_benchmark.core.serialization import canonicalize, stable_hash
@@ -45,7 +44,8 @@ class ConstraintShiftFault(BaseFault):
             ]
         return []
 
-    def apply(self, response, env, rng: Random):
+    def apply(self, response, context):
+        rng = context.rng()
         constraints = canonicalize(response.observation.constraints)
         if not isinstance(constraints, dict):
             raise TypeError("observation constraints must be a mapping")
@@ -62,10 +62,9 @@ class ConstraintShiftFault(BaseFault):
             if previous != value:
                 constraints[key] = value
                 deltas[key] = {"before": previous, "after": value}
-        hidden_constraints = getattr(env, "visible_constraints", lambda: {})()
-        hidden_reference_hash = stable_hash(hidden_constraints, prefix="constraint_reference")
-        effective_at = int(getattr(env, "current_time", response.observation.timestamp))
-        phase = str(getattr(env, "lifecycle_phase", "unknown"))
+        hidden_reference_hash = str(context.channel_metadata["visible_constraints_reference_hash"])
+        effective_at = int(context.timing["environment_time"])
+        phase = str(context.channel_metadata.get("lifecycle_phase", "unknown"))
         visible_revision = stable_hash(
             {
                 "environment": environment,

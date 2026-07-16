@@ -2,6 +2,8 @@ import csv
 import json
 from pathlib import Path
 
+from tests.shift_context_helpers import shift_context
+
 from tool_agent_shift_benchmark.agents.offline_llm_fixture import OfflineLLMFixtureAgent
 from tool_agent_shift_benchmark.core.context import ObservationContext
 from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
@@ -26,8 +28,8 @@ def test_multistep_and_severity_outputs(tmp_path, monkeypatch):
 def test_fault_severity_changes_latency_or_staleness():
     env = FileOpsEnvironment(seed=1, scenario_index=0)
     response = env.tool_response()
-    low = StaleObservationFault(severity=0.5).apply(response, env, __import__("random").Random(1))
-    high = StaleObservationFault(severity=1.0).apply(response, env, __import__("random").Random(1))
+    low = StaleObservationFault(severity=0.5).apply(response, shift_context(env, response, 1))
+    high = StaleObservationFault(severity=1.0).apply(response, shift_context(env, response, 1))
     assert high.observation.timestamp < low.observation.timestamp
 
 

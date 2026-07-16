@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from random import Random
 
 from tool_agent_shift_benchmark.core.fault_composition import compose_fault_chain
 
@@ -16,7 +15,7 @@ class CompoundShiftFault(BaseFault):
     """Deprecated compatibility alias for the historical fixed chain."""
 
     name = "compound_shift"
-    version = "4.0.0"
+    version = "5.0.0"
     channel = "ordered_composition"
     mechanism = "deprecated_alias_to_generic_composition"
     severity_semantics = "shared severity applied to every legacy component"
@@ -40,12 +39,13 @@ class CompoundShiftFault(BaseFault):
             LatencySpikeFault(severity),
         ]
 
-    def apply(self, response, env, rng: Random):
+    def apply(self, response, context):
+        rng = context.rng()
         initial_effect_count = len(response.observation.metadata.get("faults", []))
         applications = tuple((part.name, part, rng.getrandbits(63)) for part in self.parts)
         out, composition = compose_fault_chain(
             response,
-            env,
+            context,
             applications,
             schedule_id="deprecated_compound_shift_alias",
             scheduled_severity=self.severity,

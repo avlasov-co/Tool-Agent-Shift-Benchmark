@@ -215,7 +215,7 @@ def test_identity_document_contains_required_typed_fields() -> None:
     assert semantic.agents[0].version == "1.0.0"
     assert semantic.fault_schedules[0].cadence == "each_step"
     assert semantic.fault_effect_contract == "fault-effect-v1"
-    assert semantic.shift_chains[0][0].version == "3.0.0"
+    assert semantic.shift_chains[0][0].version == "4.0.0"
     assert semantic.fault_channel_contract == "fault-channel-v1"
     assert semantic.fault_composition_contract == "fault-composition-v1"
     assert semantic.action_record_contract == "action-record-v1"

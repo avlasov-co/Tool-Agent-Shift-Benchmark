@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-from random import Random
 from typing import Any
 
 from tool_agent_shift_benchmark.core.serialization import canonicalize, stable_hash
@@ -51,7 +50,8 @@ class ConflictingOutputFault(BaseFault):
             ]
         return []
 
-    def apply(self, response, env, rng: Random):
+    def apply(self, response, context):
+        rng = context.rng()
         data = canonicalize(response.observation.data)
         if not isinstance(data, dict):
             raise TypeError("observation data must be a mapping")

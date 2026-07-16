@@ -1,6 +1,5 @@
-from random import Random
-
 import pytest
+from tests.shift_context_helpers import shift_context
 
 from tool_agent_shift_benchmark.agents import AGENTS
 from tool_agent_shift_benchmark.core.context import (
@@ -12,6 +11,11 @@ from tool_agent_shift_benchmark.core.types import Observation, ToolResponse
 from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
 from tool_agent_shift_benchmark.faults import FAULTS
 from tool_agent_shift_benchmark.monitors.composite import CompositeMonitor
+
+
+def apply_fault(name, environment, seed=1):
+    response = environment.tool_response()
+    return FAULTS[name]().apply(response, shift_context(environment, response, seed))
 
 
 def test_redact_response_for_policy_removes_evaluator_only_metadata():
@@ -87,7 +91,7 @@ def test_offline_fixture_ignores_evaluator_fault_labels_after_redaction():
 
 def test_agents_receive_redacted_response_in_boundary_test():
     env = FileOpsEnvironment(seed=1, scenario_index=0)
-    faulted = FAULTS["schema_drift"]().apply(env.tool_response(), env, Random(1))
+    faulted = apply_fault("schema_drift", env)
     visible = redact_response_for_policy(faulted)
     ctx = ObservationContext.from_environment(env, visible.observation)
 
@@ -101,7 +105,7 @@ def test_agents_receive_redacted_response_in_boundary_test():
 
 def test_observation_context_exposes_only_visible_surface():
     env = FileOpsEnvironment(seed=1, scenario_index=0)
-    resp = FAULTS["stale_observation"]().apply(env.tool_response(), env, Random(1))
+    resp = apply_fault("stale_observation", env)
     ctx = ObservationContext.from_environment(env, resp.observation)
     assert not hasattr(ctx, "hidden_ground_truth")
     assert not hasattr(ctx, "scenario_id")
@@ -115,7 +119,7 @@ def test_observation_context_exposes_only_visible_surface():
 
 def test_all_agents_and_monitors_run_without_environment_object():
     env = FileOpsEnvironment(seed=1, scenario_index=0)
-    faulted = FAULTS["missing_field"]().apply(env.tool_response(), env, Random(1))
+    faulted = apply_fault("missing_field", env)
     resp = redact_response_for_policy(faulted)
     ctx = ObservationContext.from_environment(env, resp.observation)
     for cls in AGENTS.values():

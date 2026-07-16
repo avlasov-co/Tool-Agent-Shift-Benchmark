@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from random import Random
-
 from .base import BaseFault, clone_response
 
 
@@ -14,7 +12,8 @@ class LatencySpikeFault(BaseFault):
     detection_path = "inspect policy-visible response latency and received-at time"
     adaptation_path = "revalidate freshness and execution-time constraints"
 
-    def apply(self, response, env, rng: Random):
+    def apply(self, response, context):
+        rng = context.rng()
         maximum_latency = 500 + rng.randint(0, 50)
         latency = round(maximum_latency * self.severity)
         effect = self._effect(

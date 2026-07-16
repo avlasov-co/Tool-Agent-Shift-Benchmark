@@ -32,8 +32,10 @@ same validator used by built-ins and entry points runs.
   response and execution, lifecycle/clock operations, visible constraints,
   pure counterfactual scoring support, and evaluator-only state access.
 - Agents implement `decide`.
-- Shifts implement `apply` and `channel_descriptor` (the Phase 5A shift context
-  replaces the historical environment argument).
+- Shifts implement `apply(response, context)` and `channel_descriptor`.
+  `context` is immutable `shift-context-v1`; call `context.rng()` for a fresh
+  deterministic component-local stream. Environment objects and separate RNG
+  parameters are no longer accepted.
 - Monitors implement `check`.
 - Evaluators implement `score_action`, `score_intervention`, and `score`.
 - Reporters implement `report`.

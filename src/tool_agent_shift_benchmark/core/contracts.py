@@ -20,6 +20,7 @@ from tool_agent_shift_benchmark.core.serialization import (
     register_enum,
     stable_hash,
 )
+from tool_agent_shift_benchmark.core.shift_context import ShiftContext
 from tool_agent_shift_benchmark.core.types import (
     AgentAction,
     AgentDecision,
@@ -301,7 +302,7 @@ class AgentPlugin(PluginFactory, Protocol):
 class ShiftPlugin(PluginFactory, Protocol):
     severity: float
 
-    def apply(self, response: ToolResponse, environment: object, rng: object) -> ToolResponse: ...
+    def apply(self, response: ToolResponse, context: ShiftContext) -> ToolResponse: ...
     @classmethod
     def channel_descriptor(cls) -> object: ...
 
@@ -396,6 +397,19 @@ def validate_plugin_factory(descriptor: PluginDescriptor, factory: object) -> No
     for method in REQUIRED_METHODS[descriptor.kind]:
         if not callable(getattr(factory, method, None)):
             raise ValueError(f"invalid {descriptor.kind} plugin {descriptor.name}: missing {method} contract method")
+    if descriptor.kind == "shift":
+        parameters = tuple(inspect.signature(getattr(factory, "apply")).parameters.values())
+        if (
+            len(parameters) != 3
+            or tuple(parameter.name for parameter in parameters) != ("self", "response", "context")
+            or any(
+                parameter.kind not in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+                for parameter in parameters
+            )
+        ):
+            raise ValueError(
+                f"invalid shift plugin {descriptor.name}: apply signature must be (self, response, context)"
+            )
     declared_schema = getattr(factory, "configuration_schema", descriptor.configuration_schema)
     normalized_schema = validate_configuration_schema(declared_schema)
     if stable_hash(normalized_schema, prefix="plugin_config") != descriptor.configuration_hash:

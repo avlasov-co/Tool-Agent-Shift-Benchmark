@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-from random import Random
 from typing import Any
 
 from tool_agent_shift_benchmark.core.serialization import canonicalize
@@ -19,11 +18,12 @@ class MissingFieldFault(BaseFault):
     adaptation_path = "reobserve, use an explicitly safe fallback, or abstain"
 
     @staticmethod
-    def _file_candidates(data: dict[str, Any], env: object) -> list[tuple[str, dict[str, Any], str]]:
+    def _file_candidates(data: dict[str, Any], context: object) -> list[tuple[str, dict[str, Any], str]]:
         files = data.get("files")
         if not isinstance(files, list):
             return []
-        target = str(getattr(env, "task_target", ""))
+        public = getattr(context, "public_scenario_metadata", {})
+        target = str(public.get("target", ""))
         target_index = next(
             (index for index, item in enumerate(files) if isinstance(item, dict) and item.get("path") == target),
             0,
@@ -32,26 +32,16 @@ class MissingFieldFault(BaseFault):
             return []
         item = files[target_index]
         fields = ["protected", "permissions"]
-        if getattr(env, "task", "") == "archive_old_logs":
+        if public.get("task") == "archive_old_logs":
             fields.append("age_days")
         return [(f"files[{target_index}].{field}", item, field) for field in fields if field in item]
 
     @staticmethod
-    def _calendar_candidates(data: dict[str, Any], env: object) -> list[tuple[str, dict[str, Any], str]]:
+    def _calendar_candidates(data: dict[str, Any]) -> list[tuple[str, dict[str, Any], str]]:
         slots = data.get("availability")
         if not isinstance(slots, list):
             return []
-        target_start = getattr(env, "target_start", None)
-        target_end = getattr(env, "target_end", None)
-        relevant = [
-            (index, item)
-            for index, item in enumerate(slots)
-            if isinstance(item, dict)
-            and (target_start is None or item.get("start") == target_start)
-            and (target_end is None or item.get("end") == target_end)
-        ]
-        if not relevant:
-            relevant = [(index, item) for index, item in enumerate(slots) if isinstance(item, dict)][:1]
+        relevant = [(index, item) for index, item in enumerate(slots) if isinstance(item, dict)][:1]
         candidates: list[tuple[str, dict[str, Any], str]] = []
         for index, item in relevant:
             for field in ("timezone", "start", "end", "attendee"):
@@ -71,15 +61,16 @@ class MissingFieldFault(BaseFault):
             candidates.append(("exposure", data, "exposure"))
         return candidates
 
-    def apply(self, response, env, rng: Random):
+    def apply(self, response, context):
+        rng = context.rng()
         data = canonicalize(response.observation.data)
         if not isinstance(data, dict):
             raise TypeError("observation data must be a mapping")
         environment = response.observation.env_name
         candidates = (
-            self._file_candidates(data, env)
+            self._file_candidates(data, context)
             if environment == "file_ops"
-            else self._calendar_candidates(data, env)
+            else self._calendar_candidates(data)
             if environment == "calendar_ops"
             else self._risk_candidates(data)
             if environment == "risk_ops"
@@ -104,8 +95,8 @@ class MissingFieldFault(BaseFault):
                 "candidate_count": len(candidates),
                 "target_basis": {
                     "environment": environment,
-                    "task": str(getattr(env, "task", "")),
-                    "lifecycle_phase": str(getattr(env, "lifecycle_phase", "")),
+                    "task": str(context.public_scenario_metadata.get("task", "")),
+                    "lifecycle_phase": str(context.channel_metadata.get("lifecycle_phase", "")),
                 },
                 "encoding_preserved": True,
                 "schema_version_preserved": response.observation.schema_version,

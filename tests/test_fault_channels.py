@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from random import Random
-
 import pytest
+from tests.shift_context_helpers import shift_context
 
 from tool_agent_shift_benchmark.core.context import ObservationContext, redact_response_for_policy
 from tool_agent_shift_benchmark.core.fault_channels import FAULT_CHANNEL_CONTRACT
@@ -21,6 +20,11 @@ def named_effect(response, fault_name: str) -> dict[str, object]:
     return next(effect for effect in reversed(response.observation.metadata["faults"]) if effect["name"] == fault_name)
 
 
+def apply_fault(name, environment, seed):
+    response = environment.tool_response()
+    return FAULTS[name](1.0).apply(response, shift_context(environment, response, seed))
+
+
 def test_every_fault_declares_a_unique_causal_mechanism_and_typed_channel() -> None:
     descriptors = {name: fault.channel_descriptor() for name, fault in FAULTS.items()}
 
@@ -36,7 +40,7 @@ def test_every_fault_declares_a_unique_causal_mechanism_and_typed_channel() -> N
 @pytest.mark.parametrize("fault_name", tuple(FAULTS))
 def test_fault_effect_provenance_records_channel_and_mechanism(environment_type: type, fault_name: str) -> None:
     environment = environment_type(seed=1409)
-    shifted = FAULTS[fault_name](1.0).apply(environment.tool_response(), environment, Random(41))
+    shifted = apply_fault(fault_name, environment, 41)
     effect = named_effect(shifted, fault_name)
     descriptor = FAULTS[fault_name].channel_descriptor()
 
@@ -48,7 +52,7 @@ def test_fault_effect_provenance_records_channel_and_mechanism(environment_type:
 def test_missing_field_targets_relevant_leaf_paths_and_preserves_encoding(environment_type: type) -> None:
     environment = environment_type(seed=1423)
     clean = environment.tool_response()
-    shifted = FAULTS["missing_field"](1.0).apply(clean, environment, Random(43))
+    shifted = FAULTS["missing_field"](1.0).apply(clean, shift_context(environment, clean, 43))
     details = named_effect(shifted, "missing_field")["details"]
 
     assert details["removed_paths"]
@@ -63,7 +67,7 @@ def test_missing_field_targets_relevant_leaf_paths_and_preserves_encoding(enviro
 @pytest.mark.parametrize("environment_type", ENVIRONMENTS)
 def test_conflicting_output_is_named_snapshot_evidence_with_asymmetric_reliability(environment_type: type) -> None:
     environment = environment_type(seed=1433)
-    shifted = FAULTS["conflicting_tool_output"](1.0).apply(environment.tool_response(), environment, Random(47))
+    shifted = apply_fault("conflicting_tool_output", environment, 47)
     conflict = shifted.observation.data["conflicting_views"]
     sources = conflict["sources"]
     details = named_effect(shifted, "conflicting_tool_output")["details"]
@@ -84,7 +88,7 @@ def test_constraint_shift_separates_visible_changes_from_hidden_reference(enviro
     environment = environment_type(seed=1447)
     clean = environment.tool_response()
     hidden_before = environment.hidden_ground_truth()
-    shifted = FAULTS["constraint_shift"](1.0).apply(clean, environment, Random(53))
+    shifted = FAULTS["constraint_shift"](1.0).apply(clean, shift_context(environment, clean, 53))
     details = named_effect(shifted, "constraint_shift")["details"]
     policy = redact_response_for_policy(shifted)
     policy_payload = canonical_dumps(policy.to_dict())
@@ -168,6 +172,6 @@ def test_fault_channel_contract_is_bound_into_scientific_identity() -> None:
     )
     coordinator.run()
 
-    assert IDENTITY_SCHEMA_VERSION == "18"
+    assert IDENTITY_SCHEMA_VERSION == "19"
     assert coordinator.identity is not None
     assert coordinator.identity.semantic.fault_channel_contract == FAULT_CHANNEL_CONTRACT

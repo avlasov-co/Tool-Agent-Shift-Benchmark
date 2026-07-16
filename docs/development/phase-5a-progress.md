@@ -19,8 +19,7 @@
 
 ## Current checkpoint
 
-Checkpoints 36–37 are complete. Checkpoint 38 — sanitized shift context — in
-progress.
+Checkpoints 36–38 are complete. Checkpoint 39 — deep immutability — is next.
 
 ## Checkpoint evidence
 
@@ -89,6 +88,37 @@ commit identifiers will be recorded here before every checkpoint commit.
   passes 511 tests after compilation. Branch coverage passes at 81.91% over
   7,296 statements and 2,200 branches. Ruff lint/format, strict mypy, and
   `git diff --check` pass.
+
+### Checkpoint 38 — sanitized shift context
+
+- Replaced the historical `ShiftPlugin.apply(response, environment, rng)`
+  surface with `apply(response, context)`. The new immutable
+  `shift-context-v1` contains only the step/attempt, public scenario metadata,
+  visible schema, declared timing, a component-local deterministic RNG seed,
+  fault-schedule data, and explicitly allowed channel metadata.
+- The runner constructs the context from public scenario data and the visible
+  response. Shift implementations no longer receive environment, evaluator,
+  execution, filesystem, network, credential, protected-ground-truth, or
+  authoritative scenario/split handles. Fault composition derives a fresh
+  immutable context for each component seed.
+- Updated every first-party fault to the context interface. Fault descriptors
+  advance to version `4.0.0` (deprecated compound alias `5.0.0`) and declare
+  `shift-context-v1` as a capability. Direct fault tests use the same safe
+  context shape as orchestration.
+- Scientific identity advances from schema 18 to 19 and binds
+  `shift-context-v1` in step semantics; identity-v2 through identity-v18 reads
+  remain accepted. Schedule provenance also records the context schema on
+  every attempted application.
+- Added a malicious runner-integrated shift that probes all historically
+  exposed authority, verifies absent hidden/environment/file/network handles,
+  and fails to mutate the context. Additional tests prove nested context data
+  is immutable, RNG creation is deterministic and local, canonical
+  serialization is stable, and the serialized schema contains only its nine
+  documented fields.
+- Context/shift-focused tests pass 270 cases. The full suite passes 515 tests
+  after compilation. Branch coverage passes at 81.96% over 7,352 statements
+  and 2,218 branches. Ruff lint/format, strict mypy, and `git diff --check`
+  pass.
 
 ## Terminal validation
 

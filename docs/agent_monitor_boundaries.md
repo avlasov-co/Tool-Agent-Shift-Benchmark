@@ -53,6 +53,19 @@ the shifted observation is received.
 ## Fault-label redaction
 
 Fault injectors may store evaluator provenance in `observation.metadata["faults"]` so reports can explain what happened after evaluation. `redact_response_for_policy()` removes those labels before agent or monitor decisions. Tests cover both the redaction function and runner-level policy inputs.
+
+## Shift boundary
+
+Shift plugins receive the policy-visible `ToolResponse` and immutable
+`shift-context-v1`, never the environment. The context exposes only the
+step/attempt, public scenario metadata, visible schema, declared timing,
+deterministic component-local RNG, active fault schedule, and explicitly
+allowed channel metadata. It has no evaluator, execution, ground-truth,
+filesystem, network, or credential handle. Scientific identity and schedule
+provenance record the context schema version.
+
+`tests/test_shift_context.py` exercises this boundary with a malicious shift
+that probes former authority and attempts nested and top-level mutation.
 # Runtime boundary implementation
 
 The runtime enforces the boundary through `ObservationContext`, `redact_response_for_policy`, `PolicyTraceVisible`, and `EvaluatorTrace`. Agents and monitors receive only the policy-visible response/context; hidden oracle values and shift provenance are emitted by `HiddenStateEvaluator` into evaluator traces and never enter the policy trace.

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from random import Random
-
 import pytest
+from tests.shift_context_helpers import shift_context
 
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
 from tool_agent_shift_benchmark.core.context import redact_response_for_policy
@@ -34,6 +33,10 @@ def named_effect(response, fault_name: str) -> dict[str, object]:
     return next(effect for effect in reversed(response.observation.metadata["faults"]) if effect["name"] == fault_name)
 
 
+def apply_fault(fault, environment, response, seed):
+    return fault.apply(response, shift_context(environment, response, seed))
+
+
 @pytest.mark.parametrize("environment_type", ENVIRONMENTS)
 @pytest.mark.parametrize("fault_name", tuple(FAULTS))
 @pytest.mark.parametrize("severity", SEVERITIES)
@@ -45,7 +48,7 @@ def test_every_fault_has_auditable_zero_low_medium_and_maximum_behavior(
     environment = environment_type(seed=97, scenario_index=1)
     clean = environment.tool_response()
     ground_truth = environment.hidden_ground_truth()
-    shifted = FAULTS[fault_name](severity=severity).apply(clean, environment, Random(101))
+    shifted = apply_fault(FAULTS[fault_name](severity=severity), environment, clean, 101)
     effect = named_effect(shifted, fault_name)
 
     assert effect["contract"] == FAULT_EFFECT_CONTRACT
@@ -74,19 +77,13 @@ def test_realized_fault_magnitude_is_deterministic_and_monotonic(
     outputs = []
     for severity in SEVERITIES:
         environment = environment_type(seed=103, scenario_index=2)
-        response = FAULTS[fault_name](severity=severity).apply(
-            environment.tool_response(),
-            environment,
-            Random(107),
-        )
+        clean = environment.tool_response()
+        response = apply_fault(FAULTS[fault_name](severity=severity), environment, clean, 107)
         magnitudes.append(float(named_effect(response, fault_name)["realized_magnitude"]))
         outputs.append(response.to_dict())
         repeat_environment = environment_type(seed=103, scenario_index=2)
-        repeated = FAULTS[fault_name](severity=severity).apply(
-            repeat_environment.tool_response(),
-            repeat_environment,
-            Random(107),
-        )
+        repeat_clean = repeat_environment.tool_response()
+        repeated = apply_fault(FAULTS[fault_name](severity=severity), repeat_environment, repeat_clean, 107)
         assert repeated.to_dict() == outputs[-1]
 
     assert magnitudes == sorted(magnitudes)
@@ -101,11 +98,11 @@ def test_maximum_severity_effect_summaries_match_defined_endpoints() -> None:
     environment = FileOpsEnvironment(seed=109)
     clean = environment.tool_response()
 
-    schema = FAULTS["schema_drift"](1.0).apply(clean, environment, Random(1))
-    missing = FAULTS["missing_field"](1.0).apply(clean, environment, Random(1))
-    latency = FAULTS["latency_spike"](1.0).apply(clean, environment, Random(1))
-    conflict = FAULTS["conflicting_tool_output"](1.0).apply(clean, environment, Random(1))
-    memory = FAULTS["corrupted_memory"](1.0).apply(clean, environment, Random(1))
+    schema = apply_fault(FAULTS["schema_drift"](1.0), environment, clean, 1)
+    missing = apply_fault(FAULTS["missing_field"](1.0), environment, clean, 1)
+    latency = apply_fault(FAULTS["latency_spike"](1.0), environment, clean, 1)
+    conflict = apply_fault(FAULTS["conflicting_tool_output"](1.0), environment, clean, 1)
+    memory = apply_fault(FAULTS["corrupted_memory"](1.0), environment, clean, 1)
 
     assert set(named_effect(schema, "schema_drift")["details"]["renamed_fields"]) == {
         "files->items",
@@ -210,5 +207,5 @@ def test_fault_effect_contract_and_fault_plugin_version_are_scientific_identity(
     assert coordinator.identity is not None
     assert coordinator.identity.semantic.fault_effect_contract == FAULT_EFFECT_CONTRACT
     descriptor = PluginCatalog(include_external=False).descriptor("shift", "schema_drift")
-    assert descriptor.version == "3.0.0"
+    assert descriptor.version == "4.0.0"
     assert FAULT_EFFECT_CONTRACT in descriptor.capabilities

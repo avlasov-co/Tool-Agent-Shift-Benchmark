@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from random import Random
 
 from tool_agent_shift_benchmark.core.schema_registry import (
     SCHEMA_CHANGE_FAMILIES,
@@ -15,7 +14,7 @@ from .base import BaseFault, clone_response
 
 class SchemaDriftFault(BaseFault):
     name = "schema_drift"
-    version = "3.0.0"
+    version = "4.0.0"
     channel = "tool_schema"
     mechanism = "versioned_schema_delta"
     severity_semantics = "monotonic count of compatible through breaking schema changes"
@@ -30,7 +29,8 @@ class SchemaDriftFault(BaseFault):
             raise ValueError(f"unknown schema change family: {family!r}")
         self.family = family
 
-    def apply(self, response, env, rng: Random):
+    def apply(self, response, context):
+        rng = context.rng()
         if self.severity == 0.0:
             return self._record_only(
                 response,

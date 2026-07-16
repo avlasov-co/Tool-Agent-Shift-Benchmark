@@ -1,4 +1,4 @@
-"""Typed, normalized scientific identity schema version 18."""
+"""Typed, normalized scientific identity schema version 19."""
 
 from __future__ import annotations
 
@@ -27,12 +27,13 @@ from tool_agent_shift_benchmark.core.scenarios import (
 )
 from tool_agent_shift_benchmark.core.seeding import SEED_STREAM_ALGORITHM, EpisodeSeedStreams
 from tool_agent_shift_benchmark.core.serialization import register_dataclass, stable_hash
+from tool_agent_shift_benchmark.core.shift_context import SHIFT_CONTEXT_SCHEMA_VERSION
 
 if TYPE_CHECKING:
     from tool_agent_shift_benchmark.core.catalog import PluginCatalog
     from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec
 
-IDENTITY_SCHEMA_VERSION = "18"
+IDENTITY_SCHEMA_VERSION = "19"
 SCENARIO_GENERATOR_NAME = "deterministic_synthetic_scenarios"
 SCENARIO_GENERATOR_VERSION = "3.0.0"
 EVALUATOR_NAME = "hidden_state_evaluator"
@@ -102,6 +103,7 @@ class FaultScheduleIdentity:
 class StepSemanticsIdentity:
     version: str
     environment_policy_adapter_contract: str
+    shift_context_schema_version: str
     maximum_steps: int
     requery_contract: str
     policy_memory_contract: str
@@ -412,6 +414,7 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
         step_semantics=StepSemanticsIdentity(
             STEP_SEMANTICS_VERSION,
             ENVIRONMENT_POLICY_ADAPTER_CONTRACT,
+            SHIFT_CONTEXT_SCHEMA_VERSION,
             spec.episode_steps,
             TOOL_REQUERY_CONTRACT,
             POLICY_MEMORY_CONTRACT,

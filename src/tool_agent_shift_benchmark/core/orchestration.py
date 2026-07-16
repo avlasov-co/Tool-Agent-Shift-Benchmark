@@ -60,6 +60,7 @@ from tool_agent_shift_benchmark.core.scenarios import (
 )
 from tool_agent_shift_benchmark.core.seeding import EpisodeSeedStreams, derive_seed, episode_seed_streams
 from tool_agent_shift_benchmark.core.serialization import canonical_loads, write_json
+from tool_agent_shift_benchmark.core.shift_context import SHIFT_CONTEXT_SCHEMA_VERSION, ShiftContext
 from tool_agent_shift_benchmark.core.timing import CAUSAL_LATENCY_CONTRACT, ResponseTiming
 from tool_agent_shift_benchmark.core.types import (
     AgentAction,
@@ -710,6 +711,7 @@ class EpisodeRunner:
                 **schedule.provenance(step),
                 "attempt_number": attempt_number,
                 "component_channels": component_channels,
+                "shift_context_schema_version": SHIFT_CONTEXT_SCHEMA_VERSION,
             }
             schedule_provenance.append(provenance)
             scheduled_severity = schedule.severity_at(step)
@@ -746,9 +748,40 @@ class EpisodeRunner:
                     memory_requests.append(
                         MemoryCorruptionRequest(schedule.schedule_id, scheduled_severity, shift_rng_seed)
                     )
+            lifecycle = shifted.observation.data.get("lifecycle")
+            lifecycle_phase = str(lifecycle.get("phase", "unknown")) if isinstance(lifecycle, dict) else "unknown"
+            policy_adapter = env_obj.policy_adapter(shifted.observation)
+            shift_context = ShiftContext.create(
+                step_index=step,
+                attempt_number=attempt_number,
+                public_scenario_metadata=item.scenario_spec.public_task_description,
+                visible_schema={
+                    "tool_name": shifted.tool_name,
+                    "observation_schema_version": shifted.observation.schema_version,
+                    "top_level_fields": sorted(shifted.observation.data),
+                    "required_fields": policy_adapter.required_fields,
+                    "action_schema": policy_adapter.action_schema,
+                },
+                timing={
+                    "clock_unit": "ms",
+                    "environment_time": int(getattr(env_obj, "current_time", shifted.observation.timestamp)),
+                    "observation_timestamp": shifted.observation.timestamp,
+                    "declared_latency_ms": shifted.latency_ms,
+                },
+                rng_seed=0,
+                fault_schedule=provenance,
+                channel_metadata={
+                    "lifecycle_phase": lifecycle_phase,
+                    "visible_constraints_reference_hash": stable_hash(
+                        shifted.observation.constraints,
+                        prefix="constraint_reference",
+                    ),
+                    "policy_adapter_contract": policy_adapter.contract_version,
+                },
+            )
             shifted, composition = compose_fault_chain(
                 shifted,
-                env_obj,
+                shift_context,
                 applications,
                 schedule_id=schedule.schedule_id,
                 scheduled_severity=scheduled_severity,
