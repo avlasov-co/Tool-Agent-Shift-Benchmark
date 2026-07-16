@@ -139,7 +139,9 @@ tool-agent-shift-benchmark
 ├── SECURITY.md
 ├── CHANGELOG.md
 ├── pyproject.toml
-├── requirements.txt
+├── requirements/
+│   ├── runtime.txt
+│   └── development.txt
 ├── Makefile
 ├── PROJECT_SPEC.md
 ├── docs

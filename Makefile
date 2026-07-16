@@ -3,7 +3,8 @@ PYTHON ?= python3
 .PHONY: setup lint format format-check typecheck test coverage audit small full plots report repro clean seeds sweep architecture
 
 setup:
-	$(PYTHON) -m pip install -e ".[dev]"
+	$(PYTHON) -m pip install --require-hashes -r requirements/development.txt
+	$(PYTHON) -m pip install --no-deps -e .
 
 lint:
 	$(PYTHON) -m ruff check src tests

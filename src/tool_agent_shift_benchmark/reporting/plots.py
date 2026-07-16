@@ -9,11 +9,20 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-import matplotlib
 
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import numpy as np
+def _load_plotting_dependencies():
+    try:
+        import matplotlib
+        import numpy as np
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Plot generation requires the optional 'analysis' dependencies. "
+            "Install them with: python -m pip install 'tool-agent-shift-benchmark[analysis]'"
+        ) from exc
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    return plt, np
 
 
 def _read_csv(path: str | Path) -> list[dict[str, str]]:
@@ -127,6 +136,8 @@ def _scatter(rows, out_path: str | Path) -> None:
 
 
 def generate_plots(summary_path="results/summary.csv", figures_dir="figures"):
+    global plt, np
+    plt, np = _load_plotting_dependencies()
     rows = _read_csv(summary_path)
     figures = Path(figures_dir)
     figures.mkdir(parents=True, exist_ok=True)

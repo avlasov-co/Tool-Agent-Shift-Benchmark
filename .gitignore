@@ -9,6 +9,7 @@ htmlcov/
 .audit/
 build/
 dist/
+node_modules/
 
 # Local environments
 .venv/

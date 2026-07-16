@@ -3,9 +3,13 @@
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+make setup
 bash scripts/run_repro.sh
 ```
+
+`make setup` installs the reviewed, hash-checked development resolution in
+`requirements/development.txt` and then installs this checkout without asking
+the resolver to select a second graph.
 
 The runner writes seed and config metadata to `results/config.json`. Episode IDs are stable hashes of run configuration, environment, scenario, agent, fault, and seed.
 

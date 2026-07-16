@@ -61,7 +61,7 @@ Confidence-interval plots are generated only after the multi-seed command.
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+make setup
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m compileall -q src tests
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q
 python -m tool_agent_shift_benchmark.run_eval --all-envs --all-agents --config small --seed 42

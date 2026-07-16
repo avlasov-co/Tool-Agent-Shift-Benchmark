@@ -13,7 +13,7 @@
 
 ## Current checkpoint
 
-Checkpoint 10 — proper source layout — complete.
+Checkpoint 12 — reproducible dependencies — complete.
 
 ## Checkpoint evidence
 
@@ -74,3 +74,29 @@ commit. The final section will retain baseline failures and remaining risks.
   without checkout access or `PYTHONPATH`.
 - `ruff check`, `ruff format --check`, focused strict mypy, and `git diff
   --check` passed.
+
+### Checkpoint 12 — reproducible dependencies
+
+- Made `PyYAML` the sole runtime dependency. Plotting is an explicit
+  `analysis` extra and imports its plotting stack only when plots are
+  requested, with an actionable install message if it is absent. Development,
+  documentation, and release tooling live in bounded extras.
+- Replaced the floating `requirements.txt` file with two generated,
+  hash-checked lockfiles: `requirements/runtime.txt` for the installed runtime
+  graph and `requirements/development.txt` for every declared extra. The
+  accompanying README records the exact `pip-tools==7.5.3` regeneration
+  commands. `make setup` first installs the development lock with
+  `--require-hashes`, then installs the checkout with `--no-deps`.
+- Added a committed `package-lock.json` for exact Mermaid/browser tooling and
+  changed architecture rendering to use its locked local executable. The
+  script no longer triggers an uncontrolled `npx` download; unavailable
+  tooling retains the existing checked-in render unless strict mode is set.
+- Fresh temporary environments proved the intended split: runtime lock plus a
+  wheel installed `--no-deps` passed CLI, module-entry, built-in config, and
+  planning checks outside the checkout, while plotting failed with the
+  documented optional-dependency message. The full development lock plus
+  extras passed imports and `pip check`.
+- `npm ci --ignore-scripts` installed the committed Node graph and confirmed
+  Mermaid CLI `11.12.0` and Puppeteer browsers `2.7.1`. `make setup`, lint,
+  formatting, focused strict mypy, tests, `pip check`, and `git diff --check`
+  passed.

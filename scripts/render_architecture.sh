@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MERMAID_VERSION="11.12.0"
 export PUPPETEER_CACHE_DIR="${PUPPETEER_CACHE_DIR:-$HOME/.cache/puppeteer}"
+MERMAID_CLI="${MERMAID_CLI:-$ROOT/node_modules/.bin/mmdc}"
 
 render_one() {
   local extension="$1"
   local output="$ROOT/docs/architecture.$extension"
   local temporary
   temporary="$(mktemp "$ROOT/docs/.architecture.$extension.XXXXXX.$extension")"
-  if command -v mmdc >/dev/null 2>&1; then
-  if ! mmdc -i "$ROOT/docs/architecture.mmd" -o "$temporary" -b transparent; then rm -f "$temporary"; return 1; fi
+  if [[ -x "$MERMAID_CLI" ]]; then
+    if ! "$MERMAID_CLI" -i "$ROOT/docs/architecture.mmd" -o "$temporary" -b transparent; then
+      rm -f "$temporary"
+      return 1
+    fi
   else
-    if ! npx --yes "@mermaid-js/mermaid-cli@$MERMAID_VERSION" -i "$ROOT/docs/architecture.mmd" -o "$temporary" -b transparent; then rm -f "$temporary"; return 1; fi
+    return 1
   fi
   mv "$temporary" "$output"
 }
