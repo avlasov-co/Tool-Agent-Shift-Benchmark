@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
-from tool_agent_shift_benchmark.core.contracts import PluginDescriptor
+from tool_agent_shift_benchmark.core.contracts import PluginDescriptor, TrustLevel
 from tool_agent_shift_benchmark.core.episode import Episode
 from tool_agent_shift_benchmark.core.orchestration import ExperimentPlanner, ExperimentSpec, RunCoordinator
 from tool_agent_shift_benchmark.core.run_artifacts import prepare_run_dir, snapshot_outputs
@@ -72,15 +72,18 @@ def test_entry_point_plugin_is_discovered_and_invalid_contract_is_rejected(monke
     class ExternalAgent(VisibleOnlyAgent):
         name = "external_visible"
 
-    ExternalAgent.plugin_descriptor = PluginDescriptor.for_factory(
+    external_descriptor = PluginDescriptor.for_factory(
         "agent",
         "external_visible",
         ExternalAgent,
         version="2.0.0",
-    )
+        trust_level=TrustLevel.EXTERNAL_RESTRICTED,
+    ).to_dict()
 
     class EntryPoint:
         name = "external_visible"
+        value = external_descriptor["implementation_identifier"]
+        tasb_plugin_descriptor = external_descriptor
 
         def load(self):
             return ExternalAgent
@@ -96,26 +99,26 @@ def test_entry_point_plugin_is_discovered_and_invalid_contract_is_rejected(monke
 
     class BadEntryPoint(EntryPoint):
         name = "bad_external"
+        value = "tests.test_platform_evolution:Bad"
+        tasb_plugin_descriptor = {
+            **external_descriptor,
+            "name": "bad_external",
+            "implementation_identifier": value,
+            "contract_version": "999",
+        }
 
         def load(self):
-            class Bad:
-                name = "bad_external"
-
-                def decide(self, context, response):
-                    raise AssertionError("incompatible plugin must not run")
-
-            descriptor = PluginDescriptor.for_factory("agent", "bad_external", Bad).to_dict()
-            descriptor["contract_version"] = "999"
-            Bad.plugin_descriptor = descriptor
-            return Bad
+            raise AssertionError("incompatible plugin must not import")
 
     class BadEntryPoints(EntryPoints):
         def select(self, *, group):
             return [BadEntryPoint()] if group == "tasb.agents" else []
 
     monkeypatch.setattr("tool_agent_shift_benchmark.core.catalog.entry_points", lambda: BadEntryPoints())
+    invalid = PluginCatalog()
+    assert invalid.get("agent", "naive")
     with pytest.raises(ValueError, match="unsupported plugin contract"):
-        PluginCatalog()
+        invalid.descriptor("agent", "bad_external")
 
 
 def test_resume_skips_completed_episode_specs_without_duplicates():

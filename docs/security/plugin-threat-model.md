@@ -51,8 +51,10 @@ isolation mode. A tier never silently downgrades to in-process execution.
   filesystem, network, or credential handles.
 - Policy-visible records use recursive immutable mappings/tuples. Canonical
   serialization thaws only into fresh JSON-shaped values.
-- Entry-point discovery reads metadata without importing implementations.
-  Import and instantiation happen only for an explicitly requested plugin.
+- `plugin-discovery-v1` reads static descriptor fields or the packaged
+  `tasb_plugin_descriptors.json` file without importing implementations.
+  Import and instantiation happen only for an explicitly requested plugin;
+  malformed entries remain scoped errors and do not disable unrelated names.
 - Restricted/untrusted execution uses a structured bounded subprocess protocol
   with a sanitized environment, controlled temporary cwd, startup and per-call
   timeouts, output limits, deterministic termination, and supported resource

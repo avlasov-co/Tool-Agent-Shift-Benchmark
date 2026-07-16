@@ -97,6 +97,8 @@ def _plugins_command(args: argparse.Namespace) -> None:
     if args.plugins_command == "list":
         for descriptor in catalog.descriptors():
             print(f"{descriptor.kind}\t{descriptor.name}\t{descriptor.version}\tcontract={descriptor.contract_version}")
+        for error in catalog.discovery_errors():
+            print(f"{error['kind']}\t{error['name']}\tERROR\t{error['error']}")
     else:
         catalog.validate()
         print(f"plugin catalog valid: {len(catalog.descriptors())} plugins")

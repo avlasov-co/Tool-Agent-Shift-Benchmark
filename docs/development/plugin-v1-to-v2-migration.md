@@ -57,10 +57,19 @@ and recursively frozen by their typed constructors.
 ## Entry-point migration
 
 Entry-point packages must publish non-executable v2 descriptor metadata and an
-importable implementation identifier. Listing metadata must not be used as an
-implicit import hook. Contract-v1 packages receive an incompatible-contract
-error and must be upgraded or explicitly adapted in their own package; the
-benchmark does not relabel v1 behavior as v2.
+importable implementation identifier. Publish one canonical descriptor JSON
+object in a `TASB-Plugin-Descriptor` core-metadata field, or package a
+`tasb_plugin_descriptors.json` object/array in distribution metadata. The
+descriptor `kind` and `name` must match the entry-point group/name, and its
+`implementation_identifier` must exactly match the entry-point value.
+
+`plugin-discovery-v1` lists and validates this static data without importing
+the implementation. Import occurs only when configuration explicitly selects
+the plugin. Installed entry-point plugins must declare `external_restricted`
+or `untrusted_isolated`; reviewed `local_trusted` code uses explicit
+programmatic registration. Contract-v1 packages receive a scoped
+incompatible-contract error and must be upgraded or explicitly adapted in
+their own package; the benchmark does not relabel v1 behavior as v2.
 
 ## Trust migration
 

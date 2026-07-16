@@ -19,7 +19,7 @@
 
 ## Current checkpoint
 
-Checkpoints 36–39 are complete. Checkpoint 40 — lazy plugin discovery — is
+Checkpoints 36–40 are complete. Checkpoint 41 — trust tiers and isolation — is
 next.
 
 ## Checkpoint evidence
@@ -150,6 +150,33 @@ commit identifiers will be recorded here before every checkpoint commit.
   ordinary JSON shapes.
 - The full suite passes 519 tests after compilation. Branch coverage passes at
   82.05% over 7,428 statements and 2,228 branches. Ruff lint/format, strict
+  mypy, and `git diff --check` pass.
+
+### Checkpoint 40 — lazy plugin discovery
+
+- Added `plugin-discovery-v1`. Entry-point discovery reads only static
+  `TASB-Plugin-Descriptor` distribution metadata or the packaged
+  `tasb_plugin_descriptors.json` file. It validates `plugin-descriptor-v2`
+  data, entry-point kind/name/implementation identity, and external trust tier
+  without importing the referenced module.
+- Catalog construction, name listing, descriptor listing, catalog
+  serialization, and unselected whole-catalog validation do not call
+  `EntryPoint.load`. Planner validation loads only plugins explicitly named by
+  the resolved experiment. A successfully loaded implementation is cached and
+  passes the same factory validator as built-ins and programmatic
+  registrations.
+- Discovery stores malformed/missing/incompatible metadata and duplicate names
+  as deterministic per-kind/name errors. Import failures are wrapped with the
+  requested kind, name, implementation identifier, and original error, then
+  cached. Unrelated built-ins and valid plugins remain usable. CLI listing
+  reports invalid discovered entries without importing or hiding them.
+- Added six lazy-discovery cases covering a raising import trap, zero-load
+  metadata validation, exactly-once explicit loading, cached import failure,
+  incompatible contract, implementation mismatch, missing static metadata,
+  and order-independent duplicates. The pre-existing entry-point integration
+  test now uses the v2 static descriptor/trust format.
+- The full suite passes 525 tests after compilation. Branch coverage passes at
+  81.92% over 7,577 statements and 2,294 branches. Ruff lint/format, strict
   mypy, and `git diff --check` pass.
 
 ## Terminal validation

@@ -50,4 +50,12 @@ an explicit YAML file path remains supported for user-authored configurations.
 submodules remain useful for development but are not the primary user surface.
 # Platform commands
 
-`tasb plugins list` lists built-in and entry-point plugins; `tasb plugins validate` checks catalog metadata. `tasb plan --config <config>` resolves the Cartesian matrix and stable seed policy without executing episodes. `tasb run --config <config> --workers N` executes serially by default or with deterministic parallel scheduling. `tasb inspect-run <run>` prints the self-describing manifest, and `tasb render-architecture` regenerates the Mermaid renders.
+`tasb plugins list` lists built-in and statically discovered entry-point
+metadata, including scoped discovery errors; `tasb plugins validate` checks
+catalog metadata without importing unselected implementations. `tasb plan
+--config <config>` resolves the Cartesian matrix and stable seed policy,
+loading only explicitly selected plugins without executing episodes. `tasb run
+--config <config> --workers N` executes serially by default or with
+deterministic parallel scheduling. `tasb inspect-run <run>` prints the
+self-describing manifest, and `tasb render-architecture` regenerates the
+Mermaid renders.
