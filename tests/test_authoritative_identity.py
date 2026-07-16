@@ -140,11 +140,17 @@ def test_completed_skipped_resumed_replayed_failed_and_serialized_ids_are_stable
     plan = ExperimentPlanner(spec, catalog).plan()
     completed = RunCoordinator(spec, catalog).run()
     checkpoint = tmp_path / "checkpoint.json"
+    manifest_dir = tmp_path / "scenarios"
+    RunCoordinator(spec, catalog).run(scenario_manifest_dir=manifest_dir)
 
     skipped = RunCoordinator(spec, catalog).run({plan[0].episode_id}, checkpoint_path=checkpoint)
     resumed = RunCoordinator(spec, catalog).run(checkpoint_path=checkpoint)
     replayed = RunCoordinator(
-        ExperimentSpec.from_config(base_config(), seed=23, replay_episode_ids=[plan[1].episode_id]),
+        ExperimentSpec.from_config(
+            {**base_config(), "scenario_manifest_path": str(manifest_dir)},
+            seed=23,
+            replay_episode_ids=[plan[1].episode_id],
+        ),
         catalog,
     ).run()
     restored = Episode.from_dict(json.loads(json.dumps(replayed[0].to_dict())))

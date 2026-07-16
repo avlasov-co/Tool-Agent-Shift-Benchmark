@@ -18,7 +18,7 @@
 
 ## Current checkpoint
 
-Checkpoint 18 — seed-dependent scenarios — in progress.
+Checkpoint 19 — scenario manifests — complete; preparing Checkpoint 20.
 
 ## Checkpoint evidence
 
@@ -51,6 +51,36 @@ diagnostic checks remain visible here.
 - The first lint/format gate reported one import-order issue and two files
   needing Ruff formatting; the mechanical formatter/import fix was applied and
   the gates were rerun before commit.
+
+### Checkpoint 19 — scenario manifests
+
+- Added immutable scenario-manifest schema `2` and contract
+  `scenario-manifest-v2`. Every `ScenarioSpec` keeps public task description,
+  policy-visible initial state, hidden evaluator state, constraints, and
+  transition parameters in distinct deeply frozen mappings.
+- Manifests bind generator name/version, environment/scenario identity, seed
+  stream contract, and all five structural state sections with a full canonical
+  SHA-256 content hash. Files include that hash in their names so multiple root
+  seeds can coexist without overwriting evidence.
+- New runs materialize each unique scenario once, before treatment execution,
+  and write one manifest per unique content hash. Public planner serialization
+  exposes only a manifest reference and hash; hidden state and hazards are not
+  present.
+- Replay now requires a manifest directory, selects the exact scenario seed,
+  validates its hash and identity, restores all three built-in environments
+  from the manifest, and never invokes the current generator. A regression
+  test replaces FileOps generation with an exception and proves replay still
+  succeeds.
+- Tampered manifests fail before execution. Existing manifest paths are never
+  overwritten with different content. Explicit reconstructible schema-v1
+  manifest records migrate deterministically; incomplete historical episode
+  state fails rather than being guessed.
+- Scenario manifest hashes are included in episode identity and episode
+  metadata, so generator changes cannot silently alter stored scenario meaning.
+- Focused manifest/identity/config/cross-process/seed tests passed (64 tests).
+  The full suite passed (175 tests). Compilation, strict mypy, Ruff lint and
+  format, and `git diff --check` passed after four files were mechanically
+  formatted.
 
 ## Contract versions
 

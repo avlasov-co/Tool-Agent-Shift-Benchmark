@@ -88,6 +88,7 @@ ALLOWED_KEYS = frozenset(
         "scenario_schema_version",
         "scenario_split",
         "scenario_splits",
+        "scenario_manifest_path",
         "evaluator",
         "evaluator_version",
         "policy_resources",
@@ -181,6 +182,7 @@ class ConfigV2:
     scenario_schema_version: str
     scenario_split: str
     scenario_splits: tuple[ScenarioSplitConfig, ...]
+    scenario_manifest_path: str
     evaluator: str
     evaluator_version: str
     policy_resources: dict[str, str]
@@ -476,6 +478,9 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
     )
     scenario_schema_version = _string(root.get("scenario_schema_version", "v1"), source, "$.scenario_schema_version")
     scenario_split = _string(root.get("scenario_split", "default"), source, "$.scenario_split")
+    scenario_manifest_path = root.get("scenario_manifest_path", "")
+    if not isinstance(scenario_manifest_path, str):
+        raise _error(source, "$.scenario_manifest_path", "must be a string")
     raw_splits = root.get("scenario_splits")
     if raw_splits is None:
         scenario_splits = (ScenarioSplitConfig("default", tuple(range(episodes_per_combo))),)
@@ -552,6 +557,7 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
         scenario_schema_version,
         scenario_split,
         scenario_splits,
+        scenario_manifest_path,
         evaluator,
         evaluator_version,
         {key: resources[key] for key in sorted(resources)},

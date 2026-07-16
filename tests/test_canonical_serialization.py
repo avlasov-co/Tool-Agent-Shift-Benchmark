@@ -210,11 +210,18 @@ spec = ExperimentSpec.from_config(config, seed=37, workers=workers)
 planner = ExperimentPlanner(spec, catalog)
 plan = planner.plan()
 target = plan[1].episode_id
+manifest_dir = os.path.join(os.getcwd(), 'scenarios')
+RunCoordinator(spec, catalog).run(scenario_manifest_dir=manifest_dir)
 filtered = ExperimentPlanner(
     ExperimentSpec.from_config(config, seed=37, workers=workers, episode_ids=[target]), catalog
 ).plan()
 replay = ExperimentPlanner(
-    ExperimentSpec.from_config(config, seed=37, workers=workers, replay_episode_ids=[target]), catalog
+    ExperimentSpec.from_config(
+        {**config, 'scenario_manifest_path': manifest_dir},
+        seed=37,
+        workers=workers,
+        replay_episode_ids=[target],
+    ), catalog
 ).plan()
 resumed = RunCoordinator(spec, catalog).run({target})
 print(canonical_dumps({

@@ -20,6 +20,12 @@ from tool_agent_shift_benchmark.core.identity import (
     PlannedEpisodeIdentity,
     build_experiment_identity,
 )
+from tool_agent_shift_benchmark.core.scenarios import (
+    ScenarioManifestError,
+    ScenarioSpec,
+    read_scenario_manifest,
+    write_scenario_manifest,
+)
 from tool_agent_shift_benchmark.core.seeding import EpisodeSeedStreams, episode_seed_streams
 from tool_agent_shift_benchmark.core.serialization import canonical_loads, write_json
 from tool_agent_shift_benchmark.core.types import (
@@ -79,6 +85,7 @@ class ExperimentSpec:
     partition_index: int | None = None
     partition_count: int | None = None
     replay_episode_ids: tuple[str, ...] = ()
+    scenario_manifest_path: str = ""
     semantic_scenario_indices: tuple[int, ...] | None = None
     legacy_source_config: dict[str, Any] = dataclass_field(default_factory=dict)
 
@@ -181,6 +188,7 @@ class ExperimentSpec:
             replay_episode_ids=tuple(
                 str(x) for x in (config.get("replay_episode_ids", ()) if replay_id_values is None else replay_id_values)
             ),
+            scenario_manifest_path=str(config.get("scenario_manifest_path", "")),
             semantic_scenario_indices=split_indices,
             legacy_source_config=dict(public),
         )
@@ -210,6 +218,7 @@ class EpisodeSpec:
     severity: float
     scenario_index: int
     seed_streams: EpisodeSeedStreams
+    scenario_spec: ScenarioSpec = dataclass_field(compare=False, hash=False, repr=False)
 
     @property
     def run_id(self) -> str:
@@ -245,6 +254,7 @@ class EpisodeSpec:
             "scenario_index": self.scenario_index,
             "seed": self.seed,
             "seed_streams": self.seed_streams.to_dict(),
+            "scenario_manifest": self.scenario_spec.public_reference(),
             "identity": self.identity.to_dict(),
         }
 
@@ -270,6 +280,52 @@ class ExperimentPlanner:
         self.run_id = self.identity.run_id
         self.legacy_run_id = self.identity.legacy_run_id
         self.config_digest = self.identity.config_digest
+        self._scenario_specs: dict[tuple[str, int], ScenarioSpec] = {}
+
+    def _materialize_scenario(
+        self,
+        environment: str,
+        scenario_index: int,
+        streams: EpisodeSeedStreams,
+    ) -> ScenarioSpec:
+        key = (environment, scenario_index)
+        cached = self._scenario_specs.get(key)
+        if cached is not None:
+            if cached.scenario_seed != streams.scenario_generation:
+                raise ScenarioManifestError(f"scenario seed changed while planning {key!r}")
+            return cached
+        scenario_id = f"{environment}_scenario_{scenario_index}"
+        if self.spec.replay_episode_ids:
+            if not self.spec.scenario_manifest_path:
+                raise ScenarioManifestError("identity-v2 replay requires scenario_manifest_path")
+            scenario = read_scenario_manifest(
+                self.spec.scenario_manifest_path,
+                scenario_id,
+                scenario_seed=streams.scenario_generation,
+            )
+        else:
+            environment_factory = self.catalog.get("environment", environment)
+            environment_object = environment_factory(
+                seed=streams.scenario_generation,
+                scenario_index=scenario_index,
+            )
+            scenario = getattr(environment_object, "scenario_spec", None)
+            if not isinstance(scenario, ScenarioSpec):
+                raise ScenarioManifestError(f"environment {environment!r} did not produce a versioned ScenarioSpec")
+        expected = (environment, scenario_id, scenario_index, streams.scenario_generation)
+        actual = (
+            scenario.environment,
+            scenario.scenario_id,
+            scenario.scenario_index,
+            scenario.scenario_seed,
+        )
+        if actual != expected:
+            raise ScenarioManifestError(f"scenario manifest identity mismatch: expected {expected!r}, got {actual!r}")
+        self._scenario_specs[key] = scenario
+        return scenario
+
+    def scenario_specs(self) -> tuple[ScenarioSpec, ...]:
+        return tuple(self._scenario_specs[key] for key in sorted(self._scenario_specs))
 
     def canonical_plan(self) -> list[EpisodeSpec]:
         """Construct every semantic episode before applying selectors."""
@@ -304,6 +360,7 @@ class ExperimentPlanner:
                                 oversight_treatment=self.spec.monitor_policy,
                             )
                             seed = streams.scenario_generation
+                            scenario = self._materialize_scenario(env, index, streams)
                             episode_id = stable_hash(
                                 {
                                     "env": env,
@@ -312,6 +369,7 @@ class ExperimentPlanner:
                                     "fault": shift,
                                     "severity": severity,
                                     "seed": seed,
+                                    "scenario_manifest_hash": scenario.content_hash,
                                     "run_id": self.run_id,
                                 },
                                 prefix="ep",
@@ -337,6 +395,7 @@ class ExperimentPlanner:
                                 severity,
                                 index,
                                 streams,
+                                scenario,
                             )
                             planned.append(item)
         return planned
@@ -470,7 +529,11 @@ class EpisodeRunner:
         )
 
     def run(self, item: EpisodeSpec) -> Episode:
-        env_obj = self.catalog.get("environment", item.environment)(seed=item.seed, scenario_index=item.scenario_index)
+        env_obj = self.catalog.get("environment", item.environment)(
+            seed=item.seed,
+            scenario_index=item.scenario_index,
+            scenario_spec=item.scenario_spec,
+        )
         agent_obj = self.catalog.get("agent", item.agent)()
         shift_objs = [self.catalog.get("shift", name)(severity=item.severity) for name in item.shift.split("+")]
         evaluator = HiddenStateEvaluator()
@@ -618,6 +681,7 @@ class EpisodeRunner:
             "combo_seed": item.seed,
             "seed_streams": item.seed_streams.to_dict(),
             "scenario_generator": self.identity_generator_metadata(item),
+            "scenario_manifest": item.scenario_spec.public_reference(),
             "episode_steps": self.spec.episode_steps,
             "steps_taken": len(step_trace),
             "multi_step": self.spec.episode_steps > 1,
@@ -729,11 +793,13 @@ class RunCoordinator:
         self.errors: list[OrchestrationError] = []
         self.run_id: str | None = None
         self.identity: ExperimentIdentity | None = None
+        self.scenario_specs: tuple[ScenarioSpec, ...] = ()
 
     def run(
         self,
         completed: set[str] | None = None,
         checkpoint_path: str | Path | None = None,
+        scenario_manifest_dir: str | Path | None = None,
     ) -> list[Episode]:
         planner = ExperimentPlanner(self.spec, self.catalog)
         self.run_id = planner.run_id
@@ -745,6 +811,10 @@ class RunCoordinator:
             self.spec.failure_policy,
         )
         canonical_plan = planner.canonical_plan()
+        self.scenario_specs = planner.scenario_specs()
+        if scenario_manifest_dir is not None:
+            for scenario in self.scenario_specs:
+                write_scenario_manifest(scenario_manifest_dir, scenario)
         if checkpoint_path and Path(checkpoint_path).exists():
             saved = canonical_loads(Path(checkpoint_path).read_text(encoding="utf-8"))
             saved_run_id = saved.get("run_id")

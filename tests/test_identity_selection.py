@@ -111,17 +111,23 @@ def test_invalid_selectors_fail_before_planning(overrides: dict[str, object], me
         planner(base_config(), **overrides)
 
 
-def test_resume_and_replay_retain_canonical_episode_ids() -> None:
+def test_resume_and_replay_retain_canonical_episode_ids(tmp_path: Path) -> None:
     config = base_config(3)
     catalog = PluginCatalog(include_external=False)
     complete_planner = planner(config)
     plan = complete_planner.plan()
+    manifest_dir = tmp_path / "scenarios"
+    RunCoordinator(ExperimentSpec.from_config(config, seed=11), catalog).run(scenario_manifest_dir=manifest_dir)
 
     resumed = RunCoordinator(ExperimentSpec.from_config(config, seed=11), catalog).run(
         {plan[0].episode_id, plan[2].episode_id}
     )
     replayed = RunCoordinator(
-        ExperimentSpec.from_config(config, seed=11, replay_episode_ids=[plan[1].episode_id]),
+        ExperimentSpec.from_config(
+            {**config, "scenario_manifest_path": str(manifest_dir)},
+            seed=11,
+            replay_episode_ids=[plan[1].episode_id],
+        ),
         catalog,
     ).run()
     serialized = Episode.from_dict(json.loads(json.dumps(replayed[0].to_dict())))

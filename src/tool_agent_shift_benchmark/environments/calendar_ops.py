@@ -3,6 +3,8 @@ from __future__ import annotations
 from random import Random
 from typing import Any, Dict, List, Tuple
 
+from tool_agent_shift_benchmark.core.scenarios import ScenarioSpec
+from tool_agent_shift_benchmark.core.serialization import canonicalize
 from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, ToolResponse
 from tool_agent_shift_benchmark.tools.calendar_tools import CalendarAvailabilityTool
 
@@ -173,3 +175,38 @@ class CalendarOpsEnvironment(SyntheticEnvironment):
             "temporal_hazards": [dict(hazard) for hazard in self.temporal_hazards],
             "generator": self.generator_metadata(),
         }
+
+    def public_task_description(self) -> Dict[str, Any]:
+        return {
+            "task": "schedule_event",
+            "attendees": list(self.attendees),
+            "event_properties": dict(self.event_properties),
+        }
+
+    def transition_parameters(self) -> Dict[str, Any]:
+        return {
+            "initial_time": self.current_time,
+            "required_phases": ["query", "resolve_conflict", "schedule", "verify"],
+            "target_start": self.target_start,
+            "target_end": self.target_end,
+            "clock_tick_per_action": 1,
+        }
+
+    def _restore_scenario_spec(self, spec: ScenarioSpec) -> None:
+        public = canonicalize(spec.public_task_description)
+        hidden = canonicalize(spec.hidden_evaluator_state)
+        constraints = canonicalize(spec.constraints)
+        transitions = canonicalize(spec.transition_parameters)
+        self.current_time = int(transitions["initial_time"])
+        self.scenario_id = spec.scenario_id
+        self.attendees = list(public["attendees"])
+        self.event_properties = dict(public["event_properties"])
+        self.event_duration = int(self.event_properties["duration_hours"])
+        self.timezone = str(constraints["timezone"])
+        self.working_hours = (int(constraints["working_hours_start"]), int(constraints["working_hours_end"]))
+        self.target_start = int(transitions["target_start"])
+        self.target_end = int(transitions["target_end"])
+        self.meetings = [dict(item) for item in hidden["meetings"]]
+        self.availability = [dict(item) for item in hidden["availability"]]
+        self.temporal_hazards = [dict(item) for item in hidden["temporal_hazards"]]
+        self.constraints = dict(constraints)

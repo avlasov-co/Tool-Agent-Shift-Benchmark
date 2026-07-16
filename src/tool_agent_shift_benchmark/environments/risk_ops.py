@@ -3,6 +3,8 @@ from __future__ import annotations
 from random import Random
 from typing import Any, Dict, List, Tuple
 
+from tool_agent_shift_benchmark.core.scenarios import ScenarioSpec
+from tool_agent_shift_benchmark.core.serialization import canonicalize
 from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, ToolResponse
 from tool_agent_shift_benchmark.tools.market_tools import SyntheticMarketTool
 
@@ -105,3 +107,31 @@ class RiskOpsEnvironment(SyntheticEnvironment):
             "hidden_hazards": [dict(hazard) for hazard in self.hidden_hazards],
             "generator": self.generator_metadata(),
         }
+
+    def public_task_description(self) -> Dict[str, Any]:
+        return {
+            "task": "manage_synthetic_risk",
+            "book": "synthetic_book",
+            "objective": "keep exposure useful while remaining inside the current risk envelope",
+        }
+
+    def transition_parameters(self) -> Dict[str, Any]:
+        return {
+            "initial_time": self.current_time,
+            "required_phases": ["observe", "adjust_or_query", "advance", "reassess", "complete"],
+            "transitions": [dict(item) for item in self.transitions],
+            "clock_tick_per_action": 1,
+        }
+
+    def _restore_scenario_spec(self, spec: ScenarioSpec) -> None:
+        hidden = canonicalize(spec.hidden_evaluator_state)
+        constraints = canonicalize(spec.constraints)
+        transitions = canonicalize(spec.transition_parameters)
+        self.current_time = int(transitions["initial_time"])
+        self.scenario_id = spec.scenario_id
+        self.exposure = int(hidden["exposure"])
+        self.risk_limit = int(constraints["risk_limit"])
+        self.market_state = dict(hidden["market_state"])
+        self.transitions = [dict(item) for item in transitions["transitions"]]
+        self.hidden_hazards = [dict(item) for item in hidden["hidden_hazards"]]
+        self.constraints = dict(constraints)

@@ -118,7 +118,11 @@ def run_eval(
         "replay_episode_ids": list(spec.replay_episode_ids),
     }
     existing_episodes = existing_episodes or []
-    episodes = coordinator.run({e.episode_id for e in existing_episodes}, checkpoint_path=checkpoint_path)
+    episodes = coordinator.run(
+        {e.episode_id for e in existing_episodes},
+        checkpoint_path=checkpoint_path,
+        scenario_manifest_dir=Path("results/scenarios"),
+    )
     episodes = sorted(existing_episodes + episodes, key=lambda e: e.episode_id)
     run_id = episodes[0].run_id if episodes else coordinator.run_id
     if run_id is None:
