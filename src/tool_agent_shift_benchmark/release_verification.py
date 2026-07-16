@@ -44,7 +44,19 @@ COPY_IGNORES = {
     "results",
     "runs",
 }
-DETERMINISTIC_OUTPUT_DIRECTORIES = ("results", "figures", "docs")
+DETERMINISTIC_OUTPUT_DIRECTORIES = (
+    "config",
+    "identity",
+    "plugins",
+    "plan",
+    "scenarios",
+    "results",
+    "traces",
+    "analysis",
+    "plots",
+    "reports",
+)
+DETERMINISTIC_ROOT_FILES = ("checkpoint.json", "status.json")
 VOLATILE_OUTPUT_EXCLUSIONS = {
     "run_manifest.json": "contains created/started/ended timestamps and the run-specific path",
 }
@@ -154,7 +166,7 @@ def _canonical_file_digest(path: Path) -> str:
 
 
 def canonical_output_tree(run_dir: Path) -> dict[str, str]:
-    """Digest deterministic run outputs while excluding documented manifests."""
+    """Digest deterministic bundle artifacts while excluding volatile manifests."""
     digests: dict[str, str] = {}
     for directory_name in DETERMINISTIC_OUTPUT_DIRECTORIES:
         directory = run_dir / directory_name
@@ -165,6 +177,11 @@ def canonical_output_tree(run_dir: Path) -> dict[str, str]:
             if path.name in VOLATILE_OUTPUT_EXCLUSIONS:
                 continue
             digests[relative] = _canonical_file_digest(path)
+    for name in DETERMINISTIC_ROOT_FILES:
+        path = run_dir / name
+        if not path.is_file():
+            raise ReleaseVerificationError(f"missing deterministic run artifact: {path}")
+        digests[name] = _canonical_file_digest(path)
     return digests
 
 
@@ -279,6 +296,7 @@ def _write_report(work_dir: Path, results: list[PhaseResult], failure: str | Non
         "failure": failure,
         "determinism_policy": {
             "compared_directories": list(DETERMINISTIC_OUTPUT_DIRECTORIES),
+            "compared_root_files": list(DETERMINISTIC_ROOT_FILES),
             "volatile_exclusions": VOLATILE_OUTPUT_EXCLUSIONS,
         },
         "phases": [asdict(result) for result in results],
@@ -433,7 +451,7 @@ def run_release_verification(
             )
         runner.check(
             "deterministic-output-comparison",
-            "compare canonical results, figures, and reports from two fixed-seed runs",
+            "compare canonical bundle artifacts from two fixed-seed runs",
             lambda: compare_deterministic_outputs(
                 temporary_checkout / "runs" / "determinism-a",
                 temporary_checkout / "runs" / "determinism-b",

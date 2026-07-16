@@ -289,10 +289,15 @@ def _exercise_installed_artifact(
                 [str(tasb), "report", "--run", "runs/distribution-smoke", "--html"],
                 cwd=empty_cwd,
             ),
+            runner.run(
+                f"{label}-verify-run",
+                [str(tasb), "verify-run", "runs/distribution-smoke", "--strict"],
+                cwd=empty_cwd,
+            ),
             runner.run(f"{label}-pip-check", [str(python), "-m", "pip", "check"], cwd=empty_cwd),
         ]
     )
-    report = empty_cwd / "docs" / "analysis_report.html"
+    report = empty_cwd / "runs" / "distribution-smoke" / "reports" / "analysis_report.html"
     if not report.is_file() or report.stat().st_size == 0:
         raise DistributionSmokeError(f"{label} report command did not produce {report}")
     return records

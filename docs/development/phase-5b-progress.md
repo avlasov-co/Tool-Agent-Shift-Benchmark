@@ -13,8 +13,7 @@
 
 ## Current checkpoint
 
-Checkpoint 44 — atomic artifact writes and bundle verification — complete;
-Checkpoint 45 is next.
+Checkpoint 45 — deterministic checkpoints and safe resume — complete.
 
 ## Checkpoint evidence
 
@@ -85,3 +84,60 @@ added before each numbered checkpoint commit.
   schemas, and bad checksums. Focused tests (65) plus `format-check`, lint,
   mypy, and `git diff --check` pass. An isolated CLI smoke produced a
   `complete_valid` bundle through `tasb verify-run --strict`.
+
+### Checkpoint 45 — deterministic checkpoint and resume safety
+
+- Added `checkpoint-v2`, written atomically before execution and after each
+  deterministic `execution_batch_size` batch. A checkpoint records the
+  authoritative identity, scientific normalized configuration, plugin
+  descriptors, scenario content hashes, artifact schema versions, completed,
+  failed, and pending IDs, explicit status totals, and failure records.
+- Resume validates the complete checkpoint compatibility boundary before
+  writing scenario artifacts. Semantic identity, normalized scientific config,
+  scenario hash, plugin descriptor/version, policy-resource hash, and artifact
+  schema incompatibilities raise a structured identity error. Workers,
+  progress/log display, batch size, and selectors remain documented
+  operational settings and worker-only recovery is covered.
+- Progress persists traces before an episode JSONL row becomes resume-complete,
+  then status, then the checkpoint advances. This ordering avoids marking an
+  episode complete until its recovery artifacts are durable. Existing episode
+  IDs are canonicalized and compared before writes, preventing divergent or
+  duplicate records during resume.
+- Failure injection covers before execution, after execution before write,
+  during trace write, after status write, and before finalization. Each
+  interrupted bundle is classified `incomplete_resumable`, resumes to
+  `complete_valid`, has no duplicate episode rows, and matches an uninterrupted
+  run byte-for-byte for all nonvolatile artifacts. A direct runner spy also
+  proves a durable episode is not executed again after the status-write crash.
+- Added checkpoint validation to `verify-run`; it now checks checkpoint schema,
+  run binding, artifact schemas, disjoint completed/failed/pending state,
+  plan coverage, and checkpoint status totals. Focused checkpoint, verification,
+  identity, pair, CLI, serialization, and execution tests (79) pass, together
+  with format-check, lint, mypy, `git diff --check`, and a CLI run/resume/verify
+  smoke.
+
+## Checkpoint commits
+
+- Checkpoint 42: `a441b2e` — unify experiment execution paths.
+- Checkpoint 43: `155d633` — isolate run bundle artifact writes.
+- Checkpoint 44: `e11541f` — verify finalized run bundles.
+- Checkpoint 45: this commit — deterministic checkpoints and safe resume.
+
+## Phase 6 handoff
+
+- The authoritative execution and recovery surfaces are
+  `core.execution`, `core.orchestration`, `core.checkpoints`,
+  `core.artifacts`, and `core.verification`.
+- Legacy wrappers remain importable but delegate to the normalized planner and
+  explicit bundle path; workspace-global output restoration and cleanup remain
+  retired.
+- `checkpoint-v2`, `run-bundle-v2`, `run-finalization-v1`, and
+  `verify-run-v1` are the supported contracts. Historical directories without
+  a versioned manifest are reported as `legacy_needing_migration`; use the
+  non-mutating `tasb migrate-run` guidance and rerun into a new bundle.
+- The final isolated release verifier passes with the bundle-owned deterministic
+  comparison and installed `verify-run --strict` smoke. The non-strict local
+  audit's only remaining evidence check is pre-existing: root
+  `results/episodes.jsonl` is intentionally absent because root evidence is no
+  longer regenerated; the audit's pre-commit worktree-cleanliness check also
+  resolves once this checkpoint is committed.

@@ -51,7 +51,7 @@ fault_pairs:
     store = ArtifactStore(tmp_path / "bundle")
     manifest = write_pairwise_compound_matrix(str(config), "analysis", artifact_store=store)
     assert manifest["rows"] == 1
-    output = Path(manifest["output_csv"])
+    output = store.run_dir / manifest["output_csv"]
     assert output.exists()
     with output.open("r", newline="", encoding="utf-8") as f:
         written = list(csv.DictReader(f))

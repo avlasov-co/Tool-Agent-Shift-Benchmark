@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from typing import List
+from typing import Callable, List
 
 from tool_agent_shift_benchmark.agents import AGENTS
 from tool_agent_shift_benchmark.core.action_records import ACTION_RECORD_CONTRACT, EPISODE_RECORD_VERSION
@@ -92,6 +92,7 @@ def run_eval(
     monitor_modes=None,
     oversight_modes=None,
     artifact_store: ArtifactStore | None = None,
+    failure_injector: Callable[[str], None] | None = None,
 ) -> List[Episode]:
     request = ExecutionRequest(
         config_path=config_path,
@@ -116,12 +117,6 @@ def run_eval(
     implicit_bundle = artifact_store is None
     if artifact_store is None:
         artifact_store = ArtifactStore(prepare_run_dir())
-    result = execute_plan(
-        plan,
-        existing_episodes=existing_episodes or (),
-        checkpoint_path=checkpoint_path,
-        scenario_manifest_writer=artifact_store.write_scenario_manifest,
-    )
     spec = plan.spec
     normalized_config = {
         **{key: value for key, value in plan.normalized_config.items() if not key.startswith("_")},
@@ -156,6 +151,97 @@ def run_eval(
         "partition_count": spec.partition_count,
         "replay_episode_ids": list(spec.replay_episode_ids),
     }
+    planned_count = len(plan.episodes)
+    existing_by_id = {episode.episode_id: episode for episode in existing_episodes or ()}
+    traced_episode_ids = set(existing_by_id)
+
+    def _status_payload(completed_ids: set[str], failed_ids: set[str], pending_ids: set[str]) -> dict[str, int | str]:
+        return {
+            "schema_version": "run-status-v1",
+            "planned_episodes": planned_count,
+            "started_episodes": len(completed_ids | failed_ids),
+            "completed_episodes": len(completed_ids),
+            "failed_episodes": len(failed_ids),
+            "skipped_episodes": 0,
+            "pending_episodes": len(pending_ids),
+            "invalid_episodes": 0,
+        }
+
+    # Persist enough of the bundle before execution for a crash before the
+    # first episode to remain inspectable and safely resumable.
+    artifact_store.write_json("config/normalized_config.json", normalized_config)
+    artifact_store.write_json("identity/experiment_identity.json", plan.planner.identity.to_dict())
+    artifact_store.write_json(
+        "plugins/descriptors.json",
+        {"schema_version": "plugin-descriptors-v2", "descriptors": plan.planner.catalog.as_dict()},
+    )
+    artifact_store.write_json("plan/execution_plan.json", plan.to_dict())
+    artifact_store.write_json(
+        "results/config.json",
+        {
+            "artifact_schema_version": "run-results-v2",
+            "run_id": plan.planner.run_id,
+            "config_digest": plan.planner.identity.config_digest,
+            "identity": plan.planner.identity.to_dict(),
+            "config": normalized_config,
+            "normalized_config": normalized_config,
+            "operational_request": effective_config,
+            "planned_episodes": planned_count,
+            "completed_episodes": len(existing_by_id),
+            "failed_episodes": 0,
+        },
+    )
+    artifact_store.write_json(
+        "status.json",
+        _status_payload(set(existing_by_id), set(), {item.episode_id for item in plan.episodes} - set(existing_by_id)),
+    )
+
+    def _write_progress(
+        produced: tuple[Episode, ...],
+        errors: tuple[dict[str, object], ...],
+        completed_ids: set[str],
+        failed_ids: set[str],
+        pending_ids: set[str],
+    ) -> None:
+        for episode in produced:
+            existing = existing_by_id.get(episode.episode_id)
+            if existing is not None and existing.to_dict() != episode.to_dict():
+                raise ValueError(f"duplicate episode ID has divergent records: {episode.episode_id}")
+            existing_by_id[episode.episode_id] = episode
+        episodes_to_persist = [existing_by_id[episode_id] for episode_id in sorted(existing_by_id)]
+        # A trace is durable before its episode row becomes a resume-complete
+        # record. If the trace write fails, the checkpoint cannot advance.
+        for episode in episodes_to_persist:
+            if episode.episode_id in traced_episode_ids:
+                continue
+            artifact_store.write_trace(
+                episode.episode_id,
+                policy={"episode_id": episode.episode_id, "step_trace": episode.metadata.get("step_trace", [])},
+                evaluator={
+                    "episode_id": episode.episode_id,
+                    "trace": episode.metadata.get("evaluator_trace", []),
+                    "action_records": [record.to_dict() for record in episode.action_records],
+                },
+                failure_injector=failure_injector,
+            )
+            traced_episode_ids.add(episode.episode_id)
+        artifact_store.write_jsonl("results/episodes.jsonl", (episode.to_dict() for episode in episodes_to_persist))
+        artifact_store.write_jsonl("results/orchestration_errors.jsonl", errors or ({"orchestration_errors": []},))
+        artifact_store.write_json("status.json", _status_payload(completed_ids, failed_ids, pending_ids))
+        if failure_injector is not None:
+            failure_injector("after_status_write")
+
+    result = execute_plan(
+        plan,
+        existing_episodes=existing_episodes or (),
+        checkpoint_path=checkpoint_path,
+        scenario_manifest_writer=artifact_store.write_scenario_manifest,
+        # A caller that does not request a checkpoint has no resume target; it
+        # retains the compatibility final-write behavior. CLI and resumable
+        # runs always provide a bundle-local checkpoint path.
+        progress_writer=_write_progress if checkpoint_path is not None else None,
+        failure_injector=failure_injector,
+    )
     write_outputs(
         artifact_store,
         list(result.episodes),
@@ -171,6 +257,8 @@ def run_eval(
         plugin_catalog=plan.planner.catalog.as_dict(),
     )
     artifact_store.write_json("plan/execution_plan.json", plan.to_dict())
+    if failure_injector is not None:
+        failure_injector("before_finalization")
     if implicit_bundle:
         artifact_store.finalize(command=["run_eval", "compatibility-wrapper"])
     return list(result.episodes)
@@ -455,6 +543,7 @@ def main(argv=None):
         all_envs=args.all_envs,
         all_agents=args.all_agents,
         artifact_store=store,
+        checkpoint_path=str(store.run_dir / "checkpoint.json"),
     )
     store.finalize(command=["python", "-m", "tool_agent_shift_benchmark.run_eval"])
     print(f"wrote results for {len(episodes)} episodes")

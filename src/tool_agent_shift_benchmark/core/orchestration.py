@@ -15,6 +15,10 @@ from tool_agent_shift_benchmark.core.action_records import (
     ActionRecord,
 )
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
+from tool_agent_shift_benchmark.core.checkpoints import (
+    checkpoint_compatibility_issues,
+    checkpoint_payload,
+)
 from tool_agent_shift_benchmark.core.context import ObservationContext, redact_response_for_policy
 from tool_agent_shift_benchmark.core.contracts import IdentityMismatchError, OrchestrationError, PluginDescriptor
 from tool_agent_shift_benchmark.core.counterfactual import COUNTERFACTUAL_EVALUATION_CONTRACT
@@ -52,9 +56,6 @@ from tool_agent_shift_benchmark.core.requery import (
     ToolAttemptRecord,
 )
 from tool_agent_shift_benchmark.core.scenarios import (
-    SCENARIO_FAMILY_CONTRACT,
-    SCENARIO_MANIFEST_CONTRACT,
-    SCENARIO_SPLIT_CONTRACT,
     ScenarioManifestError,
     ScenarioSpec,
     read_scenario_manifest,
@@ -73,6 +74,9 @@ from tool_agent_shift_benchmark.core.types import (
     stable_hash,
 )
 from tool_agent_shift_benchmark.monitors.composite import CompositeMonitor
+
+ProgressWriter = Callable[[tuple[Episode, ...], tuple[dict[str, Any], ...], set[str], set[str], set[str]], None]
+FailureInjector = Callable[[str], None]
 
 OPERATIONAL_SELECTOR_KEYS = frozenset(
     {
@@ -1383,6 +1387,75 @@ class RunCoordinator:
         self.run_id: str | None = None
         self.identity: ExperimentIdentity | None = None
         self.scenario_specs: tuple[ScenarioSpec, ...] = ()
+        self.prior_error_rows: tuple[dict[str, Any], ...] = ()
+
+    def _checkpoint_payload(
+        self,
+        planner: ExperimentPlanner,
+        plan: list[EpisodeSpec],
+        completed_ids: set[str],
+        failed_ids: set[str],
+        error_rows: tuple[dict[str, Any], ...],
+    ) -> dict[str, Any]:
+        scenario_hashes = [
+            {
+                "scenario_id": item.scenario_id,
+                "content_hash": item.scenario_spec.content_hash,
+                "scenario_pair_id": item.scenario_pair_id,
+            }
+            for item in sorted(plan, key=lambda value: value.episode_id)
+        ]
+        payload = checkpoint_payload(
+            run_id=planner.run_id,
+            identity=planner.identity.to_dict(),
+            normalized_config=planner.spec.config,
+            plugin_descriptors=planner.catalog.as_dict(),
+            scenario_manifest_hashes=scenario_hashes,
+            planned_episode_ids={item.episode_id for item in plan},
+            completed_episode_ids=completed_ids,
+            failed_episode_ids=failed_ids,
+            errors=error_rows,
+        )
+        payload["completed_scenario_pair_ids"] = sorted(
+            {item.scenario_pair_id for item in plan if item.episode_id in completed_ids and item.scenario_pair_id}
+        )
+        return {str(key): value for key, value in payload.items()}
+
+    @staticmethod
+    def _checkpoint_mismatch(
+        planner: ExperimentPlanner,
+        plan: list[EpisodeSpec],
+        saved: Mapping[str, Any],
+    ) -> IdentityMismatchError | None:
+        scenario_hashes = [
+            {
+                "scenario_id": item.scenario_id,
+                "content_hash": item.scenario_spec.content_hash,
+                "scenario_pair_id": item.scenario_pair_id,
+            }
+            for item in sorted(plan, key=lambda value: value.episode_id)
+        ]
+        issues = checkpoint_compatibility_issues(
+            saved,
+            run_id=planner.run_id,
+            identity=planner.identity.to_dict(),
+            normalized_config=planner.spec.config,
+            plugin_descriptors=planner.catalog.as_dict(),
+            scenario_manifest_hashes=scenario_hashes,
+        )
+        if not issues:
+            return None
+        field, expected, actual = issues[0]
+        scenario_generator = planner.identity.semantic.scenario_generator
+        episode_id = plan[0].episode_id if plan else planner.run_id
+        return IdentityMismatchError(
+            field=field,
+            expected=expected,
+            actual=actual,
+            phase="checkpoint_identity" if field == "checkpoint.run_id" else "checkpoint_compatibility",
+            plugin_descriptor=EpisodeRunner._descriptor_dict(scenario_generator),
+            episode_id=episode_id,
+        )
 
     def run(
         self,
@@ -1390,7 +1463,11 @@ class RunCoordinator:
         checkpoint_path: str | Path | None = None,
         scenario_manifest_dir: str | Path | None = None,
         scenario_manifest_writer: Callable[[ScenarioSpec], Path] | None = None,
+        progress_writer: ProgressWriter | None = None,
+        failure_injector: FailureInjector | None = None,
     ) -> list[Episode]:
+        self.errors = []
+        self.prior_error_rows = ()
         planner = ExperimentPlanner(self.spec, self.catalog)
         self.run_id = planner.run_id
         self.identity = planner.identity
@@ -1401,29 +1478,18 @@ class RunCoordinator:
             self.spec.failure_policy,
         )
         canonical_plan = planner.canonical_plan()
+        execution_plan = planner.plan()
         self.scenario_specs = planner.scenario_specs()
         if scenario_manifest_dir is not None and scenario_manifest_writer is not None:
             raise ValueError("provide a scenario manifest directory or writer, not both")
-        if scenario_manifest_writer is not None:
-            for scenario in self.scenario_specs:
-                scenario_manifest_writer(scenario)
-        elif scenario_manifest_dir is not None:
-            for scenario in self.scenario_specs:
-                write_scenario_manifest(scenario_manifest_dir, scenario)
+        completed_ids = set(completed or set())
+        failed_ids: set[str] = set()
         if checkpoint_path and Path(checkpoint_path).exists():
             saved = canonical_loads(Path(checkpoint_path).read_text(encoding="utf-8"))
-            saved_run_id = saved.get("run_id")
-            if saved_run_id is not None and saved_run_id != planner.run_id:
-                scenario_generator = planner.identity.semantic.scenario_generator
-                episode_id = canonical_plan[0].episode_id if canonical_plan else planner.run_id
-                mismatch = IdentityMismatchError(
-                    field="checkpoint.run_id",
-                    expected=planner.run_id,
-                    actual=saved_run_id,
-                    phase="checkpoint_identity",
-                    plugin_descriptor=EpisodeRunner._descriptor_dict(scenario_generator),
-                    episode_id=episode_id,
-                )
+            if not isinstance(saved, Mapping):
+                saved = {}
+            mismatch = self._checkpoint_mismatch(planner, execution_plan, saved)
+            if mismatch is not None:
                 failure_record = ActionRecord.infrastructure_failure(
                     error_type=type(mismatch).__name__,
                     message=str(mismatch),
@@ -1431,7 +1497,7 @@ class RunCoordinator:
                 )
                 self.errors = [
                     OrchestrationError(
-                        episode_id,
+                        mismatch.episode_id,
                         mismatch.phase,
                         type(mismatch).__name__,
                         str(mismatch),
@@ -1444,65 +1510,70 @@ class RunCoordinator:
                     )
                 ]
                 raise mismatch
-            completed = set(completed or set()) | set(saved.get("completed_episode_ids", []))
+            completed_ids.update(str(value) for value in saved.get("completed_episode_ids", []))
+            failed_ids.update(str(value) for value in saved.get("failed_episode_ids", []))
+            self.prior_error_rows = tuple(
+                dict(error) for error in saved.get("errors", []) if isinstance(error, Mapping)
+            )
         canonical_ids = {item.episode_id for item in canonical_plan}
-        unknown_completed = set(completed or set()) - canonical_ids
-        if unknown_completed:
-            raise UnknownEpisodeSelectionError("resume", unknown_completed)
-        try:
-            episodes = scheduler.run(planner.plan(), completed)
-        except Exception:
-            self.errors = sorted(scheduler.errors, key=lambda error: error.episode_id)
-            if checkpoint_path:
-                path = Path(checkpoint_path)
-                path.parent.mkdir(parents=True, exist_ok=True)
-                write_json(
-                    path,
-                    {
-                        "run_id": planner.run_id,
-                        "episode_record_version": EPISODE_RECORD_VERSION,
-                        "action_record_contract": ACTION_RECORD_CONTRACT,
-                        "counterfactual_evaluation_contract": COUNTERFACTUAL_EVALUATION_CONTRACT,
-                        "scenario_manifest_contract": SCENARIO_MANIFEST_CONTRACT,
-                        "scenario_family_contract": SCENARIO_FAMILY_CONTRACT,
-                        "scenario_split_contract": SCENARIO_SPLIT_CONTRACT,
-                        "completed_episode_ids": sorted(completed or set()),
-                        "completed_scenario_pair_ids": sorted(
-                            {
-                                item.scenario_pair_id
-                                for item in canonical_plan
-                                if item.episode_id in set(completed or set())
-                            }
-                        ),
-                        "scenario_manifest_hashes": sorted(scenario.content_hash for scenario in self.scenario_specs),
-                        "errors": [e.to_dict() for e in self.errors],
-                    },
-                )
-            raise
-        self.errors = sorted(scheduler.errors, key=lambda error: error.episode_id)
-        if checkpoint_path:
+        unknown = (completed_ids | failed_ids) - canonical_ids
+        if unknown:
+            raise UnknownEpisodeSelectionError("resume", unknown)
+        selected_ids = {item.episode_id for item in execution_plan}
+        invalid_selected = (completed_ids | failed_ids) - selected_ids
+        if invalid_selected:
+            raise UnknownEpisodeSelectionError("resume", invalid_selected)
+        if scenario_manifest_writer is not None:
+            for scenario in self.scenario_specs:
+                scenario_manifest_writer(scenario)
+        elif scenario_manifest_dir is not None:
+            for scenario in self.scenario_specs:
+                write_scenario_manifest(scenario_manifest_dir, scenario)
+
+        def error_rows() -> tuple[dict[str, Any], ...]:
+            return tuple([*self.prior_error_rows, *(error.to_dict() for error in scheduler.errors)])
+
+        def save_checkpoint() -> None:
+            if checkpoint_path is None:
+                return
             path = Path(checkpoint_path)
             path.parent.mkdir(parents=True, exist_ok=True)
-            write_json(
-                path,
-                {
-                    "run_id": planner.run_id,
-                    "episode_record_version": EPISODE_RECORD_VERSION,
-                    "action_record_contract": ACTION_RECORD_CONTRACT,
-                    "counterfactual_evaluation_contract": COUNTERFACTUAL_EVALUATION_CONTRACT,
-                    "scenario_manifest_contract": SCENARIO_MANIFEST_CONTRACT,
-                    "scenario_family_contract": SCENARIO_FAMILY_CONTRACT,
-                    "scenario_split_contract": SCENARIO_SPLIT_CONTRACT,
-                    "completed_episode_ids": sorted((completed or set()) | {e.episode_id for e in episodes}),
-                    "completed_scenario_pair_ids": sorted(
-                        {
-                            item.scenario_pair_id
-                            for item in canonical_plan
-                            if item.episode_id in ((completed or set()) | {episode.episode_id for episode in episodes})
-                        }
-                    ),
-                    "scenario_manifest_hashes": sorted(scenario.content_hash for scenario in self.scenario_specs),
-                    "errors": [e.to_dict() for e in self.errors],
-                },
-            )
-        return sorted(episodes, key=lambda e: e.episode_id)
+            write_json(path, self._checkpoint_payload(planner, execution_plan, completed_ids, failed_ids, error_rows()))
+
+        save_checkpoint()
+        produced: list[Episode] = []
+        batch_size = int(self.spec.config.get("execution_batch_size", 1))
+        pending_plan = [item for item in execution_plan if item.episode_id not in (completed_ids | failed_ids)]
+        try:
+            if failure_injector is not None:
+                failure_injector("before_execution")
+            for start in range(0, len(pending_plan), batch_size):
+                batch = pending_plan[start : start + batch_size]
+                error_count = len(scheduler.errors)
+                batch_episodes = scheduler.run(batch)
+                batch_errors = scheduler.errors[error_count:]
+                if failure_injector is not None:
+                    failure_injector("after_execution_before_write")
+                next_completed = completed_ids | {episode.episode_id for episode in batch_episodes}
+                next_failed = failed_ids | {error.episode_id for error in batch_errors}
+                next_pending = selected_ids - next_completed - next_failed
+                if progress_writer is not None:
+                    progress_writer(
+                        tuple([*produced, *batch_episodes]),
+                        error_rows(),
+                        next_completed,
+                        next_failed,
+                        next_pending,
+                    )
+                produced.extend(batch_episodes)
+                completed_ids = next_completed
+                failed_ids = next_failed
+                save_checkpoint()
+        except Exception:
+            self.errors = sorted(scheduler.errors, key=lambda error: error.episode_id)
+            failed_ids.update(error.episode_id for error in self.errors)
+            save_checkpoint()
+            raise
+        self.errors = sorted(scheduler.errors, key=lambda error: error.episode_id)
+        save_checkpoint()
+        return sorted(produced, key=lambda e: e.episode_id)

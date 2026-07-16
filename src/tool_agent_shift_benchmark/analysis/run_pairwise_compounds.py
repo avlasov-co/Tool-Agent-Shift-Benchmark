@@ -240,12 +240,13 @@ def write_pairwise_compound_matrix(
     if out.is_absolute() or ".." in out.parts:
         raise ValueError("pairwise output_dir must be relative to the artifact bundle")
     rows = build_pairwise_compound_matrix(config_path)
-    csv_path = artifact_store.write_csv(out / "pairwise_compound_matrix.csv", rows)
+    csv_relative_path = out / "pairwise_compound_matrix.csv"
+    artifact_store.write_csv(csv_relative_path, rows)
     summary = {
         "artifact_schema_version": "analysis-output-v1",
         "config_path": config_path,
         "rows": len(rows),
-        "output_csv": str(csv_path),
+        "output_csv": str(csv_relative_path),
         "description": "Pairwise compound-fault matrix comparing clean, single-fault, and paired-fault behavior.",
     }
     artifact_store.write_json(out / "pairwise_compound_manifest.json", summary)

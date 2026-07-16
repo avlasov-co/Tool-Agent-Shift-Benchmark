@@ -6,6 +6,7 @@ import hashlib
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from tool_agent_shift_benchmark.core.checkpoints import CHECKPOINT_ARTIFACT_SCHEMAS, CHECKPOINT_SCHEMA_VERSION
 from tool_agent_shift_benchmark.core.run_artifacts import (
     FINALIZATION_SCHEMA_VERSION,
     RUN_BUNDLE_LAYOUT_VERSION,
@@ -183,6 +184,56 @@ def _verify_scenarios_and_traces(
                 errors.append(f"trace episode ID mismatch: {trace_kind}:{episode_id}")
 
 
+def _verify_checkpoint(
+    root: Path,
+    manifest: Mapping[str, Any],
+    planned_ids: set[str],
+    errors: list[str],
+) -> None:
+    path = root / "checkpoint.json"
+    if not path.exists():
+        return
+    checkpoint = _read_json(path, errors, "checkpoint.json")
+    if checkpoint is None:
+        return
+    if checkpoint.get("schema_version") != CHECKPOINT_SCHEMA_VERSION:
+        errors.append("unsupported checkpoint schema")
+    if checkpoint.get("run_id") != manifest.get("run_id"):
+        errors.append("checkpoint run ID mismatch")
+    if checkpoint.get("artifact_schema_versions") != CHECKPOINT_ARTIFACT_SCHEMAS:
+        errors.append("checkpoint artifact schema compatibility mismatch")
+    state: dict[str, set[str]] = {}
+    for name in ("completed_episode_ids", "failed_episode_ids", "pending_episode_ids"):
+        values = checkpoint.get(name)
+        if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+            errors.append(f"invalid checkpoint {name}")
+            state[name] = set()
+        else:
+            state[name] = set(values)
+            if len(state[name]) != len(values):
+                errors.append(f"duplicate checkpoint {name}")
+    states = tuple(
+        state.get(name, set()) for name in ("completed_episode_ids", "failed_episode_ids", "pending_episode_ids")
+    )
+    if any(first & second for index, first in enumerate(states) for second in states[index + 1 :]):
+        errors.append("checkpoint episode states overlap")
+    if set().union(*states) != planned_ids:
+        errors.append("checkpoint episode states do not cover the execution plan")
+    checkpoint_status = checkpoint.get("status")
+    if not isinstance(checkpoint_status, Mapping):
+        errors.append("invalid checkpoint status")
+    else:
+        expected = {
+            "planned_episodes": len(planned_ids),
+            "completed_episodes": len(state.get("completed_episode_ids", set())),
+            "failed_episodes": len(state.get("failed_episode_ids", set())),
+            "pending_episodes": len(state.get("pending_episode_ids", set())),
+        }
+        for field, value in expected.items():
+            if checkpoint_status.get(field) != value:
+                errors.append(f"checkpoint status total mismatch: {field}")
+
+
 def verify_run(bundle: str | Path) -> dict[str, Any]:
     """Classify and verify a bundle without mutating it."""
 
@@ -298,6 +349,7 @@ def verify_run(bundle: str | Path) -> dict[str, Any]:
         _verify_plugin_descriptors(plan, plugins, errors)
     if plan:
         _verify_scenarios_and_traces(root, plan, completed_ids, errors)
+        _verify_checkpoint(root, manifest, planned_ids, errors)
     finalized = _read_json(finalization_path, errors, "finalization.json") if finalization_path.exists() else None
     if finalized is None:
         return {

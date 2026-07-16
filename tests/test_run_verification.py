@@ -33,7 +33,7 @@ def _complete_bundle(tmp_path: Path) -> Path:
     config = tmp_path / "config.yaml"
     _write_config(config)
     store = ArtifactStore(tmp_path / "bundle")
-    run_eval(str(config), seed=43, artifact_store=store)
+    run_eval(str(config), seed=43, artifact_store=store, checkpoint_path=str(store.run_dir / "checkpoint.json"))
     store.finalize(command=["tasb", "run"])
     assert verify_run(store.run_dir)["status"] == COMPLETE_VALID
     return store.run_dir

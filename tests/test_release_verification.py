@@ -4,6 +4,7 @@ import json
 import zipfile
 
 from tool_agent_shift_benchmark.release_verification import (
+    DETERMINISTIC_OUTPUT_DIRECTORIES,
     VOLATILE_OUTPUT_EXCLUSIONS,
     ReleaseVerificationError,
     canonical_output_tree,
@@ -13,13 +14,14 @@ from tool_agent_shift_benchmark.release_verification import (
 
 
 def _write_run_bundle(path, payload: dict[str, object]) -> None:
-    (path / "results").mkdir(parents=True)
-    (path / "figures").mkdir()
-    (path / "docs").mkdir()
+    for directory in DETERMINISTIC_OUTPUT_DIRECTORIES:
+        (path / directory).mkdir(parents=True, exist_ok=True)
     (path / "results" / "config.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     (path / "results" / "episodes.jsonl").write_text('{"b":2,"a":1}\n', encoding="utf-8")
-    (path / "figures" / "plot.png").write_bytes(b"deterministic-png-bytes")
-    (path / "docs" / "analysis_report.html").write_text("<html>stable</html>\n", encoding="utf-8")
+    (path / "plots" / "plot.png").write_bytes(b"deterministic-png-bytes")
+    (path / "reports" / "analysis_report.html").write_text("<html>stable</html>\n", encoding="utf-8")
+    (path / "checkpoint.json").write_text('{"schema_version":"checkpoint-v2"}\n', encoding="utf-8")
+    (path / "status.json").write_text('{"schema_version":"run-status-v1"}\n', encoding="utf-8")
 
 
 def test_canonical_output_tree_normalizes_json_encodings(tmp_path) -> None:
@@ -29,7 +31,7 @@ def test_canonical_output_tree_normalizes_json_encodings(tmp_path) -> None:
     _write_run_bundle(second, {"a": 1, "b": 2})
 
     assert canonical_output_tree(first) == canonical_output_tree(second)
-    assert compare_deterministic_outputs(first, second) == (True, "4 deterministic files matched exactly")
+    assert compare_deterministic_outputs(first, second) == (True, "6 deterministic files matched exactly")
 
 
 def test_canonical_output_comparison_reports_content_changes(tmp_path) -> None:

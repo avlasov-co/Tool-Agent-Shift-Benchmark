@@ -51,7 +51,12 @@ non-atomic writes, weak bundle verification, and resume identity gaps.
 3. Add a versioned run manifest/finalization protocol and `verify-run` with
    explicit legacy classification rather than silently accepting old bundles.
 4. Version the checkpoint, save deterministic batches, validate resume
-   compatibility, deduplicate IDs, and prove canonical resumed output.
+   compatibility, deduplicate IDs, and prove canonical resumed output. The
+   implemented protocol is `checkpoint-v2`: traces are written before the
+   episode row that makes an ID resumable, status follows, and only then does
+   the checkpoint advance. `execution_batch_size`, worker count, logging, and
+   display are operational; all semantic and artifact compatibility checks are
+   strict.
 
 ## Compatibility
 

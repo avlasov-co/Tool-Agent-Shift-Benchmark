@@ -239,6 +239,9 @@ def execute_plan(
     scenario_manifest_writer: Callable[[Any], Path] | None = None,
     catalog: PluginCatalog | None = None,
     run_competence_preflight: bool = True,
+    progress_writer: Callable[[tuple[Episode, ...], tuple[dict[str, Any], ...], set[str], set[str], set[str]], None]
+    | None = None,
+    failure_injector: Callable[[str], None] | None = None,
 ) -> ExecutionResult:
     """Execute a normalized plan with the canonical coordinator and ordering."""
 
@@ -259,12 +262,14 @@ def execute_plan(
         checkpoint_path=checkpoint_path,
         scenario_manifest_dir=scenario_manifest_dir,
         scenario_manifest_writer=scenario_manifest_writer,
+        progress_writer=progress_writer,
+        failure_injector=failure_injector,
     )
     episodes = _unique_episodes((*existing, *produced), planned_order=planned_order)
     return ExecutionResult(
         plan=plan,
         episodes=episodes,
-        orchestration_errors=tuple(error.to_dict() for error in coordinator.errors),
+        orchestration_errors=tuple([*coordinator.prior_error_rows, *(error.to_dict() for error in coordinator.errors)]),
         competence_report=competence_report,
         scenario_specs=coordinator.scenario_specs,
     )

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from tool_agent_shift_benchmark.core.run_artifacts import snapshot_outputs
 from tool_agent_shift_benchmark.core.scenarios import ScenarioSpec, manifest_filename
@@ -94,11 +94,20 @@ class ArtifactStore:
             Path("scenarios") / manifest_filename(scenario.scenario_id, scenario.content_hash), scenario.to_dict()
         )
 
-    def write_trace(self, episode_id: str, *, policy: Mapping[str, Any], evaluator: Mapping[str, Any]) -> None:
+    def write_trace(
+        self,
+        episode_id: str,
+        *,
+        policy: Mapping[str, Any],
+        evaluator: Mapping[str, Any],
+        failure_injector: Callable[[str], None] | None = None,
+    ) -> None:
         self.write_json(
             Path("traces/policy") / f"{episode_id}.json",
             {"artifact_schema_version": "episode-trace-v1", **dict(policy)},
         )
+        if failure_injector is not None:
+            failure_injector("during_trace_write")
         self.write_json(
             Path("traces/evaluator") / f"{episode_id}.json",
             {"artifact_schema_version": "episode-trace-v1", **dict(evaluator)},

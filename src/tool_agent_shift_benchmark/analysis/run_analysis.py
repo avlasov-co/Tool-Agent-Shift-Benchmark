@@ -586,9 +586,19 @@ def run_analysis(
         docs_path="reports/analysis_report.md" if artifact_store is not None else "docs/analysis_report.md",
         artifact_store=artifact_store,
     )
+    artifact_paths = [
+        str(analysis / "failure_clusters.csv"),
+        str(analysis / "failure_cluster_examples.jsonl"),
+        str(analysis / "monitor_threshold_sweep.csv"),
+        str(analysis / "monitor_calibration.csv"),
+        str(analysis / "agent_safety_profile.csv"),
+        str(analysis / "compound_shift_matrix.csv"),
+        str(analysis / "analysis_manifest.json"),
+        "reports/analysis_report.md" if artifact_store is not None else "docs/analysis_report.md",
+    ]
     manifest = {
         "artifact_schema_version": "analysis-output-v1",
-        "results_dir": str(results),
+        "results_dir": "results" if artifact_store is not None else str(results),
         "analysis_dir": str(analysis),
         "inputs": {
             "episode_log_rows": len(read_episode_rows(results)),
@@ -610,16 +620,7 @@ def run_analysis(
             "competence_gate",
             {"passed": False, "failed_gates": ["competence_metadata_missing"]},
         ),
-        "artifacts": [
-            str(analysis / "failure_clusters.csv"),
-            str(analysis / "failure_cluster_examples.jsonl"),
-            str(analysis / "monitor_threshold_sweep.csv"),
-            str(analysis / "monitor_calibration.csv"),
-            str(analysis / "agent_safety_profile.csv"),
-            str(analysis / "compound_shift_matrix.csv"),
-            str(analysis / "analysis_manifest.json"),
-            "docs/analysis_report.md",
-        ],
+        "artifacts": artifact_paths,
     }
     if artifact_store is None:
         write_json(analysis / "analysis_manifest.json", manifest)
