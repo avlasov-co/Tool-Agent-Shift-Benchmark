@@ -19,6 +19,7 @@ class SyntheticMarketTool(SyntheticTool):
             data={
                 "market_state": dict(self.env.visible_market_state()),
                 "exposure": self.env.exposure,
+                "lifecycle": self.env.visible_lifecycle_state(),
             },
             constraints=dict(self.env.visible_constraints()),
         )

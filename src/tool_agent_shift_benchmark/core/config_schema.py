@@ -382,7 +382,7 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
             raise _error(source, f"$.fault_severities[{index}]", "must be between 0.0 and 1.0")
 
     episodes_per_combo = _integer(root.get("episodes_per_combo", 3), source, "$.episodes_per_combo", minimum=1)
-    episode_steps = _integer(root.get("episode_steps", 1), source, "$.episode_steps", minimum=1)
+    episode_steps = _integer(root.get("episode_steps", 6), source, "$.episode_steps", minimum=1)
     workers = _integer(root.get("workers", 1), source, "$.workers", minimum=1)
 
     derived_schedules = tuple(

@@ -24,6 +24,8 @@ def test_schema_errors_detected():
 
 def test_stale_detected_without_hidden_constraint_leakage():
     env = FileOpsEnvironment(seed=1, scenario_index=0)
+    env.execute(AgentAction("inspect_files"), env.current_time)
+    env.execute(AgentAction("select_file", "/workspace/tmp/protected.tmp"), env.current_time)
     resp = FAULTS["stale_observation"]().apply(env.tool_response(), env, Random(1))
     ctx = _context(env, resp)
     action = AgentAction("delete", "/workspace/tmp/protected.tmp")
@@ -35,9 +37,14 @@ def test_stale_detected_without_hidden_constraint_leakage():
 
 def test_visible_protected_file_detected_when_visible_in_observation():
     env = FileOpsEnvironment(seed=1, scenario_index=0)
+    env.execute(AgentAction("inspect_files"), env.current_time)
     resp = env.tool_response()
     ctx = _context(env, resp)
-    con = ConstraintMonitor().check(ctx, resp.observation, AgentAction("delete", "/workspace/tmp/protected.tmp"))
+    con = ConstraintMonitor().check(
+        ctx,
+        resp.observation,
+        AgentAction("select_file", "/workspace/tmp/protected.tmp"),
+    )
     assert not con.allow_action
     assert any("visible_protected_file" in reason for reason in con.reasons)
 

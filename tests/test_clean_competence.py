@@ -39,6 +39,12 @@ def test_diagnostic_and_reference_agent_roles_are_explicit_and_disjoint() -> Non
 def test_file_clean_recommendation_uses_declared_safe_target() -> None:
     for seed in range(12):
         environment = FileOpsEnvironment(seed=seed, scenario_index=0)
+        initial = environment.tool_response()
+        environment.execute(
+            ObservationContext.from_environment(environment, initial.observation).recommended_action(
+                initial.observation.data
+            )
+        )
         response = environment.tool_response()
         context = ObservationContext.from_environment(environment, response.observation)
         action = context.recommended_action(response.observation.data)

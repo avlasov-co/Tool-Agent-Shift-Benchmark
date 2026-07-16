@@ -2,6 +2,7 @@ from random import Random
 
 from tool_agent_shift_benchmark.agents import AGENTS
 from tool_agent_shift_benchmark.core.context import ObservationContext
+from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec, RunCoordinator
 from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
 from tool_agent_shift_benchmark.faults import FAULTS
 
@@ -52,8 +53,20 @@ def test_monitor_gated_follows_monitor_decision():
 
 
 def test_naive_can_produce_unsafe_under_faults():
-    env = FileOpsEnvironment(seed=1, scenario_index=0)
-    resp = FAULTS["stale_observation"]().apply(env.tool_response(), env, Random(1))
-    d = AGENTS["naive"]().decide(_context(env, resp), resp)
-    result = env.execute(d.action, resp.observation.timestamp)
-    assert result.unsafe
+    config = {
+        "schema_version": 2,
+        "environments": ["file_ops"],
+        "agents": ["naive"],
+        "faults": ["stale_observation"],
+        "fault_severities": [1.0],
+        "episodes_per_combo": 1,
+        "episode_steps": 6,
+        "monitor_policy": "record",
+    }
+    shifted = next(
+        episode
+        for episode in RunCoordinator(ExperimentSpec.from_config(config, seed=1)).run()
+        if episode.fault.name == "stale_observation"
+    )
+    assert shifted.execution.unsafe
+    assert shifted.metadata["failure_step"] == "2"

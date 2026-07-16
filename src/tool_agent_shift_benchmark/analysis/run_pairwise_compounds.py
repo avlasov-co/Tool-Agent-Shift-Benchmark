@@ -3,14 +3,11 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
-from random import Random
 from typing import Any
 
 from tool_agent_shift_benchmark.agents import AGENTS
 from tool_agent_shift_benchmark.core.catalog import PluginCatalog
 from tool_agent_shift_benchmark.core.config import load_config
-from tool_agent_shift_benchmark.core.context import ObservationContext, redact_response_for_policy
-from tool_agent_shift_benchmark.core.contracts import IdentityMismatchError
 from tool_agent_shift_benchmark.core.episode import Episode
 from tool_agent_shift_benchmark.core.identity import (
     EVALUATOR_NAME,
@@ -19,15 +16,15 @@ from tool_agent_shift_benchmark.core.identity import (
     ComponentIdentity,
     PlannedEpisodeIdentity,
 )
+from tool_agent_shift_benchmark.core.orchestration import EpisodeRunner, EpisodeSpec, ExperimentSpec
 from tool_agent_shift_benchmark.core.seeding import episode_seed_streams
 from tool_agent_shift_benchmark.core.serialization import write_csv, write_json
-from tool_agent_shift_benchmark.core.types import FaultConfig, MonitorDecision, stable_hash
+from tool_agent_shift_benchmark.core.types import FaultConfig, stable_hash
 from tool_agent_shift_benchmark.environments.calendar_ops import CalendarOpsEnvironment
 from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
 from tool_agent_shift_benchmark.environments.risk_ops import RiskOpsEnvironment
 from tool_agent_shift_benchmark.faults import FAULTS
 from tool_agent_shift_benchmark.metrics.aggregation import aggregate_group
-from tool_agent_shift_benchmark.monitors.composite import CompositeMonitor
 
 ENVS = {
     "file_ops": FileOpsEnvironment,
@@ -85,18 +82,6 @@ def parse_pair(pair: str) -> tuple[str, str]:
     if parts[0] == parts[1]:
         raise ValueError(f"fault pair must contain two different faults: {pair!r}")
     return parts[0], parts[1]
-
-
-def _monitor_decision(
-    agent_name: str,
-    agent_obj: object,
-    context: ObservationContext,
-    observation: object,
-    action: object,
-) -> MonitorDecision:
-    if agent_name == "monitor_gated" and getattr(agent_obj, "last_monitor_decision", None) is not None:
-        return agent_obj.last_monitor_decision
-    return CompositeMonitor().check(context, observation, action)
 
 
 def _plan_fault_combo(
@@ -210,6 +195,20 @@ def _run_fault_combo(
 ) -> list[Episode]:
     episodes: list[Episode] = []
     combo_name = "+".join(fault_names) if fault_names else "normal"
+    selected_faults = list(fault_names or ("normal",))
+    config = {
+        "schema_version": 2,
+        "environments": [env_name],
+        "agents": [agent_name],
+        "faults": selected_faults,
+        "shift_chains": [selected_faults],
+        "fault_severities": [severity],
+        "episodes_per_combo": episodes_per_combo,
+        "episode_steps": 6,
+        "monitor_policy": "record",
+    }
+    runtime_spec = ExperimentSpec.from_config(config, seed=seed)
+    runner = EpisodeRunner(runtime_spec, PluginCatalog(include_external=False))
     for item in _plan_fault_combo(
         env_name=env_name,
         agent_name=agent_name,
@@ -218,68 +217,22 @@ def _run_fault_combo(
         episodes_per_combo=episodes_per_combo,
         seed=seed,
     ):
-        fault_seed = int(stable_hash({"episode": item.episode_id, "phase": "faults"}, prefix="seed").split("_")[1], 16)
-        rng = Random(fault_seed)
-        env_obj = ENVS[env_name](seed=item.scenario_seed, scenario_index=item.scenario_index)
-        if env_obj.scenario_id != item.scenario_id:
-            raise IdentityMismatchError(
-                field="environment.scenario_id",
-                expected=item.scenario_id,
-                actual=env_obj.scenario_id,
-                phase="pairwise_environment_identity",
-                plugin_descriptor={
-                    "kind": item.identity.environment.kind,
-                    "name": item.identity.environment.name,
-                    "version": item.identity.environment.version,
-                    "contract_version": item.identity.environment.contract_version,
-                },
-                episode_id=item.episode_id,
-            )
-        agent_obj = AGENTS[agent_name]()
-        response = env_obj.tool_response()
-        for fault_name in fault_names:
-            response = FAULTS[fault_name](severity=severity).apply(response, env_obj, rng)
-        policy_response = redact_response_for_policy(response)
-        context = ObservationContext.from_environment(env_obj, policy_response.observation)
-        decision = agent_obj.decide(context, policy_response)
-        monitor = _monitor_decision(agent_name, agent_obj, context, policy_response.observation, decision.action)
-        execution = env_obj.execute(decision.action, observed_timestamp=policy_response.observation.timestamp)
-        recovered = bool(fault_names and not execution.unsafe and (decision.action.abstain or not monitor.allow_action))
-        episodes.append(
-            Episode(
-                env_name=env_name,
-                scenario_id=item.scenario_id,
-                agent_name=agent_name,
-                fault=FaultConfig(combo_name, severity, {"parts": list(fault_names)}),
-                seed=item.scenario_seed,
-                run_id=item.run_id,
-                episode_id=item.episode_id,
-                tool_response=response,
-                decision=decision,
-                monitor_decisions=[monitor],
-                execution=execution,
-                metadata={
-                    "config_path": DEFAULT_CONFIG,
-                    "combo_seed": item.scenario_seed,
-                    "episode_steps": 1,
-                    "steps_taken": 1,
-                    "multi_step": False,
-                    "unsafe_step_count": int(execution.unsafe),
-                    "failure_step": "0" if execution.unsafe else "",
-                    "stop_reason": "unsafe_action"
-                    if execution.unsafe
-                    else "abstained"
-                    if decision.action.abstain
-                    else "success"
-                    if execution.success
-                    else "incomplete",
-                    "recovered": recovered,
-                    "pairwise_compound_matrix": True,
-                },
-                scenario_pair_id=item.scenario_pair_id,
-                planned_identity=item.identity.to_dict(),
+        scenario = ENVS[env_name](seed=item.scenario_seed, scenario_index=item.scenario_index).scenario_spec
+        episode = runner.run(
+            EpisodeSpec(
+                item.identity,
+                env_name,
+                agent_name,
+                combo_name,
+                severity,
+                item.scenario_index,
+                item.identity.seed_streams,
+                scenario,
             )
         )
+        episode.fault = FaultConfig(combo_name, severity, {"parts": list(fault_names)})
+        episode.metadata["pairwise_compound_matrix"] = True
+        episodes.append(episode)
     return episodes
 
 

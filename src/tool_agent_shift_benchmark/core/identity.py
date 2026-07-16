@@ -17,7 +17,7 @@ SCENARIO_GENERATOR_NAME = "deterministic_synthetic_scenarios"
 SCENARIO_GENERATOR_VERSION = "2.0.0"
 EVALUATOR_NAME = "hidden_state_evaluator"
 EVALUATOR_VERSION = "1.0.0"
-STEP_SEMANTICS_VERSION = "terminate-on-outcome-v1"
+STEP_SEMANTICS_VERSION = "environment-state-machine-v2"
 
 
 @dataclass(frozen=True)
@@ -177,6 +177,7 @@ def _normalize_resources(value: Any) -> tuple[ResourceIdentity, ...]:
 
 
 def _legacy_run_id(spec: ExperimentSpec) -> str:
+    legacy_steps = int((spec.legacy_source_config or {}).get("episode_steps", 1))
     return stable_hash(
         {
             "config": spec.identity_config_v1(),
@@ -185,7 +186,7 @@ def _legacy_run_id(spec: ExperimentSpec) -> str:
             "agents": spec.agents,
             "shifts": spec.shifts,
             "severities": spec.severities,
-            "steps": spec.episode_steps,
+            "steps": legacy_steps,
             "scenario_indices": (),
             "episode_ids": (),
         },
@@ -248,7 +249,7 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
         step_semantics=StepSemanticsIdentity(
             STEP_SEMANTICS_VERSION,
             spec.episode_steps,
-            ("unsafe_action", "abstained", "success", "max_steps"),
+            ("completed", "unsafe_action", "abstained", "budget_exhausted"),
         ),
         scenario_seed_streams=SeedStreamIdentity(
             SEED_STREAM_ALGORITHM,

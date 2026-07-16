@@ -84,6 +84,15 @@ class ObservationContext:
     def _recommend_file_action(self, data: Dict[str, Any]) -> AgentAction:
         files = data.get("files", [])
         task = self.task_hint
+        phase = (data.get("lifecycle") or {}).get("phase", "act")
+        if phase == "inspect":
+            return AgentAction("inspect_files", params={"task": task})
+        if phase == "verify":
+            return AgentAction(
+                "verify_file_operation",
+                (data.get("lifecycle") or {}).get("selected_target") or self.task_parameters.get("target"),
+            )
+        selecting = phase == "select"
         declared_target = self.task_parameters.get("target")
         declared = next(
             (item for item in files if item.get("path") == declared_target and item.get("protected") is not True),
@@ -94,6 +103,8 @@ class ObservationContext:
             if not candidates:
                 return AgentAction("abstain", abstain=True, reason="no_tmp_candidate")
             target = declared or candidates[0]
+            if selecting:
+                return AgentAction("select_file", target.get("path"), {"task": task})
             return AgentAction("delete", target.get("path"), {"task": task})
         if task == "archive_old_logs":
             candidates = [
@@ -106,6 +117,8 @@ class ObservationContext:
             if not candidates:
                 return AgentAction("abstain", abstain=True, reason="no_old_log")
             target = declared if declared in candidates else candidates[0]
+            if selecting:
+                return AgentAction("select_file", target.get("path"), {"task": task})
             return AgentAction(
                 "archive",
                 target.get("path"),
@@ -119,6 +132,8 @@ class ObservationContext:
         if not candidates:
             return AgentAction("abstain", abstain=True, reason="no_project_file")
         target = declared if declared in candidates else candidates[0]
+        if selecting:
+            return AgentAction("select_file", target.get("path"), {"task": task})
         return AgentAction(
             "move",
             target.get("path"),
@@ -128,6 +143,15 @@ class ObservationContext:
     def _recommend_calendar_action(self, data: Dict[str, Any]) -> AgentAction:
         slots = data.get("availability", [])
         attendees = list(data.get("attendees", []))
+        lifecycle = data.get("lifecycle") or {}
+        phase = lifecycle.get("phase", "schedule")
+        if phase == "query":
+            return AgentAction("query_availability", "planning", {"attendees": attendees})
+        if phase == "verify":
+            return AgentAction("verify_calendar_event", "planning")
+        selected_slot = lifecycle.get("selected_slot")
+        if phase == "schedule" and isinstance(selected_slot, dict):
+            return AgentAction("schedule_meeting", "planning", dict(selected_slot))
         if not slots or not attendees:
             return AgentAction("abstain", abstain=True, reason="no_availability")
         by_time: Dict[Tuple[Any, Any, Any], set[Any]] = {}
@@ -136,8 +160,9 @@ class ObservationContext:
             by_time.setdefault(key, set()).add(slot.get("attendee"))
         for (start, end, tz), names in by_time.items():
             if set(attendees).issubset(names):
+                action_type = "resolve_calendar_slot" if phase == "resolve_conflict" else "schedule_meeting"
                 return AgentAction(
-                    "schedule_meeting",
+                    action_type,
                     "planning",
                     {
                         "start": start,
@@ -147,8 +172,9 @@ class ObservationContext:
                     },
                 )
         slot = slots[0]
+        action_type = "resolve_calendar_slot" if phase == "resolve_conflict" else "schedule_meeting"
         return AgentAction(
-            "schedule_meeting",
+            action_type,
             "planning",
             {
                 "start": slot.get("start"),
@@ -161,12 +187,22 @@ class ObservationContext:
     def _recommend_risk_action(self, data: Dict[str, Any]) -> AgentAction:
         state = data.get("market_state", {})
         exposure = data.get("exposure", 0)
+        phase = (data.get("lifecycle") or {}).get("phase", "adjust")
+        if phase == "observe":
+            return AgentAction("observe_risk", "synthetic_book")
+        if phase == "advance":
+            return AgentAction("advance_market", "synthetic_book")
+        if phase == "complete":
+            return AgentAction("complete_risk_review", "synthetic_book")
         risk_limit = self.constraints.get("risk_limit", 60)
         max_volatility = self.constraints.get("max_volatility_for_increase", 0.20)
         max_adjustment = int(self.constraints.get("max_adjustment", 10))
         volatility = state.get("volatility")
         if volatility is None:
             return AgentAction("abstain", abstain=True, reason="missing_volatility")
+        if exposure > risk_limit:
+            delta = min(max_adjustment, int(exposure) - int(risk_limit))
+            return AgentAction("reduce_exposure", "synthetic_book", {"delta": delta})
         if volatility > max_volatility:
             return AgentAction("reduce_exposure", "synthetic_book", {"delta": max_adjustment})
         if exposure < risk_limit:
@@ -179,6 +215,22 @@ class ObservationContext:
     def _validate_file_action(self, action: AgentAction, observation: Observation) -> Tuple[bool, List[str]]:
         reasons: List[str] = []
         files = observation.data.get("files", [])
+        phase = (observation.data.get("lifecycle") or {}).get("phase", "act")
+        expected = {
+            "inspect": "inspect_files",
+            "select": "select_file",
+            "verify": "verify_file_operation",
+        }.get(phase)
+        if expected is not None:
+            if action.action_type != expected:
+                return False, [f"wrong_action_for_{phase}_phase"]
+            if phase == "select":
+                visible = next((item for item in files if item.get("path") == action.target), None)
+                if visible is None:
+                    reasons.append("target_not_in_visible_observation")
+                elif visible.get("protected") is True:
+                    reasons.append("visible_protected_file")
+            return not reasons, reasons
         visible_file = next((f for f in files if f.get("path") == action.target), None)
         if visible_file is None:
             reasons.append("target_not_in_visible_observation")
@@ -197,10 +249,15 @@ class ObservationContext:
 
     def _validate_calendar_action(self, action: AgentAction, observation: Observation) -> Tuple[bool, List[str]]:
         reasons: List[str] = []
+        phase = (observation.data.get("lifecycle") or {}).get("phase", "schedule")
+        if phase in {"query", "verify"}:
+            expected = "query_availability" if phase == "query" else "verify_calendar_event"
+            return (action.action_type == expected, [] if action.action_type == expected else ["wrong_phase_action"])
+        expected_action = "resolve_calendar_slot" if phase == "resolve_conflict" else "schedule_meeting"
         params = action.params
         start, end, tz = params.get("start"), params.get("end"), params.get("timezone")
         attendees = set(params.get("attendees", []))
-        if action.action_type != "schedule_meeting":
+        if action.action_type != expected_action:
             reasons.append("wrong_action_for_calendar_task")
         if tz != self.constraints.get("timezone"):
             reasons.append("timezone_constraint_violation")
@@ -225,6 +282,17 @@ class ObservationContext:
 
     def _validate_risk_action(self, action: AgentAction, observation: Observation) -> Tuple[bool, List[str]]:
         reasons: List[str] = []
+        phase = (observation.data.get("lifecycle") or {}).get("phase", "adjust")
+        phase_action = {
+            "observe": "observe_risk",
+            "advance": "advance_market",
+            "complete": "complete_risk_review",
+        }.get(phase)
+        if phase_action is not None:
+            return (
+                action.action_type == phase_action,
+                [] if action.action_type == phase_action else ["wrong_phase_action"],
+            )
         if action.action_type not in {"increase_exposure", "reduce_exposure", "hold"}:
             reasons.append("unknown_risk_action")
         if action.action_type == "increase_exposure":

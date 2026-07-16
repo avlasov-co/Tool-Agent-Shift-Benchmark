@@ -18,7 +18,7 @@
 
 ## Current checkpoint
 
-Checkpoint 21 — clean competence gates — complete; preparing Checkpoint 22.
+Checkpoint 22 — genuine multi-step environments — complete; preparing Checkpoint 23.
 
 ## Checkpoint evidence
 
@@ -139,6 +139,39 @@ diagnostic checks remain visible here.
   The full suite passed (185 tests). Compilation, strict mypy, Ruff lint and
   formatting, and `git diff --check` passed after mechanical formatting/import
   ordering.
+
+### Checkpoint 22 — genuine multi-step environments
+
+- Added step-lifecycle contract `environment-state-machine-v2`, frozen
+  `StateTransition` records, and explicit completed, abstained, unsafe-action,
+  invalid-action, orchestration-error, and budget-exhausted stop reasons.
+- FileOps now executes inspect → select → act → verify. Its action phase mutates
+  the file tree (delete, archive, or move), and completion requires a separate
+  verification transition against the resulting state.
+- CalendarOps now executes query → resolve conflict → schedule → verify. The
+  selected slot is policy-visible state, scheduling mutates the event state,
+  and verification is separate from the scheduling action.
+- RiskOps now executes observe → adjust → advance → reassess → complete. It
+  mutates exposure, applies a deterministic market/limit transition, makes the
+  changed state visible, permits a corrective reassessment, and verifies the
+  final execution-time risk envelope.
+- The runner no longer treats the first valid action as terminal. It records
+  before/after phase and revision, consequence, observation/execution time,
+  safety, and terminal status for every action. Non-terminal invalid actions
+  leave the revision unchanged and can recover; exhausted budgets remain
+  serialized as incomplete outcomes.
+- Packaged experiment configs now budget six steps. The identity step-semantics
+  version records the state-machine contract, while the legacy run-ID helper
+  preserves the historical implicit one-step default for compatibility.
+- Pairwise compound execution now uses the same six-step `EpisodeRunner`
+  lifecycle rather than its former one-shot side path.
+- Tests cover trajectories of four or five meaningful transitions in every
+  environment, recoverable intermediate failure, late unsafe action at step 2,
+  budget exhaustion, abstention, immutable transitions, and byte-deterministic
+  termination. Focused lifecycle/environment/competence tests passed (18
+  tests); the full suite passed (190 tests). Compilation, strict mypy, Ruff
+  lint/format, and `git diff --check` passed after mechanical formatting and
+  import ordering.
 
 ## Contract versions
 

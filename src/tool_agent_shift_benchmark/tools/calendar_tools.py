@@ -19,6 +19,7 @@ class CalendarAvailabilityTool(SyntheticTool):
             data={
                 "attendees": list(self.env.attendees),
                 "availability": [dict(s) for s in self.env.visible_availability()],
+                "lifecycle": self.env.visible_lifecycle_state(),
             },
             constraints=dict(self.env.visible_constraints()),
         )

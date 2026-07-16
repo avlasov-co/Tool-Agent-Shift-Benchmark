@@ -7,7 +7,7 @@ migration:
   decisions:
     - "monitor_policy was absent; selected 'record' to preserve the legacy file-runner behavior"
 episodes_per_combo: 1
-episode_steps: 2
+episode_steps: 6
 fault_severities: [1.0]
 monitor_modes:
   - no_monitor

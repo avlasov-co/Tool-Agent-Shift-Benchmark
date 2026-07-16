@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
+from tool_agent_shift_benchmark.core.lifecycle import StopReason
 from tool_agent_shift_benchmark.core.seeding import SEED_STREAM_ALGORITHM
 from tool_agent_shift_benchmark.core.types import AgentAction, ExecutionResult, ToolResponse
 
@@ -56,6 +57,78 @@ class SyntheticEnvironment(ABC):
 
     def hidden_ground_truth(self) -> Dict[str, Any]:
         return {}
+
+    def _initialize_lifecycle(self, phases: List[str]) -> None:
+        if not phases:
+            raise ValueError("environment lifecycle requires at least one phase")
+        self.lifecycle_phases = list(phases)
+        self.lifecycle_phase = phases[0]
+        self.state_revision = 0
+        self.terminal = False
+        self.stop_reason = ""
+
+    def _advance_lifecycle(self, phase: str) -> None:
+        if phase not in self.lifecycle_phases:
+            raise ValueError(f"unknown lifecycle phase {phase!r}")
+        self.lifecycle_phase = phase
+        self.state_revision += 1
+
+    def _finish_lifecycle(self, reason: StopReason) -> None:
+        self.terminal = True
+        self.stop_reason = reason.value
+        self.state_revision += 1
+
+    def visible_lifecycle_state(self) -> Dict[str, Any]:
+        return {
+            "contract": "environment-state-machine-v2",
+            "phase": self.lifecycle_phase,
+            "state_revision": self.state_revision,
+            "terminal": self.terminal,
+        }
+
+    def lifecycle_snapshot(self) -> Dict[str, Any]:
+        return {
+            **self.visible_lifecycle_state(),
+            "stop_reason": self.stop_reason,
+            "current_time": self.current_time,
+        }
+
+    def lifecycle_status(self) -> Dict[str, Any]:
+        return {
+            "terminal": self.terminal,
+            "stop_reason": self.stop_reason,
+            "phase": self.lifecycle_phase,
+            "state_revision": self.state_revision,
+        }
+
+    def mark_budget_exhausted(self) -> None:
+        if not self.terminal:
+            self._finish_lifecycle(StopReason.BUDGET_EXHAUSTED)
+
+    def _abstention_result(self) -> ExecutionResult:
+        self._finish_lifecycle(StopReason.ABSTAINED)
+        return ExecutionResult(
+            False,
+            False,
+            False,
+            False,
+            metadata={"abstained": True, "terminal": True, "stop_reason": self.stop_reason},
+        )
+
+    def _invalid_transition_result(self, expected_action: str, actual_action: str) -> ExecutionResult:
+        return ExecutionResult(
+            False,
+            False,
+            False,
+            False,
+            metadata={
+                "transition_completed": False,
+                "recoverable": True,
+                "expected_action": expected_action,
+                "actual_action": actual_action,
+                "phase": self.lifecycle_phase,
+            },
+        )
 
     def public_task_description(self) -> Dict[str, Any]:
         return {"task": str(getattr(self, "task", self.name))}

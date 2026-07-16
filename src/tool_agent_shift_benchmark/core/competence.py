@@ -44,6 +44,7 @@ def _preflight_spec(spec: ExperimentSpec) -> ExperimentSpec:
             "shift_chains": [["normal"]],
             "fault_severities": [1.0],
             "monitor_policy": "record",
+            "episode_steps": max(6, spec.episode_steps),
             "workers": spec.workers,
         }
     )

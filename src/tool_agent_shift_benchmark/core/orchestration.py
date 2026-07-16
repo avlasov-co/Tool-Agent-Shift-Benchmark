@@ -20,6 +20,7 @@ from tool_agent_shift_benchmark.core.identity import (
     PlannedEpisodeIdentity,
     build_experiment_identity,
 )
+from tool_agent_shift_benchmark.core.lifecycle import STEP_LIFECYCLE_CONTRACT, StateTransition
 from tool_agent_shift_benchmark.core.scenarios import (
     ScenarioManifestError,
     ScenarioSpec,
@@ -71,7 +72,7 @@ class ExperimentSpec:
     shift_chains: tuple[tuple[str, ...], ...] = ()
     severities: tuple[float, ...] = (1.0,)
     episodes_per_combo: int = 1
-    episode_steps: int = 1
+    episode_steps: int = 6
     workers: int = 1
     monitor_policy: str = "gate"
     failure_policy: str = "continue"
@@ -151,7 +152,7 @@ class ExperimentSpec:
             shift_chains=chains,
             severities=tuple(float(x) for x in config.get("fault_severities", (1.0,))),
             episodes_per_combo=int(config.get("episodes_per_combo", 3)),
-            episode_steps=int(config.get("episode_steps", 1)),
+            episode_steps=int(config.get("episode_steps", 6)),
             workers=int(config.get("workers", 1) if worker_value is None else worker_value),
             monitor_policy=str(config.get("monitor_policy", "gate")),
             failure_policy=str(config.get("failure_policy", "continue")),
@@ -600,7 +601,8 @@ class EpisodeRunner:
         step_trace: list[dict[str, Any]] = []
         evaluator_trace: list[dict[str, Any]] = []
         final_response = final_decision = final_execution = None
-        stop_reason, failure_step, unsafe_steps = "max_steps", "", 0
+        stop_reason, failure_step, unsafe_steps = "budget_exhausted", "", 0
+        state_transitions: list[dict[str, Any]] = []
         for step in range(self.spec.episode_steps):
             clean = env_obj.tool_response()
             self._validate_observation_identity(
@@ -655,15 +657,34 @@ class EpisodeRunner:
                     list(decision.reasons),
                     {**decision.metadata, "monitor_gated": True},
                 )
+            state_before = env_obj.lifecycle_snapshot()
             execution = env_obj.execute(action, observed_timestamp=policy_response.observation.timestamp)
+            state_after = env_obj.lifecycle_snapshot()
+            status = env_obj.lifecycle_status()
             if execution.unsafe:
                 unsafe_steps += 1
                 failure_step = failure_step or str(step)
-                stop_reason = "unsafe_action"
-            elif action.abstain:
-                stop_reason = "abstained"
-            elif execution.success:
-                stop_reason = "success"
+            if status["terminal"]:
+                stop_reason = str(status["stop_reason"])
+            transition = StateTransition(
+                contract=STEP_LIFECYCLE_CONTRACT,
+                sequence=step,
+                from_phase=str(state_before["phase"]),
+                action_type=action.action_type,
+                action_target=action.target,
+                to_phase=str(state_after["phase"]),
+                state_revision_before=int(state_before["state_revision"]),
+                state_revision_after=int(state_after["state_revision"]),
+                observation_timestamp=policy_response.observation.timestamp,
+                execution_timestamp=int(state_after["current_time"]),
+                transition_completed=bool(execution.metadata.get("transition_completed", execution.success)),
+                terminal=bool(status["terminal"]),
+                stop_reason=str(status["stop_reason"]),
+                unsafe=execution.unsafe,
+                unsafe_reasons=tuple(execution.unsafe_reasons),
+                consequence=dict(execution.metadata),
+            )
+            state_transitions.append(transition.to_dict())
             step_trace.append(
                 {
                     "step": step,
@@ -671,6 +692,7 @@ class EpisodeRunner:
                     "decision": decision.to_dict(),
                     "monitor": monitor_decision.to_dict(),
                     "execution": execution.to_dict(),
+                    "transition": transition.to_dict(),
                 }
             )
             score = evaluator.score(env_obj, action, execution)
@@ -686,14 +708,25 @@ class EpisodeRunner:
                 decision,
                 execution,
             )
-            if execution.unsafe or action.abstain or execution.success:
+            if status["terminal"]:
                 break
+        final_status = env_obj.lifecycle_status()
+        if not final_status["terminal"]:
+            env_obj.mark_budget_exhausted()
+            final_status = env_obj.lifecycle_status()
+            stop_reason = str(final_status["stop_reason"])
+        intermediate_failure_count = sum(
+            not transition["transition_completed"] and not transition["terminal"] for transition in state_transitions
+        )
         recovered = bool(
-            item.shift != "normal"
-            and final_execution
-            and not final_execution.unsafe
-            and final_decision is not None
-            and (final_decision.action.abstain or any(not m.allow_action for m in monitors))
+            (
+                item.shift != "normal"
+                and final_execution
+                and not final_execution.unsafe
+                and final_decision is not None
+                and (final_decision.action.abstain or any(not m.allow_action for m in monitors))
+            )
+            or (intermediate_failure_count and final_status["stop_reason"] == "completed")
         )
         metadata = {
             "config_path": self.spec.config.get("_config_path", ""),
@@ -707,13 +740,16 @@ class EpisodeRunner:
             },
             "episode_steps": self.spec.episode_steps,
             "steps_taken": len(step_trace),
-            "multi_step": self.spec.episode_steps > 1,
+            "multi_step": len(step_trace) > 1,
             "unsafe_step_count": unsafe_steps,
             "failure_step": failure_step,
             "stop_reason": stop_reason,
             "step_trace": step_trace,
+            "state_transitions": state_transitions,
+            "final_lifecycle_status": final_status,
             "evaluator_trace": evaluator_trace,
             "recovered": recovered,
+            "intermediate_failure_count": intermediate_failure_count,
         }
         episode = Episode(
             item.environment,

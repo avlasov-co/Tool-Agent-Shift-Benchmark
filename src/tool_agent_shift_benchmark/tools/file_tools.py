@@ -16,7 +16,10 @@ class FileListingTool(SyntheticTool):
             env_name="file_ops",
             scenario_id=self.env.scenario_id,
             timestamp=self.env.current_time,
-            data={"files": [dict(f) for f in self.env.visible_files()]},
+            data={
+                "files": [dict(f) for f in self.env.visible_files()],
+                "lifecycle": self.env.visible_lifecycle_state(),
+            },
             constraints=dict(self.env.visible_constraints()),
         )
         return ToolResponse(
