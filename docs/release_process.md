@@ -38,3 +38,15 @@ any resulting evidence change as a deliberate generated-artifact update.
 
 Release archives are the standard sdist and wheel built and inspected by the
 verifier. Do not create a release archive by tarring a developer checkout.
+
+To produce the final, non-published release bundle, choose an output directory
+that is new or empty (the command refuses to overwrite an existing bundle):
+
+```bash
+make release-artifacts RELEASE_OUTPUT=release-artifacts
+(cd release-artifacts && sha256sum -c SHA256SUMS)
+```
+
+The builder uses a temporary source copy, validates both archives, checks
+metadata, creates a reproducible CycloneDX SBOM, then writes checksums only
+after those final files exist.

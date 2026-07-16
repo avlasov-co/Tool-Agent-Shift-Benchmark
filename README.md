@@ -121,7 +121,9 @@ python -m tool_agent_shift_benchmark.analysis.run_pairwise_compounds --config co
 For release validation:
 
 ```bash
-bash scripts/verify_release.sh
+make verify-release
+make release-artifacts RELEASE_OUTPUT=release-artifacts
+(cd release-artifacts && sha256sum -c SHA256SUMS)
 ```
 
 ## Inspecting failure cases

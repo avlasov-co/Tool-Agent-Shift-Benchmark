@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+## v0.3.1 — 2026-07-16
+
+- Adopted the `tool_agent_shift_benchmark` source layout, packaged runtime
+  resources, and installed-distribution verification for both sdist and wheel.
+- Added hash-checked runtime/development dependency locks, locked Mermaid
+  tooling, non-destructive release verification, and deterministic output
+  comparison.
+- Added supported-Python CI (3.10--3.14), macOS package smoke coverage,
+  immutable action pins, dependency review/updates, CodeQL, dependency audit,
+  and reproducible SBOM generation.
+- Reconciled package, citation, repository, license, and release metadata under
+  the single installed-package version source.
+
 ## v0.3.0 — 2026-05-24
 
 - Added `tasb` CLI with run, analyze, pairwise, plot, report, replay, validate-config, verify-release, and clean commands.
@@ -21,13 +36,6 @@
 - Added release verification script that checks tests, smoke outputs, analysis artifacts, and pairwise compound artifacts.
 - Added analysis manifest generation and `docs/analysis_report.md` output.
 - Added tests for deterministic clustering, monitor confusion counts, agent profiles, and analysis artifact generation.
-
-## Unreleased
-
-- Added visible-only `ObservationContext` for agents and monitors.
-- Prevented the retry baseline from bypassing shifted observations by calling a clean tool response after a fault.
-- Added evaluator-boundary regression tests and documentation.
-- Regenerated small benchmark outputs and plots after the boundary change.
 
 ## v0.1.0 — 2026-04-29
 

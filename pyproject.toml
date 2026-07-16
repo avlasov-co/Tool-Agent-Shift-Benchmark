@@ -4,13 +4,32 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tool-agent-shift-benchmark"
-version = "0.3.0"
+dynamic = ["version"]
 description = "Synthetic benchmark for tool-using agent safety under tool, observation, memory, and constraint shift."
 readme = "README.md"
-requires-python = ">=3.10"
-license = {text = "MIT"}
+requires-python = ">=3.10,<3.15"
+license = "MIT"
 authors = [{name = "Tool-Agent Shift Benchmark Contributors"}]
+keywords = ["agents", "benchmark", "evaluation", "safety", "synthetic", "tool-use"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = ["PyYAML>=6.0,<7"]
+
+[project.urls]
+Homepage = "https://github.com/avlasov-co/tool-agent-shift-benchmark"
+Repository = "https://github.com/avlasov-co/tool-agent-shift-benchmark"
+Issues = "https://github.com/avlasov-co/tool-agent-shift-benchmark/issues"
+Changelog = "https://github.com/avlasov-co/tool-agent-shift-benchmark/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 analysis = ["matplotlib>=3.8,<4"]
@@ -67,6 +86,9 @@ tasb = "tool_agent_shift_benchmark.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["tool_agent_shift_benchmark*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "tool_agent_shift_benchmark._version.__version__"}
 
 [tool.setuptools.package-data]
 tool_agent_shift_benchmark = [

@@ -13,7 +13,7 @@
 
 ## Current checkpoint
 
-Checkpoint 16 — CI and supply-chain hardening — complete.
+Checkpoint 17 — release metadata and hygiene — complete.
 
 ## Checkpoint evidence
 
@@ -199,3 +199,29 @@ commit. The final section will retain baseline failures and remaining risks.
   execute untrusted archive members.
 - Workflow YAML parses cleanly. The action-pinning/security tests, verifier
   tests, docs checks, lint, formatting, and `git diff --check` passed.
+
+### Checkpoint 17 — release metadata and hygiene
+
+- Created `tool_agent_shift_benchmark._version.__version__` as the single
+  installed-package version source (`0.3.1`). `pyproject.toml` derives its
+  dynamic version from that module; package exports, citation metadata,
+  changelog, release notes, generated distribution names, and metadata tests
+  reconcile against it.
+- Corrected package metadata with SPDX `MIT` licensing, 3.10--3.14 classifiers,
+  a bounded supported-Python range, research-oriented keywords, and canonical
+  Homepage/Repository/Issues/Changelog URLs. `CITATION.cff` now uses the
+  canonical repository and the v0.3.1 release date.
+- Added v0.3.1 stabilization notes without new performance claims. The current
+  suite collects 166 tests, and the notes record that same pre-artifact
+  stabilization validation count.
+- Added `scripts/build_release_artifacts.py`, `make release-artifacts`, and a
+  tag/manual `release-validation` workflow. The builder refuses to overwrite a
+  non-empty output directory, builds only standard sdist/wheel artifacts from a
+  temporary source copy, rejects archive junk/stale metadata, runs Twine
+  metadata validation, emits a reproducible SBOM, then writes and verifies
+  `SHA256SUMS` only after all final files exist. The workflow re-verifies those
+  checksums and uploads artifacts without publishing them.
+- A temporary v0.3.1 artifact bundle passed archive inspection, Twine, SBOM,
+  and checksum validation. The final non-destructive release verifier passed in
+  `/tmp/tasb-release-verification-fuqn5j8n`, including the two independently
+  installed v0.3.1 distributions (42.083-second distribution phase).

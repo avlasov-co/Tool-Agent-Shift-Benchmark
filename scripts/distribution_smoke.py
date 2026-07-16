@@ -84,12 +84,25 @@ def archive_content_errors(path: Path) -> list[str]:
         parts = Path(name).parts
         if any(part in FORBIDDEN_COMPONENTS for part in parts):
             errors.append(f"forbidden path component in archive: {name}")
-        if name.endswith((".pyc", ".pyo")) or ".egg-info" in parts:
-            errors.append(f"cache or stale egg-info in archive: {name}")
+        if name.endswith((".pyc", ".pyo")):
+            errors.append(f"bytecode in archive: {name}")
         if Path(name).name == ".DS_Store":
             errors.append(f"macOS metadata in archive: {name}")
 
     relative_names = names if path.suffix == ".whl" else _strip_sdist_root(names)
+    for name in relative_names:
+        parts = Path(name).parts
+        egg_info_parts = [part for part in parts if part.endswith(".egg-info")]
+        if not egg_info_parts:
+            continue
+        expected_source_metadata = (
+            path.suffix != ".whl"
+            and len(parts) >= 2
+            and parts[0] == "src"
+            and parts[1] == f"{PACKAGE_NAME}.egg-info"
+        )
+        if not expected_source_metadata:
+            errors.append(f"stale egg-info in archive: {name}")
     expected_resources = (
         {resource.removeprefix("src/") for resource in REQUIRED_RESOURCES}
         if path.suffix == ".whl"

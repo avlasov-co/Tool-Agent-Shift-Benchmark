@@ -5,8 +5,8 @@ type: software
 authors:
   - family-names: "Contributors"
     given-names: "Tool-Agent Shift Benchmark"
-version: "0.1.0"
-date-released: "2026-04-29"
+version: "0.3.1"
+date-released: "2026-07-16"
 license: "MIT"
-repository-code: "https://github.com/example/tool-agent-shift-benchmark"
+repository-code: "https://github.com/avlasov-co/tool-agent-shift-benchmark"
 abstract: "A deterministic synthetic benchmark for evaluating safe and useful tool-using agent behavior under tool, observation, memory, and constraint shift."

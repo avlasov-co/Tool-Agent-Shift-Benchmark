@@ -35,8 +35,10 @@ def test_archive_inspection_rejects_junk_and_undeclared_packages(tmp_path) -> No
     with zipfile.ZipFile(wheel, "w") as archive:
         archive.writestr("tool_agent_shift_benchmark/.venv/ignored.py", "")
         archive.writestr("other_package/__init__.py", "")
+        archive.writestr("other_package.egg-info/PKG-INFO", "Metadata-Version: 2.3\n")
 
     errors = smoke.archive_content_errors(wheel)
     assert any("forbidden path component" in error for error in errors)
     assert "undeclared Python package in archive: other_package" in errors
+    assert "stale egg-info in archive: other_package.egg-info/PKG-INFO" in errors
     assert sum("missing required package resource" in error for error in errors) == 3

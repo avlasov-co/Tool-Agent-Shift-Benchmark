@@ -10,6 +10,7 @@ htmlcov/
 build/
 dist/
 node_modules/
+release-artifacts/
 
 # Local environments
 .venv/

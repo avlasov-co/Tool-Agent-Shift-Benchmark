@@ -18,6 +18,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
+import yaml
+
+from tool_agent_shift_benchmark import __version__
 from tool_agent_shift_benchmark.core.serialization import write_json
 
 DEFAULT_TIMEOUT_SECONDS = 180
@@ -226,18 +229,23 @@ def _artifact_consistency() -> tuple[bool, str]:
 
 
 def _release_metadata() -> tuple[bool, str]:
-    import re
-
     pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
     changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
-    version = re.search(r'^version = "([^"]+)"', pyproject, re.MULTILINE)
-    if version is None:
-        return False, "project version is absent from pyproject.toml"
-    expected = f"v{version.group(1)}"
-    return (
-        expected in changelog,
-        f"{expected} present in CHANGELOG.md" if expected in changelog else f"{expected} is absent from CHANGELOG.md",
-    )
+    citation = yaml.safe_load(Path("CITATION.cff").read_text(encoding="utf-8"))
+    expected = f"v{__version__}"
+    notes = Path(f"release-notes-{expected}.md")
+    issues: list[str] = []
+    if 'dynamic = ["version"]' not in pyproject or "tool_agent_shift_benchmark._version.__version__" not in pyproject:
+        issues.append("pyproject does not derive its version from the package version module")
+    if expected not in changelog:
+        issues.append(f"{expected} is absent from CHANGELOG.md")
+    if citation.get("version") != __version__:
+        issues.append("CITATION.cff version does not match the package version")
+    if citation.get("repository-code") != "https://github.com/avlasov-co/tool-agent-shift-benchmark":
+        issues.append("CITATION.cff repository URL is not canonical")
+    if not notes.is_file():
+        issues.append(f"missing release notes: {notes}")
+    return (not issues, "release metadata is consistent" if not issues else "\n".join(issues))
 
 
 def _deterministic_plan_command(python: str) -> list[str]:
@@ -350,7 +358,9 @@ def run_audit(
         "read-only artifact consistency check",
         _artifact_consistency,
     )
-    wheel_dir = runner.output_dir / "dist"
+    # Retain previous audit evidence and build into a fresh directory. Reusing a
+    # static ``dist`` directory would make a later audit inspect stale wheels.
+    wheel_dir = runner.output_dir / f"dist-{time.time_ns()}"
     package_source = _package_source_copy(runner.output_dir)
     runner.run_command(
         "package_build",
