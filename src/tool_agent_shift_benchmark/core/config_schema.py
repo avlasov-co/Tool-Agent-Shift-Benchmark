@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from tool_agent_shift_benchmark.core.config import load_raw_config, write_config_yaml
+from tool_agent_shift_benchmark.core.monitoring import MONITOR_MODES
 from tool_agent_shift_benchmark.core.serialization import canonicalize, register_dataclass
 
 CONFIG_SCHEMA_VERSION = 2
@@ -42,16 +43,6 @@ BUILTIN_COMPONENTS: dict[str, frozenset[str]] = {
     "monitor": frozenset({"composite"}),
     "reporter": frozenset(),
 }
-
-MONITOR_MODES = frozenset(
-    {
-        "no_monitor",
-        "schema_only",
-        "schema_plus_freshness",
-        "schema_plus_freshness_plus_consistency",
-        "full_composite_monitor",
-    }
-)
 
 ALLOWED_KEYS = frozenset(
     {
@@ -530,6 +521,8 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
     for index, mode in enumerate(monitor_modes):
         if mode not in MONITOR_MODES:
             raise _error(source, f"$.monitor_modes[{index}]", f"unknown monitor mode {mode!r}")
+        if mode in monitor_modes[:index]:
+            raise _error(source, f"$.monitor_modes[{index}]", f"duplicate monitor mode {mode!r}")
 
     failure_policy = _string(root.get("failure_policy", "continue"), source, "$.failure_policy")
     if failure_policy not in {"continue", "fail_fast"}:

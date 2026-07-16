@@ -86,7 +86,7 @@ def test_agents_receive_redacted_response_in_boundary_test():
         assert decision.agent_name == cls.name
         assert "faults" not in visible.observation.metadata
         monitor_decision = CompositeMonitor().check(ctx, visible.observation, decision.action)
-        assert monitor_decision.monitor_name == "composite_monitor"
+        assert monitor_decision.monitor_name == "full_composite_monitor"
 
 
 def test_observation_context_exposes_only_visible_surface():
@@ -112,7 +112,7 @@ def test_all_agents_and_monitors_run_without_environment_object():
         decision = agent.decide(ctx, resp)
         assert decision.agent_name == agent.name
         monitor_decision = CompositeMonitor().check(ctx, resp.observation, decision.action)
-        assert monitor_decision.monitor_name == "composite_monitor"
+        assert monitor_decision.monitor_name == "full_composite_monitor"
 
 
 def test_run_eval_redacts_evaluator_fault_labels_from_policy_inputs(tmp_path, monkeypatch):

@@ -1,10 +1,15 @@
-"""Typed, normalized scientific identity schema version 11."""
+"""Typed, normalized scientific identity schema version 12."""
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any, Mapping
 
+from tool_agent_shift_benchmark.core.monitoring import (
+    MONITOR_COMPOSITION_CONTRACT,
+    MonitorCompositionDescriptor,
+    monitor_composition,
+)
 from tool_agent_shift_benchmark.core.seeding import SEED_STREAM_ALGORITHM, EpisodeSeedStreams
 from tool_agent_shift_benchmark.core.serialization import register_dataclass, stable_hash
 
@@ -12,7 +17,7 @@ if TYPE_CHECKING:
     from tool_agent_shift_benchmark.core.catalog import PluginCatalog
     from tool_agent_shift_benchmark.core.orchestration import ExperimentSpec
 
-IDENTITY_SCHEMA_VERSION = "11"
+IDENTITY_SCHEMA_VERSION = "12"
 SCENARIO_GENERATOR_NAME = "deterministic_synthetic_scenarios"
 SCENARIO_GENERATOR_VERSION = "2.1.0"
 EVALUATOR_NAME = "hidden_state_evaluator"
@@ -114,7 +119,9 @@ class SemanticIdentity:
     fault_composition_contract: str
     oversight_treatment: str
     monitor: ComponentIdentity
+    monitor_composition_contract: str
     monitor_modes: tuple[str, ...]
+    monitor_compositions: tuple[MonitorCompositionDescriptor, ...]
     step_semantics: StepSemanticsIdentity
     scenario_seed_streams: SeedStreamIdentity
     policy_resources_and_hashes: tuple[ResourceIdentity, ...]
@@ -179,6 +186,7 @@ class PlannedEpisodeIdentity:
     shift_chain: tuple[ComponentIdentity, ...]
     monitor: ComponentIdentity
     evaluator: ComponentIdentity
+    monitor_mode: str
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -324,7 +332,9 @@ def build_experiment_identity(spec: ExperimentSpec, catalog: PluginCatalog) -> E
         fault_composition_contract=FAULT_COMPOSITION_CONTRACT,
         oversight_treatment=spec.monitor_policy,
         monitor=_component(catalog, "monitor", spec.monitor),
-        monitor_modes=tuple(sorted(str(mode) for mode in config.get("monitor_modes", ()))),
+        monitor_composition_contract=MONITOR_COMPOSITION_CONTRACT,
+        monitor_modes=spec.monitor_modes,
+        monitor_compositions=tuple(monitor_composition(mode) for mode in spec.monitor_modes),
         step_semantics=StepSemanticsIdentity(
             STEP_SEMANTICS_VERSION,
             spec.episode_steps,

@@ -263,6 +263,8 @@ def write_outputs(
                     "env_name": e.env_name,
                     "agent_name": e.agent_name,
                     "fault_name": e.fault.name,
+                    "monitor_mode": e.metadata.get("monitor_mode", "full_composite_monitor"),
+                    "oversight_mode": e.metadata.get("oversight_mode", "gate"),
                     "monitor_name": m.monitor_name,
                     "allow_action": m.allow_action,
                     "risk_score": m.risk_score,

@@ -28,6 +28,7 @@ from tool_agent_shift_benchmark.core.memory import (
     MemoryCorruptionRequest,
     PolicyMemoryChannel,
 )
+from tool_agent_shift_benchmark.core.monitoring import monitor_composition, resolve_monitor_modes
 from tool_agent_shift_benchmark.core.requery import (
     TOOL_CALL_COST_UNITS,
     TOOL_REQUERY_CONTRACT,
@@ -94,6 +95,7 @@ class ExperimentSpec:
     retry_attempts: int = 0
     requery_attempts: int = 2
     monitor: str = "composite"
+    monitor_modes: tuple[str, ...] = ("full_composite_monitor",)
     artifact_policy: str = "bundle"
     scenario_indices: tuple[int, ...] = ()
     episode_ids: tuple[str, ...] = ()
@@ -180,6 +182,7 @@ class ExperimentSpec:
             retry_attempts=int(config.get("retry_attempts", 0)),
             requery_attempts=int(config.get("requery_attempts", 2)),
             monitor=str(config.get("monitor", "composite")),
+            monitor_modes=resolve_monitor_modes(config.get("monitor_modes", ())),
             artifact_policy=str(config.get("artifact_policy", "bundle")),
             scenario_indices=tuple(
                 int(x)
@@ -278,6 +281,7 @@ class EpisodeSpec:
             "seed": self.seed,
             "seed_streams": self.seed_streams.to_dict(),
             "fault_schedules": [schedule.to_dict() for schedule in self.fault_schedules],
+            "monitor_mode": self.identity.monitor_mode,
             "scenario_manifest": self.scenario_spec.public_reference(),
             "identity": self.identity.to_dict(),
         }
@@ -370,86 +374,108 @@ class ExperimentPlanner:
                 if self.spec.semantic_scenario_indices is not None and index not in self.spec.semantic_scenario_indices:
                     continue
                 for agent in self.spec.agents:
-                    for chain, severity in treatments:
-                        shift = "+".join(chain)
-                        scenario_id = f"{env}_scenario_{index}"
-                        generator = self.identity.semantic.scenario_generator
-                        streams = episode_seed_streams(
-                            root_seed=self.spec.seed,
-                            environment=env,
-                            scenario_index=index,
-                            generator_name=generator.name,
-                            generator_version=generator.version,
-                            scenario_schema_version=self.identity.semantic.scenario_schema_version,
-                            agent=agent,
-                            shift=shift,
-                            severity=severity,
-                            monitor=self.spec.monitor,
-                            oversight_treatment=self.spec.monitor_policy,
-                        )
-                        seed = streams.scenario_generation
-                        scenario = self._materialize_scenario(env, index, streams)
-                        schedules = tuple(
-                            schedule
-                            for schedule in self.spec.fault_schedules
-                            if schedule.components == chain and schedule.configured_severity == severity
-                        )
-                        if chain == ("normal",) and not schedules:
-                            schedules = (FaultSchedule(("normal",), 1.0, 0, None, "persistent", None, (0.0,)),)
-                        if not schedules:
-                            raise ValueError(f"missing fault schedule for treatment {chain!r} at severity {severity}")
-                        pair_id = stable_hash(
-                            {
-                                "contract": "scenario-pair-v1",
-                                "environment": env,
-                                "scenario_id": scenario_id,
-                                "scenario_manifest_hash": scenario.content_hash,
-                                "agent": agent,
-                                "agent_behavior_seed": streams.agent_behavior,
-                                "execution_seed": streams.execution,
-                            },
-                            prefix="pair",
-                        )
-                        episode_id = stable_hash(
-                            {
-                                "pair_id": pair_id,
-                                "fault": shift,
-                                "severity": severity,
-                                "fault_seed": streams.fault_behavior,
-                                "fault_schedules": [schedule.to_dict() for schedule in schedules],
-                                "run_id": self.run_id,
-                            },
-                            prefix="ep",
-                        )
-                        planned_identity = PlannedEpisodeIdentity(
-                            identity_schema_version=self.identity.schema_version,
-                            run_id=self.run_id,
-                            scenario_id=scenario_id,
-                            scenario_seed=seed,
-                            scenario_pair_id=pair_id,
-                            scenario_manifest_hash=scenario.content_hash,
-                            seed_streams=streams,
-                            fault_schedule_ids=tuple(schedule.schedule_id for schedule in schedules),
-                            episode_id=episode_id,
-                            environment=_component_identity(self.catalog, "environment", env),
-                            agent=_component_identity(self.catalog, "agent", agent),
-                            shift_chain=tuple(_component_identity(self.catalog, "shift", name) for name in chain),
-                            monitor=self.identity.semantic.monitor,
-                            evaluator=self.identity.semantic.evaluator,
-                        )
-                        item = EpisodeSpec(
-                            planned_identity,
-                            env,
-                            agent,
-                            shift,
-                            severity,
-                            index,
-                            streams,
-                            schedules,
-                            scenario,
-                        )
-                        planned.append(item)
+                    for monitor_mode in self.spec.monitor_modes:
+                        for chain, severity in treatments:
+                            planned.append(
+                                self._plan_treatment(
+                                    env,
+                                    index,
+                                    agent,
+                                    monitor_mode,
+                                    chain,
+                                    severity,
+                                )
+                            )
         return planned
+
+    def _plan_treatment(
+        self,
+        env: str,
+        index: int,
+        agent: str,
+        monitor_mode: str,
+        chain: tuple[str, ...],
+        severity: float,
+    ) -> EpisodeSpec:
+        shift = "+".join(chain)
+        scenario_id = f"{env}_scenario_{index}"
+        generator = self.identity.semantic.scenario_generator
+        streams = episode_seed_streams(
+            root_seed=self.spec.seed,
+            environment=env,
+            scenario_index=index,
+            generator_name=generator.name,
+            generator_version=generator.version,
+            scenario_schema_version=self.identity.semantic.scenario_schema_version,
+            agent=agent,
+            shift=shift,
+            severity=severity,
+            monitor=f"{self.spec.monitor}:{monitor_mode}",
+            oversight_treatment=self.spec.monitor_policy,
+        )
+        seed = streams.scenario_generation
+        scenario = self._materialize_scenario(env, index, streams)
+        schedules = tuple(
+            schedule
+            for schedule in self.spec.fault_schedules
+            if schedule.components == chain and schedule.configured_severity == severity
+        )
+        if chain == ("normal",) and not schedules:
+            schedules = (FaultSchedule(("normal",), 1.0, 0, None, "persistent", None, (0.0,)),)
+        if not schedules:
+            raise ValueError(f"missing fault schedule for treatment {chain!r} at severity {severity}")
+        pair_id = stable_hash(
+            {
+                "contract": "scenario-pair-v1",
+                "environment": env,
+                "scenario_id": scenario_id,
+                "scenario_manifest_hash": scenario.content_hash,
+                "agent": agent,
+                "agent_behavior_seed": streams.agent_behavior,
+                "execution_seed": streams.execution,
+            },
+            prefix="pair",
+        )
+        episode_id = stable_hash(
+            {
+                "pair_id": pair_id,
+                "fault": shift,
+                "severity": severity,
+                "fault_seed": streams.fault_behavior,
+                "fault_schedules": [schedule.to_dict() for schedule in schedules],
+                "monitor_mode": monitor_mode,
+                "run_id": self.run_id,
+            },
+            prefix="ep",
+        )
+        planned_identity = PlannedEpisodeIdentity(
+            identity_schema_version=self.identity.schema_version,
+            run_id=self.run_id,
+            scenario_id=scenario_id,
+            scenario_seed=seed,
+            scenario_pair_id=pair_id,
+            scenario_manifest_hash=scenario.content_hash,
+            seed_streams=streams,
+            fault_schedule_ids=tuple(schedule.schedule_id for schedule in schedules),
+            episode_id=episode_id,
+            environment=_component_identity(self.catalog, "environment", env),
+            agent=_component_identity(self.catalog, "agent", agent),
+            shift_chain=tuple(_component_identity(self.catalog, "shift", name) for name in chain),
+            monitor=self.identity.semantic.monitor,
+            evaluator=self.identity.semantic.evaluator,
+            monitor_mode=monitor_mode,
+        )
+        return EpisodeSpec(
+            planned_identity,
+            env,
+            agent,
+            shift,
+            severity,
+            index,
+            streams,
+            schedules,
+            scenario,
+        )
 
     def plan(self) -> list[EpisodeSpec]:
         """Apply operational selectors to an already-identified canonical plan."""
@@ -744,7 +770,9 @@ class EpisodeRunner:
         memory_channel = PolicyMemoryChannel()
         stateful_memory = bool(getattr(agent_obj, "stateful_memory", False))
         monitor_factory = self.catalog.get("monitor", self.spec.monitor)
-        monitor = monitor_factory() if self.spec.monitor != "composite" else CompositeMonitor()
+        monitor = (
+            monitor_factory() if self.spec.monitor != "composite" else CompositeMonitor(mode=item.identity.monitor_mode)
+        )
         self._validate_runtime_descriptor(item, env_obj, item.identity.environment, "environment_descriptor")
         self._validate_runtime_descriptor(item, agent_obj, item.identity.agent, "agent_descriptor")
         descriptors = {descriptor.name: descriptor for descriptor in item.identity.shift_chain}
@@ -1006,6 +1034,9 @@ class EpisodeRunner:
             "fault_schedules": [schedule.to_dict() for schedule in item.fault_schedules],
             "fault_effect_contract": FAULT_EFFECT_CONTRACT,
             "fault_composition_contract": FAULT_COMPOSITION_CONTRACT,
+            "monitor_mode": item.identity.monitor_mode,
+            "monitor_composition": monitor_composition(item.identity.monitor_mode).to_dict(),
+            "oversight_mode": self.spec.monitor_policy,
             "configured_fault_severity": item.severity,
             "fault_effects": fault_effects,
             "fault_effect_applications": len(fault_effects),

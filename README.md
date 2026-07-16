@@ -111,6 +111,9 @@ For monitor ablations:
 python -m tool_agent_shift_benchmark.run_sweep --config ablations --seed 42
 ```
 
+The ablation sweep executes all five named monitor compositions as separate
+plan cells and groups outputs by both monitor composition and oversight mode.
+
 
 For the explicit pairwise compound-fault matrix:
 

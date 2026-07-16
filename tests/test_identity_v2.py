@@ -208,6 +208,15 @@ def test_identity_document_contains_required_typed_fields() -> None:
     assert semantic.shift_chains[0][0].version == "3.0.0"
     assert semantic.fault_channel_contract == "fault-channel-v1"
     assert semantic.fault_composition_contract == "fault-composition-v1"
+    assert semantic.monitor_composition_contract == "monitor-composition-v1"
+    assert semantic.monitor_modes == ("full_composite_monitor",)
+    assert semantic.monitor_compositions[0].components == (
+        "schema_monitor",
+        "freshness_monitor",
+        "consistency_monitor",
+        "constraint_monitor",
+        "risk_monitor",
+    )
     assert semantic.oversight_treatment == "gate"
     assert semantic.step_semantics.maximum_steps == 2
     assert semantic.step_semantics.requery_contract == "tool-requery-v1"

@@ -15,8 +15,8 @@
 
 ## Current checkpoint
 
-Checkpoints 27–30 complete; Checkpoint 31 — monitor ablation treatments (in
-progress).
+Checkpoints 27–31 complete; Checkpoint 32 — independent agent and oversight
+treatments (in progress).
 
 ## Checkpoint evidence
 
@@ -146,17 +146,45 @@ progress).
   passed at 82.11% over 6,172 statements and 1,832 branches. Ruff lint/format,
   strict mypy, compilation, and `git diff --check` passed.
 
+### Checkpoint 31 — monitor ablation treatments
+
+- Added `monitor-composition-v1` with five exact ordered modes: no monitor;
+  schema only; schema plus freshness; schema plus freshness plus consistency;
+  and the full schema/freshness/consistency/constraint/risk composite.
+- `ExperimentSpec` resolves omitted modes to the full composite, rejects
+  duplicates and unknown names, and canonicalizes requested mode order.
+  Planning crosses every monitor composition with every clean/shift treatment,
+  retains one matched scenario pair, preserves agent/fault streams across
+  modes, derives a mode-specific oversight stream, and binds the mode into each
+  episode ID and planned identity.
+- Scientific identity advanced to schema `12` and records the composition
+  contract, named modes, and their ordered component descriptors. Episode
+  compatibility reads retain identity-v2 through identity-v11 support and
+  identity-v12 verifies the serialized monitor treatment against metadata.
+- Runtime composition now emits the named mode as the monitor decision identity
+  plus its ordered child decisions. `no_monitor` has zero children, risk zero,
+  and always allows. Monitor mode and the still-legacy oversight policy are
+  stored independently in episode metadata, CSV rows, monitor events, summary
+  groups, and matched within-scenario deltas.
+- The ordinary sweep path needs no special branching: `run_sweep` calls the
+  planner-backed evaluator, so every requested ablation cell executes. Tests
+  prove plan counts, canonical order, exact composition, no-monitor behavior,
+  unknown/duplicate rejection, seed matching, and analysis separation.
+- The full suite passed 471 tests. Branch coverage passed at 82.17% over 6,227
+  statements and 1,850 branches. Ruff lint/format, strict mypy, compilation,
+  and `git diff --check` passed.
+
 ## Contract and schema ledger
 
 | Concern | Starting version | Phase 4B version |
 | --- | --- | --- |
-| Scientific identity | 7 | 11 |
+| Scientific identity | 7 | 12 |
 | Episode record | legacy aggregate | pending |
 | Policy memory | metadata hint only | `policy-memory-v1` |
 | Tool schema registry | none | `tool-schema-registry-v1` |
 | Fault channel/mechanism | implicit | `fault-channel-v1` |
 | Fault composition | schedules plus special case | `fault-composition-v1` |
-| Monitor composition | declared names only | pending |
+| Monitor composition | declared names only | `monitor-composition-v1` |
 | Oversight treatment | `record` / `gate` | pending |
 | Counterfactual evaluator | none | pending |
 | Scenario manifest/families | manifest v2 | pending |

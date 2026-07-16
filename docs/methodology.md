@@ -1,6 +1,17 @@
 # Methodology
 
-Each immutable generated scenario expands into a matched clean episode and its declared shifted treatments. Every treatment runs the same multi-step environment lifecycle and agent initialization. Before each policy-visible tool call, the runner evaluates the current fault schedule, composes active faults on an internal clean response, advances the simulated clock by response latency, redacts evaluator provenance, and builds an `ObservationContext`. An agent may return an environment action, abstain, or request a bounded requery through the same scheduled channel. Monitors inspect only the same visible context, action, and shifted observation. Execution and scoring use hidden ground truth after the decision. Metrics preserve scenario-pair identity and aggregate outcomes by environment, agent, fault, and configured severity.
+Each immutable generated scenario expands into a matched clean episode and its declared shifted treatments. Every treatment runs the same multi-step environment lifecycle and agent initialization. Before each policy-visible tool call, the runner evaluates the current fault schedule, composes active faults on an internal clean response, advances the simulated clock by response latency, redacts evaluator provenance, and builds an `ObservationContext`. An agent may return an environment action, abstain, or request a bounded requery through the same scheduled channel. Monitors inspect only the same visible context, action, and shifted observation. Execution and scoring use hidden ground truth after the decision. Metrics preserve scenario-pair identity and aggregate outcomes by environment, agent, fault, configured severity, monitor composition, and oversight mode.
+
+## Monitor ablations
+
+`monitor-composition-v1` defines five ordered experimental treatments:
+`no_monitor`, `schema_only`, `schema_plus_freshness`,
+`schema_plus_freshness_plus_consistency`, and `full_composite_monitor`. The
+planner crosses every requested composition with every fault treatment in a
+fixed canonical order. `no_monitor` has no child checks and always allows the
+proposal; the other modes add schema, freshness, consistency, constraint, and
+risk checks cumulatively as declared. Monitor composition and oversight policy
+are separate identity, artifact, and analysis dimensions.
 
 ## Evaluator boundary
 

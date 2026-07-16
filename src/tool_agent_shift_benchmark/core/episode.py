@@ -91,7 +91,7 @@ class Episode:
             )
             if episode_id != expected_legacy_id:
                 raise ValueError(f"legacy episode_id mismatch: expected {expected_legacy_id!r}, got {episode_id!r}")
-        elif identity_schema_version not in {"2", "3", "4", "5", "6", "7", "8", "9", "10", "11"}:
+        elif identity_schema_version not in {"2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"}:
             raise ValueError(f"unsupported episode identity schema: {identity_schema_version!r}")
         planned_identity = value.get("planned_identity", {})
         if planned_identity:
@@ -108,16 +108,20 @@ class Episode:
                     raise ValueError(
                         f"serialized planned identity mismatch for {name}: expected {expected!r}, got {actual!r}"
                     )
-            if identity_schema_version in {"3", "4", "5", "6", "7", "8", "9", "10", "11"}:
+            if identity_schema_version in {"3", "4", "5", "6", "7", "8", "9", "10", "11", "12"}:
                 manifest_hash = (value.get("metadata", {}).get("scenario_manifest") or {}).get("content_hash")
                 if planned_identity.get("scenario_manifest_hash") != manifest_hash:
                     raise ValueError("serialized planned identity mismatch for scenario_manifest_hash")
                 if planned_identity.get("seed_streams") != value.get("metadata", {}).get("seed_streams"):
                     raise ValueError("serialized planned identity mismatch for seed_streams")
-            if identity_schema_version in {"4", "5", "6", "7", "8", "9", "10", "11"}:
+            if identity_schema_version in {"4", "5", "6", "7", "8", "9", "10", "11", "12"}:
                 schedule_ids = fault.metadata.get("schedule_ids", [])
                 if planned_identity.get("fault_schedule_ids") != schedule_ids:
                     raise ValueError("serialized planned identity mismatch for fault_schedule_ids")
+            if identity_schema_version == "12" and planned_identity.get("monitor_mode") != value.get(
+                "metadata", {}
+            ).get("monitor_mode"):
+                raise ValueError("serialized planned identity mismatch for monitor_mode")
         return cls(
             value["env_name"],
             value["scenario_id"],
@@ -172,6 +176,8 @@ class Episode:
             "unsafe_reasons": ";".join(self.execution.unsafe_reasons),
             "monitor_blocked": any(not m.allow_action for m in self.monitor_decisions),
             "monitor_reasons": ";".join(r for m in self.monitor_decisions for r in m.reasons),
+            "monitor_mode": self.metadata.get("monitor_mode", "full_composite_monitor"),
+            "oversight_mode": self.metadata.get("oversight_mode", "gate"),
             "recovered": recovered,
             "episode_steps": self.metadata.get("episode_steps", 1),
             "steps_taken": self.metadata.get("steps_taken", 1),

@@ -185,6 +185,8 @@ def _episode_labels(results_dir: str | Path) -> dict[str, dict[str, Any]]:
                 "environment": first_present(row, ["environment", "env_name"], "unknown"),
                 "fault": first_present(row, ["fault", "fault_name"], "unknown"),
                 "agent": first_present(row, ["agent", "agent_name"], "unknown"),
+                "monitor_mode": first_present(row, ["monitor_mode"], "full_composite_monitor"),
+                "oversight_mode": first_present(row, ["oversight_mode"], "gate"),
             }
     return labels
 
@@ -203,6 +205,9 @@ def _joined_monitor_rows(results_dir: str | Path) -> list[dict[str, Any]]:
                 "environment": label.get("environment") or first_present(row, ["environment", "env_name"], "unknown"),
                 "fault": label.get("fault") or first_present(row, ["fault", "fault_name"], "unknown"),
                 "agent": label.get("agent") or first_present(row, ["agent", "agent_name"], "unknown"),
+                "monitor_mode": label.get("monitor_mode")
+                or first_present(row, ["monitor_mode"], "full_composite_monitor"),
+                "oversight_mode": label.get("oversight_mode") or first_present(row, ["oversight_mode"], "gate"),
                 "risk_score": safe_float(row.get("risk_score")),
                 "monitor_name": first_present(row, ["monitor_name"], "unknown"),
             }
