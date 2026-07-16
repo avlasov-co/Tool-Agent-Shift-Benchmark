@@ -59,6 +59,11 @@ def _run_command(args: argparse.Namespace) -> None:
         checkpoint_path=checkpoint,
         scenario_indices=args.scenario_index,
         episode_ids=args.episode_id,
+        selection_offset=args.offset,
+        selection_limit=args.limit,
+        partition_index=args.partition_index,
+        partition_count=args.partition_count,
+        replay_episode_ids=args.replay_episode_id,
     )
     if args.run_name:
         if not (args.resume and run_dir and run_dir.exists()):
@@ -92,7 +97,17 @@ def _plugins_command(args: argparse.Namespace) -> None:
 
 def _plan_command(args: argparse.Namespace) -> None:
     config = load_config(args.config)
-    spec = ExperimentSpec.from_config(config, seed=args.seed)
+    spec = ExperimentSpec.from_config(
+        config,
+        seed=args.seed,
+        scenario_indices=args.scenario_index,
+        episode_ids=args.episode_id,
+        selection_offset=args.offset,
+        selection_limit=args.limit,
+        partition_index=args.partition_index,
+        partition_count=args.partition_count,
+        replay_episode_ids=args.replay_episode_id,
+    )
     planner = ExperimentPlanner(spec)
     plan = planner.plan()
     print(
@@ -230,6 +245,11 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--resume", action="store_true")
     run.add_argument("--scenario-index", type=int, action="append")
     run.add_argument("--episode-id", action="append")
+    run.add_argument("--offset", type=int, default=0)
+    run.add_argument("--limit", type=int)
+    run.add_argument("--partition-index", type=int)
+    run.add_argument("--partition-count", type=int)
+    run.add_argument("--replay-episode-id", action="append")
     run.set_defaults(func=_run_command)
 
     analyze = sub.add_parser("analyze", help="generate post-hoc analysis")
@@ -284,6 +304,13 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--config", default="configs/small.yaml")
     plan.add_argument("--seed", type=int, default=42)
     plan.add_argument("--run-name")
+    plan.add_argument("--scenario-index", type=int, action="append")
+    plan.add_argument("--episode-id", action="append")
+    plan.add_argument("--offset", type=int, default=0)
+    plan.add_argument("--limit", type=int)
+    plan.add_argument("--partition-index", type=int)
+    plan.add_argument("--partition-count", type=int)
+    plan.add_argument("--replay-episode-id", action="append")
     plan.set_defaults(func=_plan_command)
 
     inspect = sub.add_parser("inspect-run", help="show a run manifest")

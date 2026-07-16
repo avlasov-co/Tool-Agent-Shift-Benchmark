@@ -23,6 +23,28 @@ from src.core.types import (
 )
 from src.monitors.composite import CompositeMonitor
 
+OPERATIONAL_SELECTOR_KEYS = frozenset(
+    {
+        "episode_ids",
+        "scenario_indices",
+        "selection_offset",
+        "selection_limit",
+        "partition_index",
+        "partition_count",
+        "replay_episode_ids",
+        "resume_episode_ids",
+    }
+)
+
+
+class UnknownEpisodeSelectionError(ValueError):
+    """Raised when an ID selector does not refer to the canonical full plan."""
+
+    def __init__(self, selection: str, episode_ids: set[str]):
+        self.selection = selection
+        self.episode_ids = tuple(sorted(episode_ids))
+        super().__init__(f"unknown {selection} episode IDs: {', '.join(self.episode_ids)}")
+
 
 @dataclass(frozen=True)
 class ExperimentSpec:
@@ -43,6 +65,29 @@ class ExperimentSpec:
     artifact_policy: str = "bundle"
     scenario_indices: tuple[int, ...] = ()
     episode_ids: tuple[str, ...] = ()
+    selection_offset: int = 0
+    selection_limit: int | None = None
+    partition_index: int | None = None
+    partition_count: int | None = None
+    replay_episode_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.selection_offset < 0:
+            raise ValueError("selection_offset must be non-negative")
+        if self.selection_limit is not None and self.selection_limit < 0:
+            raise ValueError("selection_limit must be non-negative")
+        if (self.partition_index is None) != (self.partition_count is None):
+            raise ValueError("partition_index and partition_count must be provided together")
+        if self.partition_count is not None and self.partition_count <= 0:
+            raise ValueError("partition_count must be positive")
+        if (
+            self.partition_index is not None
+            and self.partition_count is not None
+            and not 0 <= self.partition_index < self.partition_count
+        ):
+            raise ValueError("partition_index must be between zero and partition_count - 1")
+        if self.episode_ids and self.replay_episode_ids:
+            raise ValueError("episode_ids and replay_episode_ids cannot be combined")
 
     @classmethod
     def from_config(cls, config: dict[str, Any], seed: int = 42, **overrides: Any) -> "ExperimentSpec":
@@ -73,7 +118,36 @@ class ExperimentSpec:
                 int(x) for x in (overrides.get("scenario_indices") or config.get("scenario_indices") or ())
             ),
             episode_ids=tuple(str(x) for x in (overrides.get("episode_ids") or config.get("episode_ids") or ())),
+            selection_offset=int(overrides.get("selection_offset", config.get("selection_offset", 0))),
+            selection_limit=(
+                int(value)
+                if (value := overrides.get("selection_limit", config.get("selection_limit"))) is not None
+                else None
+            ),
+            partition_index=(
+                int(value)
+                if (value := overrides.get("partition_index", config.get("partition_index"))) is not None
+                else None
+            ),
+            partition_count=(
+                int(value)
+                if (value := overrides.get("partition_count", config.get("partition_count"))) is not None
+                else None
+            ),
+            replay_episode_ids=tuple(
+                str(x) for x in (overrides.get("replay_episode_ids") or config.get("replay_episode_ids") or ())
+            ),
         )
+
+    def identity_config_v1(self) -> dict[str, Any]:
+        """Return the legacy hash input with operational selectors removed.
+
+        Keeping the remaining shape unchanged preserves IDs from complete,
+        unfiltered legacy plans while making all selection a post-ID operation.
+        Identity v2 replaces this compatibility helper in Checkpoint 6.
+        """
+
+        return {key: value for key, value in self.config.items() if key not in OPERATIONAL_SELECTOR_KEYS}
 
     def digest(self) -> str:
         return str(stable_hash(self.config, prefix="cfg"))
@@ -105,20 +179,22 @@ class ExperimentPlanner:
         )
         self.run_id = stable_hash(
             {
-                "config": spec.config,
+                "config": spec.identity_config_v1(),
                 "seed": spec.seed,
                 "envs": spec.environments,
                 "agents": spec.agents,
                 "shifts": spec.shifts,
                 "severities": spec.severities,
                 "steps": spec.episode_steps,
-                "scenario_indices": spec.scenario_indices,
-                "episode_ids": spec.episode_ids,
+                "scenario_indices": (),
+                "episode_ids": (),
             },
             prefix="run",
         )
 
-    def plan(self) -> list[EpisodeSpec]:
+    def canonical_plan(self) -> list[EpisodeSpec]:
+        """Construct every semantic episode before applying selectors."""
+
         planned: list[EpisodeSpec] = []
         for env in self.spec.environments:
             for agent in self.spec.agents:
@@ -164,12 +240,36 @@ class ExperimentPlanner:
                                 seed,
                                 episode_id,
                             )
-                            if self.spec.scenario_indices and index not in self.spec.scenario_indices:
-                                continue
-                            if self.spec.episode_ids and episode_id not in self.spec.episode_ids:
-                                continue
                             planned.append(item)
         return planned
+
+    def plan(self) -> list[EpisodeSpec]:
+        """Apply operational selectors to an already-identified canonical plan."""
+
+        canonical = self.canonical_plan()
+        known_ids = {item.episode_id for item in canonical}
+        selected_ids = self.spec.replay_episode_ids or self.spec.episode_ids
+        selection_name = "replay" if self.spec.replay_episode_ids else "selected"
+        unknown = set(selected_ids) - known_ids
+        if unknown:
+            raise UnknownEpisodeSelectionError(selection_name, unknown)
+
+        selected = canonical
+        if self.spec.scenario_indices:
+            indices = set(self.spec.scenario_indices)
+            selected = [item for item in selected if item.scenario_index in indices]
+        if selected_ids:
+            ids = set(selected_ids)
+            selected = [item for item in selected if item.episode_id in ids]
+        if self.spec.partition_count is not None:
+            selected = [
+                item
+                for position, item in enumerate(selected)
+                if position % self.spec.partition_count == self.spec.partition_index
+            ]
+        start = self.spec.selection_offset
+        stop = None if self.spec.selection_limit is None else start + self.spec.selection_limit
+        return selected[start:stop]
 
 
 class EpisodeRunner:
@@ -331,6 +431,7 @@ class RunCoordinator:
     def __init__(self, spec: ExperimentSpec, catalog: PluginCatalog | None = None):
         self.spec, self.catalog = spec, catalog or PluginCatalog()
         self.errors: list[OrchestrationError] = []
+        self.run_id: str | None = None
 
     def run(
         self,
@@ -338,6 +439,7 @@ class RunCoordinator:
         checkpoint_path: str | Path | None = None,
     ) -> list[Episode]:
         planner = ExperimentPlanner(self.spec, self.catalog)
+        self.run_id = planner.run_id
         scheduler = EpisodeScheduler(
             EpisodeRunner(self.spec, self.catalog),
             self.spec.workers,
@@ -347,6 +449,10 @@ class RunCoordinator:
         if checkpoint_path and Path(checkpoint_path).exists():
             saved = json.loads(Path(checkpoint_path).read_text(encoding="utf-8"))
             completed = set(completed or set()) | set(saved.get("completed_episode_ids", []))
+        canonical_ids = {item.episode_id for item in planner.canonical_plan()}
+        unknown_completed = set(completed or set()) - canonical_ids
+        if unknown_completed:
+            raise UnknownEpisodeSelectionError("resume", unknown_completed)
         try:
             episodes = scheduler.run(planner.plan(), completed)
         except Exception:

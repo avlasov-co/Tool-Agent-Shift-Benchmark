@@ -10,7 +10,7 @@ from src.core.config import load_config
 from src.core.episode import Episode
 from src.core.orchestration import ExperimentSpec, RunCoordinator
 from src.core.serialization import write_csv, write_json
-from src.core.types import json_default, stable_hash
+from src.core.types import json_default
 from src.environments.calendar_ops import CalendarOpsEnvironment
 from src.environments.file_ops import FileOpsEnvironment
 from src.environments.risk_ops import RiskOpsEnvironment
@@ -71,6 +71,11 @@ def run_eval(
     checkpoint_path: str | None = None,
     scenario_indices=None,
     episode_ids=None,
+    selection_offset: int = 0,
+    selection_limit: int | None = None,
+    partition_index: int | None = None,
+    partition_count: int | None = None,
+    replay_episode_ids=None,
 ) -> List[Episode]:
     config = load_config(config_path)
     config.setdefault("schema_version", "1")
@@ -88,12 +93,19 @@ def run_eval(
         workers=workers,
         scenario_indices=scenario_indices,
         episode_ids=episode_ids,
+        selection_offset=selection_offset,
+        selection_limit=selection_limit,
+        partition_index=partition_index,
+        partition_count=partition_count,
+        replay_episode_ids=replay_episode_ids,
     )
     coordinator = RunCoordinator(spec)
     existing_episodes = existing_episodes or []
     episodes = coordinator.run({e.episode_id for e in existing_episodes}, checkpoint_path=checkpoint_path)
     episodes = sorted(existing_episodes + episodes, key=lambda e: e.episode_id)
-    run_id = episodes[0].run_id if episodes else stable_hash({"config": config_path, "seed": seed}, prefix="run")
+    run_id = episodes[0].run_id if episodes else coordinator.run_id
+    if run_id is None:
+        raise RuntimeError("planner did not provide a run ID")
     fault_names = spec.shifts
     fault_severities = spec.severities
 
