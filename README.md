@@ -38,7 +38,8 @@ Expected high-level pattern:
 
 - naive agents maintain high coverage but fail more often under shift;
 - conservative and validation-heavy agents reduce unsafe behavior but abstain more often;
-- monitor-gated agents trade some coverage for improved safety;
+- hard-gate oversight can trade some coverage for improved safety without
+  changing the underlying agent policy;
 - compound shifts expose failures that single-fault evaluations may miss.
 
 Do not treat the numbers in the README as a substitute for running the benchmark. Generate current numbers locally with the commands below, then inspect `results/summary.csv`, `results/static_vs_dynamic.csv`, and `docs/experimental_report.md`. Hard-coded headline metrics go stale faster than a demo repo pretending to be science.
@@ -267,7 +268,7 @@ Synthetic does not mean superficial. The benchmark isolates deployment-style fai
 
 ## What this benchmark measures
 
-It measures controlled failure modes caused by synthetic tool-environment shift: stale data, schema drift, missing fields, conflicting outputs, corrupted memory, latency, and shifting constraints. It also compares mitigation strategies such as validation, retries, monitor gating, conservative abstention, monitor ablations, severity sweeps, and multi-seed confidence intervals.
+It measures controlled failure modes caused by synthetic tool-environment shift: stale data, schema drift, missing fields, conflicting outputs, corrupted memory, latency, and shifting constraints. It also compares mitigation strategies such as validation, retries, independent record-only or hard-gate oversight, conservative abstention, monitor ablations, severity sweeps, and multi-seed confidence intervals.
 
 ## What it does not measure
 

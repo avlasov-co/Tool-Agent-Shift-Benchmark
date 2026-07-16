@@ -15,8 +15,8 @@
 
 ## Current checkpoint
 
-Checkpoints 27–31 complete; Checkpoint 32 — independent agent and oversight
-treatments (in progress).
+Checkpoints 27–32 complete; Checkpoint 33 — proposed, intervened, and executed
+action records (in progress).
 
 ## Checkpoint evidence
 
@@ -174,18 +174,51 @@ treatments (in progress).
   statements and 1,850 branches. Ruff lint/format, strict mypy, compilation,
   and `git diff --check` passed.
 
+### Checkpoint 32 — independent agent and oversight treatments
+
+- Added `oversight-treatment-v1` with exactly three canonical treatments:
+  `no_oversight`, `record_only`, and `hard_gate`. Planning crosses oversight
+  with agent, monitor composition, and fault treatments while preserving the
+  same scenario pair and agent/fault streams.
+- The runner now calls one explicit, stateless oversight function for every
+  agent. No oversight does not call the monitor; record-only records the visible
+  monitor result without enforcement; hard gate replaces a denied execution
+  with abstention. The agent proposal remains unchanged in the existing episode
+  decision and step trace pending the versioned action record in Checkpoint 33.
+- Removed `MonitorGatedAgent`, its `last_monitor_decision` state, every
+  name-based runner branch, and the reporting filter encoded around that agent
+  name. First-party matrices now contain five base agents. The deprecated
+  `monitor_gated` config name remains a parse-time alias to `naive` plus explicit
+  full-monitor/hard-gate cells; it is never registered or instantiated.
+- `monitor_policy: record|gate` remains a deprecated input alias to singleton
+  `record_only|hard_gate`. New configs use `oversight_modes`, duplicate/unknown
+  modes fail at exact paths, and the CLI accepts repeatable `--monitor-mode` and
+  `--oversight-mode` overrides for both `run` and `plan`.
+- Custom monitor plugins receive the internal `configured_monitor` composition
+  identity and run through the same oversight function for every base agent.
+  Tests prove all base agents accept a custom monitor, no-oversight skips even a
+  monitor that would raise, matched proposals remain equal across treatments,
+  and record-only versus hard-gate execution diverges as declared.
+- Scientific identity advanced to schema `13`, binds the oversight contract and
+  descriptors, and planned episodes bind both monitor and oversight modes.
+  Identity-v2 through identity-v12 reads remain supported; identity-v13 checks
+  both treatment dimensions during rehydration.
+- The full suite passed 476 tests. Branch coverage passed at 82.04% over 6,317
+  statements and 1,900 branches. Ruff lint/format, strict mypy, compilation,
+  and `git diff --check` passed.
+
 ## Contract and schema ledger
 
 | Concern | Starting version | Phase 4B version |
 | --- | --- | --- |
-| Scientific identity | 7 | 12 |
+| Scientific identity | 7 | 13 |
 | Episode record | legacy aggregate | pending |
 | Policy memory | metadata hint only | `policy-memory-v1` |
 | Tool schema registry | none | `tool-schema-registry-v1` |
 | Fault channel/mechanism | implicit | `fault-channel-v1` |
 | Fault composition | schedules plus special case | `fault-composition-v1` |
 | Monitor composition | declared names only | `monitor-composition-v1` |
-| Oversight treatment | `record` / `gate` | pending |
+| Oversight treatment | `record` / `gate` | `oversight-treatment-v1` |
 | Counterfactual evaluator | none | pending |
 | Scenario manifest/families | manifest v2 | pending |
 

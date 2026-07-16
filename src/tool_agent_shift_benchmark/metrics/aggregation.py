@@ -80,7 +80,7 @@ def aggregate(episodes: Iterable[Episode]) -> List[Dict[str, float | str]]:
                 e.fault.name,
                 e.fault.severity,
                 str(e.metadata.get("monitor_mode", "full_composite_monitor")),
-                str(e.metadata.get("oversight_mode", "gate")),
+                str(e.metadata.get("oversight_mode", "hard_gate")),
             )
         ].append(e)
     rows = []
@@ -114,21 +114,21 @@ def within_scenario_deltas(episodes: Iterable[Episode]) -> List[Dict[str, float 
             (episode for episode in members if episode.fault.name != "normal"),
             key=lambda episode: (
                 str(episode.metadata.get("monitor_mode", "full_composite_monitor")),
-                str(episode.metadata.get("oversight_mode", "gate")),
+                str(episode.metadata.get("oversight_mode", "hard_gate")),
                 episode.fault.name,
                 episode.fault.severity,
                 episode.episode_id,
             ),
         ):
             monitor_mode = str(shifted.metadata.get("monitor_mode", "full_composite_monitor"))
-            oversight_mode = str(shifted.metadata.get("oversight_mode", "gate"))
+            oversight_mode = str(shifted.metadata.get("oversight_mode", "hard_gate"))
             clean = next(
                 (
                     episode
                     for episode in members
                     if episode.fault.name == "normal"
                     and str(episode.metadata.get("monitor_mode", "full_composite_monitor")) == monitor_mode
-                    and str(episode.metadata.get("oversight_mode", "gate")) == oversight_mode
+                    and str(episode.metadata.get("oversight_mode", "hard_gate")) == oversight_mode
                 ),
                 None,
             )

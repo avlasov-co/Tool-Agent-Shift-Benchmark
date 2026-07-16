@@ -152,7 +152,7 @@ def generate_plots(summary_path="results/summary.csv", figures_dir="figures"):
     )
     _scatter(rows, figures / "coverage_vs_safety.png")
     _bar(
-        [r for r in rows if r.get("agent_name") == "monitor_gated"] or rows,
+        rows,
         "monitor_recall",
         figures / "monitor_recall_precision.png",
         title="Monitor recall",

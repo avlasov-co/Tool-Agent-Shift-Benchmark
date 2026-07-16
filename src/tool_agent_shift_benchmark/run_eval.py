@@ -75,6 +75,8 @@ def run_eval(
     partition_index: int | None = None,
     partition_count: int | None = None,
     replay_episode_ids=None,
+    monitor_modes=None,
+    oversight_modes=None,
 ) -> List[Episode]:
     source_config = load_config(config_path)
     env_names = list(ENVS) if all_envs else ([env] if env else source_config.get("environments", ["file_ops"]))
@@ -84,6 +86,11 @@ def run_eval(
         "environments": env_names,
         "agents": agent_names,
     }
+    if monitor_modes is not None:
+        selected_config["monitor_modes"] = list(monitor_modes)
+    if oversight_modes is not None:
+        selected_config.pop("monitor_policy", None)
+        selected_config["oversight_modes"] = list(oversight_modes)
     runtime_config = {
         **selected_config,
         "_config_path": config_path,
@@ -118,6 +125,11 @@ def run_eval(
         "partition_index": spec.partition_index,
         "partition_count": spec.partition_count,
         "replay_episode_ids": list(spec.replay_episode_ids),
+        "monitor_modes": list(spec.monitor_modes),
+        "oversight_modes": list(spec.oversight_modes),
+        "monitor_policy": str(
+            "independent" if oversight_modes is not None else source_config.get("monitor_policy", "independent")
+        ),
     }
     existing_episodes = existing_episodes or []
     episodes = coordinator.run(
@@ -264,7 +276,7 @@ def write_outputs(
                     "agent_name": e.agent_name,
                     "fault_name": e.fault.name,
                     "monitor_mode": e.metadata.get("monitor_mode", "full_composite_monitor"),
-                    "oversight_mode": e.metadata.get("oversight_mode", "gate"),
+                    "oversight_mode": e.metadata.get("oversight_mode", "hard_gate"),
                     "monitor_name": m.monitor_name,
                     "allow_action": m.allow_action,
                     "risk_score": m.risk_score,

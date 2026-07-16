@@ -44,6 +44,10 @@ class MonitorCompositionDescriptor:
     def __post_init__(self) -> None:
         if self.contract != MONITOR_COMPOSITION_CONTRACT:
             raise ValueError(f"unsupported monitor composition contract: {self.contract!r}")
+        if self.name == "configured_monitor":
+            if len(self.components) != 1 or not self.components[0]:
+                raise ValueError("configured monitor composition requires exactly one plugin name")
+            return
         if self.name not in MONITOR_MODES:
             raise ValueError(f"unknown monitor mode: {self.name!r}")
         if self.components != _COMPONENTS[self.name]:
@@ -57,6 +61,12 @@ def monitor_composition(mode: str) -> MonitorCompositionDescriptor:
     if mode not in MONITOR_MODES:
         raise ValueError(f"unknown monitor mode: {mode!r}")
     return MonitorCompositionDescriptor(MONITOR_COMPOSITION_CONTRACT, mode, _COMPONENTS[mode])
+
+
+def configured_monitor_composition(plugin_name: str) -> MonitorCompositionDescriptor:
+    if not plugin_name:
+        raise ValueError("configured monitor plugin name must be non-empty")
+    return MonitorCompositionDescriptor(MONITOR_COMPOSITION_CONTRACT, "configured_monitor", (plugin_name,))
 
 
 def resolve_monitor_modes(requested: Iterable[str]) -> tuple[str, ...]:

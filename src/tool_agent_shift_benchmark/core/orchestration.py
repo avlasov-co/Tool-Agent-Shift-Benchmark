@@ -28,7 +28,17 @@ from tool_agent_shift_benchmark.core.memory import (
     MemoryCorruptionRequest,
     PolicyMemoryChannel,
 )
-from tool_agent_shift_benchmark.core.monitoring import monitor_composition, resolve_monitor_modes
+from tool_agent_shift_benchmark.core.monitoring import (
+    configured_monitor_composition,
+    monitor_composition,
+    resolve_monitor_modes,
+)
+from tool_agent_shift_benchmark.core.oversight import (
+    OVERSIGHT_TREATMENT_CONTRACT,
+    apply_oversight,
+    oversight_treatment,
+    resolve_oversight_modes,
+)
 from tool_agent_shift_benchmark.core.requery import (
     TOOL_CALL_COST_UNITS,
     TOOL_REQUERY_CONTRACT,
@@ -90,7 +100,7 @@ class ExperimentSpec:
     episodes_per_combo: int = 1
     episode_steps: int = 6
     workers: int = 1
-    monitor_policy: str = "gate"
+    oversight_modes: tuple[str, ...] = ("hard_gate",)
     failure_policy: str = "continue"
     retry_attempts: int = 0
     requery_attempts: int = 2
@@ -177,12 +187,16 @@ class ExperimentSpec:
             episodes_per_combo=int(config.get("episodes_per_combo", 3)),
             episode_steps=int(config.get("episode_steps", 6)),
             workers=int(config.get("workers", 1) if worker_value is None else worker_value),
-            monitor_policy=str(config.get("monitor_policy", "gate")),
+            oversight_modes=resolve_oversight_modes(config.get("oversight_modes", ())),
             failure_policy=str(config.get("failure_policy", "continue")),
             retry_attempts=int(config.get("retry_attempts", 0)),
             requery_attempts=int(config.get("requery_attempts", 2)),
             monitor=str(config.get("monitor", "composite")),
-            monitor_modes=resolve_monitor_modes(config.get("monitor_modes", ())),
+            monitor_modes=(
+                resolve_monitor_modes(config.get("monitor_modes", ()))
+                if str(config.get("monitor", "composite")) == "composite"
+                else ("configured_monitor",)
+            ),
             artifact_policy=str(config.get("artifact_policy", "bundle")),
             scenario_indices=tuple(
                 int(x)
@@ -282,6 +296,7 @@ class EpisodeSpec:
             "seed_streams": self.seed_streams.to_dict(),
             "fault_schedules": [schedule.to_dict() for schedule in self.fault_schedules],
             "monitor_mode": self.identity.monitor_mode,
+            "oversight_mode": self.identity.oversight_mode,
             "scenario_manifest": self.scenario_spec.public_reference(),
             "identity": self.identity.to_dict(),
         }
@@ -375,17 +390,19 @@ class ExperimentPlanner:
                     continue
                 for agent in self.spec.agents:
                     for monitor_mode in self.spec.monitor_modes:
-                        for chain, severity in treatments:
-                            planned.append(
-                                self._plan_treatment(
-                                    env,
-                                    index,
-                                    agent,
-                                    monitor_mode,
-                                    chain,
-                                    severity,
+                        for oversight_mode in self.spec.oversight_modes:
+                            for chain, severity in treatments:
+                                planned.append(
+                                    self._plan_treatment(
+                                        env,
+                                        index,
+                                        agent,
+                                        monitor_mode,
+                                        oversight_mode,
+                                        chain,
+                                        severity,
+                                    )
                                 )
-                            )
         return planned
 
     def _plan_treatment(
@@ -394,6 +411,7 @@ class ExperimentPlanner:
         index: int,
         agent: str,
         monitor_mode: str,
+        oversight_mode: str,
         chain: tuple[str, ...],
         severity: float,
     ) -> EpisodeSpec:
@@ -411,7 +429,7 @@ class ExperimentPlanner:
             shift=shift,
             severity=severity,
             monitor=f"{self.spec.monitor}:{monitor_mode}",
-            oversight_treatment=self.spec.monitor_policy,
+            oversight_treatment=oversight_mode,
         )
         seed = streams.scenario_generation
         scenario = self._materialize_scenario(env, index, streams)
@@ -444,6 +462,7 @@ class ExperimentPlanner:
                 "fault_seed": streams.fault_behavior,
                 "fault_schedules": [schedule.to_dict() for schedule in schedules],
                 "monitor_mode": monitor_mode,
+                "oversight_mode": oversight_mode,
                 "run_id": self.run_id,
             },
             prefix="ep",
@@ -464,6 +483,7 @@ class ExperimentPlanner:
             monitor=self.identity.semantic.monitor,
             evaluator=self.identity.semantic.evaluator,
             monitor_mode=monitor_mode,
+            oversight_mode=oversight_mode,
         )
         return EpisodeSpec(
             planned_identity,
@@ -914,21 +934,14 @@ class EpisodeRunner:
                         {**decision.metadata, "runner_enforced_requery_budget": True},
                     )
                 break
-            monitor_decision = (
-                getattr(agent_obj, "last_monitor_decision", None) if item.agent == "monitor_gated" else None
+            monitor_decision, action = apply_oversight(
+                item.identity.oversight_mode,
+                monitor,
+                context,
+                policy_response.observation,
+                decision.action,
             )
-            monitor_decision = monitor_decision or monitor.check(context, policy_response.observation, decision.action)
             monitors.append(monitor_decision)
-            action = decision.action
-            if self.spec.monitor_policy == "gate" and not monitor_decision.allow_action and not action.abstain:
-                action = AgentAction("abstain", abstain=True, reason="monitor_blocked")
-                decision = AgentDecision(
-                    decision.agent_name,
-                    action,
-                    decision.confidence,
-                    list(decision.reasons),
-                    {**decision.metadata, "monitor_gated": True},
-                )
             state_before = env_obj.lifecycle_snapshot()
             execution = env_obj.execute(action, observed_timestamp=policy_response.observation.timestamp)
             state_after = env_obj.lifecycle_snapshot()
@@ -1035,8 +1048,14 @@ class EpisodeRunner:
             "fault_effect_contract": FAULT_EFFECT_CONTRACT,
             "fault_composition_contract": FAULT_COMPOSITION_CONTRACT,
             "monitor_mode": item.identity.monitor_mode,
-            "monitor_composition": monitor_composition(item.identity.monitor_mode).to_dict(),
-            "oversight_mode": self.spec.monitor_policy,
+            "monitor_composition": (
+                monitor_composition(item.identity.monitor_mode)
+                if self.spec.monitor == "composite"
+                else configured_monitor_composition(self.spec.monitor)
+            ).to_dict(),
+            "oversight_contract": OVERSIGHT_TREATMENT_CONTRACT,
+            "oversight_mode": item.identity.oversight_mode,
+            "oversight_treatment": oversight_treatment(item.identity.oversight_mode).to_dict(),
             "configured_fault_severity": item.severity,
             "fault_effects": fault_effects,
             "fault_effect_applications": len(fault_effects),

@@ -35,6 +35,7 @@ def _preflight_spec(spec: ExperimentSpec) -> ExperimentSpec:
         "partition_count",
         "replay_episode_ids",
         "resume_episode_ids",
+        "monitor_policy",
     ):
         public.pop(key, None)
     public.update(
@@ -43,7 +44,8 @@ def _preflight_spec(spec: ExperimentSpec) -> ExperimentSpec:
             "faults": ["normal"],
             "shift_chains": [["normal"]],
             "fault_severities": [1.0],
-            "monitor_policy": "record",
+            "monitor_modes": ["full_composite_monitor"],
+            "oversight_modes": ["record_only"],
             "episode_steps": max(6, spec.episode_steps),
             "workers": spec.workers,
         }

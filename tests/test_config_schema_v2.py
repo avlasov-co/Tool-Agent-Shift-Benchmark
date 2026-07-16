@@ -278,7 +278,12 @@ monitor_policy: record
     run_eval(str(config_path), 43, workers=3)
     payload = read_json(tmp_path / "results" / "config.json")
 
-    expected = {**load_config(config_path), "seed": 43, "workers": 3}
+    expected = {
+        **load_config(config_path),
+        "seed": 43,
+        "workers": 3,
+        "monitor_modes": ["full_composite_monitor"],
+    }
     assert payload["normalized_config"] == expected
     assert payload["config"] == payload["normalized_config"]
     assert payload["normalized_config"]["schema_version"] == 2

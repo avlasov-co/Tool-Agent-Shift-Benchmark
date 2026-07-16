@@ -10,6 +10,7 @@ from typing import Any, Mapping, Sequence
 
 from tool_agent_shift_benchmark.core.config import load_raw_config, write_config_yaml
 from tool_agent_shift_benchmark.core.monitoring import MONITOR_MODES
+from tool_agent_shift_benchmark.core.oversight import LEGACY_OVERSIGHT_ALIASES, OVERSIGHT_MODES
 from tool_agent_shift_benchmark.core.serialization import canonicalize, register_dataclass
 
 CONFIG_SCHEMA_VERSION = 2
@@ -22,9 +23,9 @@ BUILTIN_COMPONENTS: dict[str, frozenset[str]] = {
             "naive",
             "retry",
             "validate_then_act",
-            "monitor_gated",
             "conservative",
             "offline_llm_fixture",
+            "monitor_gated",
         }
     ),
     "shift": frozenset(
@@ -59,6 +60,7 @@ ALLOWED_KEYS = frozenset(
         "monitor",
         "monitor_policy",
         "monitor_modes",
+        "oversight_modes",
         "failure_policy",
         "retry_attempts",
         "requery_attempts",
@@ -174,6 +176,7 @@ class ConfigV2:
     monitor: str
     monitor_policy: str
     monitor_modes: tuple[str, ...]
+    oversight_modes: tuple[str, ...]
     failure_policy: str
     retry_attempts: int
     requery_attempts: int
@@ -364,9 +367,11 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
     known = _known_components(references)
     environments = _string_list(root.get("environments", ["file_ops"]), source, "$.environments", allow_empty=False)
     agents = _string_list(root.get("agents", ["naive"]), source, "$.agents", allow_empty=False)
+    legacy_monitor_gated = "monitor_gated" in agents
     faults = _string_list(root.get("faults", ["normal"]), source, "$.faults", allow_empty=False)
     _require_known(environments, known["environment"], source, "$.environments")
     _require_known(agents, known["agent"], source, "$.agents")
+    agents = tuple(dict.fromkeys("naive" if agent == "monitor_gated" else agent for agent in agents))
     _require_known(faults, known["shift"], source, "$.faults")
 
     raw_chains = root.get("shift_chains")
@@ -514,15 +519,42 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
 
     monitor = _string(root.get("monitor", "composite"), source, "$.monitor")
     _require_known((monitor,), known["monitor"], source, "$.monitor")
-    monitor_policy = _string(root.get("monitor_policy", "gate"), source, "$.monitor_policy")
-    if monitor_policy not in {"record", "gate"}:
-        raise _error(source, "$.monitor_policy", "must be 'record' or 'gate'")
+    raw_monitor_policy = root.get("monitor_policy")
+    raw_oversight_modes = root.get("oversight_modes")
+    if raw_oversight_modes is None:
+        monitor_policy = _string(
+            raw_monitor_policy if raw_monitor_policy is not None else "gate", source, "$.monitor_policy"
+        )
+        if monitor_policy not in LEGACY_OVERSIGHT_ALIASES:
+            raise _error(source, "$.monitor_policy", "must be legacy alias 'record' or 'gate'")
+        oversight_modes = (LEGACY_OVERSIGHT_ALIASES[monitor_policy],)
+    else:
+        monitor_policy = _string(
+            raw_monitor_policy if raw_monitor_policy is not None else "independent", source, "$.monitor_policy"
+        )
+        oversight_modes = _string_list(raw_oversight_modes, source, "$.oversight_modes", allow_empty=False)
+        for index, mode in enumerate(oversight_modes):
+            if mode not in OVERSIGHT_MODES:
+                raise _error(source, f"$.oversight_modes[{index}]", f"unknown oversight mode {mode!r}")
+            if mode in oversight_modes[:index]:
+                raise _error(source, f"$.oversight_modes[{index}]", f"duplicate oversight mode {mode!r}")
+        if monitor_policy in LEGACY_OVERSIGHT_ALIASES:
+            if oversight_modes != (LEGACY_OVERSIGHT_ALIASES[monitor_policy],):
+                raise _error(source, "$.monitor_policy", "legacy monitor policy must match the sole oversight mode")
+        elif monitor_policy != "independent":
+            raise _error(source, "$.monitor_policy", "must be 'independent' with explicit oversight_modes")
     monitor_modes = _string_list(root.get("monitor_modes", []), source, "$.monitor_modes")
     for index, mode in enumerate(monitor_modes):
         if mode not in MONITOR_MODES:
             raise _error(source, f"$.monitor_modes[{index}]", f"unknown monitor mode {mode!r}")
         if mode in monitor_modes[:index]:
             raise _error(source, f"$.monitor_modes[{index}]", f"duplicate monitor mode {mode!r}")
+    if monitor != "composite" and monitor_modes:
+        raise _error(source, "$.monitor_modes", "custom monitor plugins cannot be combined with built-in modes")
+    if legacy_monitor_gated:
+        monitor_policy = "independent"
+        oversight_modes = tuple(dict.fromkeys((*oversight_modes, "hard_gate")))
+        monitor_modes = tuple(dict.fromkeys((*monitor_modes, "full_composite_monitor")))
 
     failure_policy = _string(root.get("failure_policy", "continue"), source, "$.failure_policy")
     if failure_policy not in {"continue", "fail_fast"}:
@@ -635,6 +667,7 @@ def parse_config_data(data: dict[str, Any], *, source: str = "<config>", pairwis
         monitor,
         monitor_policy,
         monitor_modes,
+        oversight_modes,
         failure_policy,
         retry_attempts,
         requery_attempts,

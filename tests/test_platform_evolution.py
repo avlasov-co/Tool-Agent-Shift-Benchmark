@@ -32,7 +32,7 @@ def catalog_with_agent(agent):
 def config_v2(config):
     normalized = {"schema_version": 2, **config}
     references = []
-    builtins = {"naive", "retry", "validate_then_act", "monitor_gated", "conservative", "offline_llm_fixture"}
+    builtins = {"naive", "retry", "validate_then_act", "conservative", "offline_llm_fixture"}
     for agent in normalized.get("agents", []):
         if agent not in builtins:
             references.append(

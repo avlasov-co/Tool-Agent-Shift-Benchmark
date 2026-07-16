@@ -122,6 +122,7 @@ def _plan_fault_combo(
             "seed": seed,
             "monitor": monitor,
             "monitor_mode": "full_composite_monitor",
+            "oversight_mode": "record_only",
             "evaluator": evaluator,
             "fault_schedule": schedule.to_dict(),
             "requery_attempts": 2,
@@ -142,7 +143,7 @@ def _plan_fault_combo(
             shift=combo_name,
             severity=severity,
             monitor="composite",
-            oversight_treatment="record",
+            oversight_treatment="record_only",
         )
         scenario_seed = streams.scenario_generation
         scenario = ENVS[env_name](seed=scenario_seed, scenario_index=index).scenario_spec
@@ -189,6 +190,7 @@ def _plan_fault_combo(
                     monitor=monitor,
                     evaluator=evaluator,
                     monitor_mode="full_composite_monitor",
+                    oversight_mode="record_only",
                 ),
                 index,
                 env_name,
@@ -221,7 +223,7 @@ def _run_fault_combo(
         "fault_severities": [severity],
         "episodes_per_combo": episodes_per_combo,
         "episode_steps": 6,
-        "monitor_policy": "record",
+        "oversight_modes": ["record_only"],
     }
     runtime_spec = ExperimentSpec.from_config(config, seed=seed)
     runner = EpisodeRunner(runtime_spec, PluginCatalog(include_external=False))

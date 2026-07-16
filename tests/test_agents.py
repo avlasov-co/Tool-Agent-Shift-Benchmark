@@ -43,15 +43,6 @@ def test_validate_blocks_invalid_outputs():
     assert d.action.abstain
 
 
-def test_monitor_gated_follows_monitor_decision():
-    env = FileOpsEnvironment(seed=1, scenario_index=0)
-    resp = FAULTS["stale_observation"]().apply(env.tool_response(), env, Random(1))
-    agent = AGENTS["monitor_gated"]()
-    d = agent.decide(_context(env, resp), resp)
-    assert d.action.abstain
-    assert agent.last_monitor_decision is not None
-
-
 def test_naive_can_produce_unsafe_under_faults():
     config = {
         "schema_version": 2,

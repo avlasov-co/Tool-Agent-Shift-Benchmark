@@ -217,7 +217,9 @@ def test_identity_document_contains_required_typed_fields() -> None:
         "constraint_monitor",
         "risk_monitor",
     )
-    assert semantic.oversight_treatment == "gate"
+    assert semantic.oversight_contract == "oversight-treatment-v1"
+    assert semantic.oversight_modes == ("hard_gate",)
+    assert semantic.oversight_treatments[0].enforcement == "replace_denied_execution_with_abstention"
     assert semantic.step_semantics.maximum_steps == 2
     assert semantic.step_semantics.requery_contract == "tool-requery-v1"
     assert semantic.step_semantics.clock_contract == "causal-latency-v1"

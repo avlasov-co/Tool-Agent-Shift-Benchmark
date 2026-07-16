@@ -80,7 +80,7 @@ def test_no_monitor_is_a_real_allowing_treatment_with_no_child_checks() -> None:
     shifted = next(episode for episode in episodes if episode.fault.name == "stale_observation")
 
     assert shifted.metadata["monitor_mode"] == "no_monitor"
-    assert shifted.metadata["oversight_mode"] == "gate"
+    assert shifted.metadata["oversight_mode"] == "hard_gate"
     assert shifted.monitor_decisions
     assert all(decision.monitor_name == "no_monitor" for decision in shifted.monitor_decisions)
     assert all(decision.allow_action for decision in shifted.monitor_decisions)
@@ -112,5 +112,5 @@ def test_analysis_groups_monitor_treatments_independently() -> None:
         "schema_plus_freshness",
         "full_composite_monitor",
     }
-    assert {str(row["oversight_mode"]) for row in rows} == {"gate"}
+    assert {str(row["oversight_mode"]) for row in rows} == {"hard_gate"}
     assert all(float(row["episodes"]) == 1.0 for row in rows)

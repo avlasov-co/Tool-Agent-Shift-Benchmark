@@ -1,5 +1,5 @@
 schema_version: 2
-monitor_policy: record
+oversight_modes: [record_only]
 policy_resources:
   offline_llm_fixture: e202bdaae8911129ce16a363989a01f68c83905a70936aa8c35eb104eca174a7
 migration:
@@ -18,7 +18,6 @@ agents:
   - naive
   - retry
   - validate_then_act
-  - monitor_gated
   - conservative
   - offline_llm_fixture
 faults:

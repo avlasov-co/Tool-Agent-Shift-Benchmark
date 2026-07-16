@@ -12,7 +12,9 @@ from tool_agent_shift_benchmark.core.catalog import PluginCatalog
 from tool_agent_shift_benchmark.core.config import dump_config_yaml, load_config, load_raw_config, write_config_yaml
 from tool_agent_shift_benchmark.core.config_schema import migrate_config_data, validate_config
 from tool_agent_shift_benchmark.core.episode import Episode
+from tool_agent_shift_benchmark.core.monitoring import MONITOR_MODE_ORDER
 from tool_agent_shift_benchmark.core.orchestration import ExperimentPlanner, ExperimentSpec
+from tool_agent_shift_benchmark.core.oversight import OVERSIGHT_MODE_ORDER
 from tool_agent_shift_benchmark.core.run_artifacts import (
     prepare_run_dir,
     resolve_run,
@@ -66,6 +68,8 @@ def _run_command(args: argparse.Namespace) -> None:
         partition_index=args.partition_index,
         partition_count=args.partition_count,
         replay_episode_ids=args.replay_episode_id,
+        monitor_modes=args.monitor_mode,
+        oversight_modes=args.oversight_mode,
     )
     if args.run_name:
         if not (args.resume and run_dir and run_dir.exists()):
@@ -99,6 +103,11 @@ def _plugins_command(args: argparse.Namespace) -> None:
 
 def _plan_command(args: argparse.Namespace) -> None:
     config = load_config(args.config)
+    if args.monitor_mode:
+        config["monitor_modes"] = args.monitor_mode
+    if args.oversight_mode:
+        config.pop("monitor_policy", None)
+        config["oversight_modes"] = args.oversight_mode
     spec = ExperimentSpec.from_config(
         config,
         seed=args.seed,
@@ -266,6 +275,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--partition-index", type=int)
     run.add_argument("--partition-count", type=int)
     run.add_argument("--replay-episode-id", action="append")
+    run.add_argument("--monitor-mode", action="append", choices=MONITOR_MODE_ORDER)
+    run.add_argument("--oversight-mode", action="append", choices=OVERSIGHT_MODE_ORDER)
     run.set_defaults(func=_run_command)
 
     analyze = sub.add_parser("analyze", help="generate post-hoc analysis")
@@ -340,6 +351,8 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--partition-index", type=int)
     plan.add_argument("--partition-count", type=int)
     plan.add_argument("--replay-episode-id", action="append")
+    plan.add_argument("--monitor-mode", action="append", choices=MONITOR_MODE_ORDER)
+    plan.add_argument("--oversight-mode", action="append", choices=OVERSIGHT_MODE_ORDER)
     plan.set_defaults(func=_plan_command)
 
     inspect = sub.add_parser("inspect-run", help="show a run manifest")

@@ -13,6 +13,19 @@ proposal; the other modes add schema, freshness, consistency, constraint, and
 risk checks cumulatively as declared. Monitor composition and oversight policy
 are separate identity, artifact, and analysis dimensions.
 
+## Oversight treatments
+
+`oversight-treatment-v1` defines `no_oversight`, `record_only`, and
+`hard_gate` independently of agent policy and monitor composition. No oversight
+does not evaluate the configured monitor. Record-only oversight stores the
+monitor decision but always sends the proposal to execution. Hard-gate
+oversight sends a denied non-abstaining proposal to execution as an explicit
+abstention while retaining the original agent proposal. The deprecated
+`monitor_policy: record|gate` input aliases normalize to `record_only` and
+`hard_gate`; the deprecated `monitor_gated` agent name normalizes to base
+`naive` cells with explicit full-monitor and hard-gate treatments and is not a
+runtime agent.
+
 ## Evaluator boundary
 
 Agents and monitors do not receive the full environment object. They receive `ObservationContext`, which exposes visible constraints, visible schema requirements, observation/response timing, and visible-only helper methods. Hidden ground truth, clean unfaulted tool responses, schedule/effect provenance, execution methods, and post-hoc unsafe labels remain evaluator-only.

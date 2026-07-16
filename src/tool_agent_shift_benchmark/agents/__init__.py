@@ -1,5 +1,4 @@
 from .conservative import ConservativeAbstentionAgent
-from .monitor_gated import MonitorGatedAgent
 from .naive import NaiveAgent
 from .offline_llm_fixture import OfflineLLMFixtureAgent
 from .retry import RetryAgent
@@ -9,13 +8,12 @@ AGENTS = {
     "naive": NaiveAgent,
     "retry": RetryAgent,
     "validate_then_act": ValidateThenActAgent,
-    "monitor_gated": MonitorGatedAgent,
     "conservative": ConservativeAbstentionAgent,
     "offline_llm_fixture": OfflineLLMFixtureAgent,
 }
 
 DIAGNOSTIC_AGENTS = ("naive", "offline_llm_fixture")
-REFERENCE_AGENTS = ("validate_then_act", "monitor_gated", "conservative", "retry")
+REFERENCE_AGENTS = ("validate_then_act", "conservative", "retry")
 AGENT_ROLES = {
     **{name: "diagnostic" for name in DIAGNOSTIC_AGENTS},
     **{name: "reference" for name in REFERENCE_AGENTS},

@@ -23,7 +23,7 @@ def _config(agent: str = "validate_then_act", steps: int = 6) -> dict[str, objec
         "episode_steps": steps,
         "monitor_policy": "record",
     }
-    if agent not in {"validate_then_act", "conservative", "retry", "monitor_gated", "naive"}:
+    if agent not in {"validate_then_act", "conservative", "retry", "naive"}:
         config["plugin_references"] = [
             {
                 "kind": "agent",

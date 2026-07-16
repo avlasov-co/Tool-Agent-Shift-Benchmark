@@ -27,7 +27,7 @@ def base_config(agent: str = "naive", environment: str = "file_ops") -> dict[str
         "monitor_policy": "gate",
     }
     references = []
-    if agent not in {"naive", "retry", "validate_then_act", "monitor_gated", "conservative", "offline_llm_fixture"}:
+    if agent not in {"naive", "retry", "validate_then_act", "conservative", "offline_llm_fixture"}:
         references.append(
             {
                 "kind": "agent",

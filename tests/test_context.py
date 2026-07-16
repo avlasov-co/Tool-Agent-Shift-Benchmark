@@ -164,7 +164,7 @@ def test_single_seed_run_records_effective_config_and_clears_stale_ci(tmp_path, 
     episodes = run_eval("small", 42, all_envs=True, all_agents=True)
     payload = json.loads((tmp_path / "results" / "config.json").read_text(encoding="utf-8"))
     cfg = payload["config"]
-    assert len(episodes) == 252
+    assert len(episodes) == 210
     assert cfg["environments"] == ["file_ops", "calendar_ops", "risk_ops"]
     assert "conservative" in cfg["agents"]
     assert payload["normalized_config"] == cfg
