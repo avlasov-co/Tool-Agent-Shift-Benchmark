@@ -17,7 +17,7 @@
 
 ## Current checkpoint
 
-Checkpoint 46 is complete and ready for its numbered commit.
+Checkpoint 47 is complete and ready for its numbered commit.
 
 ## Baseline defects to resolve
 
@@ -77,7 +77,47 @@ paths, and commit identifiers will be appended before each numbered commit.
 
 ### Checkpoint 47 — statistical design
 
-Pending.
+- Added deterministic scenario-clustered percentile bootstrap intervals and
+  matched clean/shift paired intervals. Repeated steps are collapsed within a
+  scenario before resampling; treatment-minus-clean effects are computed before
+  paired resampling; scenario-family strata and sampling populations are
+  canonically ordered so row order cannot change results.
+- Statistical records report the effect, numeric bounds only when justified,
+  method, status, confidence level, independent scenario/family/seed/condition
+  counts, missing-pair count, analysis seed, and resample count. Cells with no
+  eligible units or fewer than two independent scenarios refuse an interval
+  visibly instead of manufacturing one.
+- Added Wilson intervals behind an explicit independent-binary-unit guard,
+  optional Bonferroni/Holm/Benjamini-Hochberg corrections, and paired
+  normal-approximation sample-size planning. The parent bundle persists the
+  exact analysis config and plans for 0.05, 0.10, and 0.20 effects under the
+  stated standard-deviation assumption.
+- Rebuilt multi-seed inference from per-episode v2 outcomes instead of averages
+  of aggregate seed rows. Parent multi-seed outputs are first-class analysis
+  bundles with stable identities and finalized child evidence bundles rather
+  than unverifiable loose directories.
+- Confidence plots use the emitted interval endpoints as error-bar whiskers. A
+  rendering test spies on `Axes.errorbar` so a title or filename cannot pass as
+  interval evidence.
+- Synthetic tests cover null/positive paired effects, unbalanced repeated
+  observations, missing pairs, insufficient independent units, zero eligible
+  cells, input-order determinism, independence guards, correction methods,
+  sample-size planning, and hierarchy counts. The focused statistical,
+  multi-seed, reporting, reproducibility, and pairing suite passed 22 tests.
+  The supported repository lint and format checks passed, configured mypy
+  passed, compilation and the full test suite passed, and `git diff --check`
+  passed.
+- A real 810-episode, three-seed smoke at
+  `runs/phase47-statistical-smoke-2` produced 810 confidence rows (666
+  estimable, 144 visibly ineligible), 720 paired rows (480 estimable, 240
+  visibly ineligible), and a rendered confidence plot with actual whiskers.
+  After plot inclusion and refinalization, strict verification reported
+  `complete_valid`, 1,739 artifacts, stable run ID
+  `run_c3f927d16592cfdd`, and no errors.
+- A direct ad hoc file-target mypy invocation was not accepted because the
+  repository's Python 3.10 target rejects a Python 3.12 `type` statement in an
+  installed NumPy stub. The supported configured `make typecheck` command is
+  unaffected and passed.
 
 ### Checkpoint 48 — monitor evaluation
 

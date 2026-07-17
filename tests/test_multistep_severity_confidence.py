@@ -6,6 +6,7 @@ from tests.shift_context_helpers import shift_context
 from tool_agent_shift_benchmark.agents.offline_llm_fixture import OfflineLLMFixtureAgent
 from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.core.context import ObservationContext
+from tool_agent_shift_benchmark.core.verification import COMPLETE_VALID, verify_run
 from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
 from tool_agent_shift_benchmark.faults.stale_observation import StaleObservationFault
 from tool_agent_shift_benchmark.run_eval import run_eval
@@ -44,6 +45,11 @@ def test_run_seeds_confidence_outputs(tmp_path, monkeypatch):
     assert ci_rows
     assert (store.run_dir / "results" / "seed_summary.csv").exists()
     assert (store.run_dir / "results" / "confidence_intervals.csv").exists()
+    assert (store.run_dir / "results" / "paired_effect_intervals.csv").exists()
+    assert (store.run_dir / "analysis" / "statistical_analysis_config.json").exists()
+    assert (store.run_dir / "analysis" / "sample_size_plan.json").exists()
+    store.finalize(command=["test", "run-seeds"])
+    assert verify_run(store.run_dir)["status"] == COMPLETE_VALID
 
 
 def test_offline_fixture_has_no_network_dependency():

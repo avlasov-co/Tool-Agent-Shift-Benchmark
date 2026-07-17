@@ -291,17 +291,29 @@ def write_outputs(
         outcome = classify_episode(episode)
         outcome_row = outcome.to_dict()
         steps = outcome_row.pop("steps")
+        scenario_manifest = episode.metadata.get("scenario_manifest") or {}
+        scenario_family = scenario_manifest.get("family") or {}
+        seed_streams = episode.metadata.get("seed_streams") or {}
+        hierarchy = {
+            "scenario_family": scenario_family.get("name", "unknown"),
+            "scenario_split": scenario_manifest.get("split", "unknown"),
+            "scenario_seed": scenario_manifest.get("scenario_seed", episode.seed),
+            "root_seed": seed_streams.get("root_seed", seed),
+            "monitor_mode": episode.metadata.get("monitor_mode", "full_composite_monitor"),
+            "oversight_mode": episode.metadata.get("oversight_mode", "hard_gate"),
+        }
         episode_outcome_rows.append(
             {
                 "metric_schema_version": METRIC_SCHEMA_VERSION,
                 "run_id": episode.run_id,
                 "episode_id": episode.episode_id,
                 "scenario_pair_id": episode.scenario_pair_id or "",
-                "scenario_manifest_hash": (episode.metadata.get("scenario_manifest") or {}).get("content_hash", ""),
+                "scenario_manifest_hash": scenario_manifest.get("content_hash", ""),
                 "environment": episode.env_name,
                 "agent": episode.agent_name,
                 "fault": episode.fault.name,
                 "severity": episode.fault.severity,
+                **hierarchy,
                 **outcome_row,
             }
         )
@@ -312,11 +324,12 @@ def write_outputs(
                     "run_id": episode.run_id,
                     "episode_id": episode.episode_id,
                     "scenario_pair_id": episode.scenario_pair_id or "",
-                    "scenario_manifest_hash": (episode.metadata.get("scenario_manifest") or {}).get("content_hash", ""),
+                    "scenario_manifest_hash": scenario_manifest.get("content_hash", ""),
                     "environment": episode.env_name,
                     "agent": episode.agent_name,
                     "fault": episode.fault.name,
                     "severity": episode.fault.severity,
+                    **hierarchy,
                     **step,
                 }
             )

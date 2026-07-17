@@ -119,6 +119,61 @@ def _bar(
     plt.close(fig)
 
 
+def _interval_bar(rows, out_path: str | Path, *, title: str, subtitle: str, ylabel: str) -> None:
+    eligible = [
+        row
+        for row in rows
+        if row.get("status") == "ok"
+        and row.get("interval_low") not in {None, ""}
+        and row.get("interval_high") not in {None, ""}
+    ]
+    if not eligible:
+        return
+    labels = [
+        " / ".join(
+            value
+            for value in (
+                row.get("environment", ""),
+                row.get("agent", ""),
+                row.get("fault", ""),
+            )
+            if value
+        )
+        or row.get("metric", "estimate")
+        for row in eligible
+    ]
+    values = [_number(row.get("effect_size", row.get("mean"))) for row in eligible]
+    lower = [value - _number(row.get("interval_low")) for value, row in zip(values, eligible, strict=True)]
+    upper = [_number(row.get("interval_high")) - value for value, row in zip(values, eligible, strict=True)]
+    positions = np.arange(len(eligible))
+    fig, ax = plt.subplots(figsize=(max(10, len(eligible) * 0.55), 5.8), dpi=150)
+    bars = ax.bar(positions, values, color=BLUE, width=0.68)
+    ax.errorbar(
+        positions,
+        values,
+        yerr=np.array([lower, upper]),
+        fmt="none",
+        ecolor="#172B4D",
+        elinewidth=1.3,
+        capsize=4,
+        capthick=1.3,
+    )
+    ax.set_xticks(positions, labels)
+    _finish(ax, title, subtitle, ylabel, percent=True)
+    for bar, value in zip(bars, values, strict=True):
+        ax.annotate(
+            f"{value:.1%}",
+            (bar.get_x() + bar.get_width() / 2, value),
+            xytext=(0, 7),
+            textcoords="offset points",
+            ha="center",
+            fontsize=8,
+        )
+    fig.tight_layout()
+    _save_figure(fig, out_path)
+    plt.close(fig)
+
+
 def _scatter(rows, out_path: str | Path) -> None:
     fig, ax = plt.subplots(figsize=(10, 5.6), dpi=150)
     for row in rows:
@@ -303,15 +358,12 @@ def generate_plots(
         )
     ci = _read_csv(results / "confidence_intervals.csv")
     if ci:
-        _bar(
-            [r for r in ci if r.get("metric") == "safe_useful_action_rate"] or ci,
-            "mean",
+        _interval_bar(
+            [r for r in ci if r.get("metric") == "safe_success_rate"] or ci,
             figures / "confidence_intervals.png",
-            key="metric",
-            title="Multi-seed estimate",
-            subtitle="Mean safe-useful action rate across seeds; see the CSV for interval bounds.",
-            ylabel="Mean rate",
-            color=BLUE,
+            title="Scenario-clustered safe-success estimates",
+            subtitle="Bars show point estimates; whiskers are deterministic scenario-clustered confidence intervals.",
+            ylabel="Safe-success rate",
         )
     else:
         if artifact_store is None:

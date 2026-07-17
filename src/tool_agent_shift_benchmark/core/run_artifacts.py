@@ -57,6 +57,10 @@ def artifact_schema_version(relative_path: str) -> str:
         "results/episode_outcomes.jsonl": "metric-schema-v2",
         "results/step_outcomes.csv": "metric-schema-v2",
         "results/step_outcomes.jsonl": "metric-schema-v2",
+        "results/confidence_intervals.csv": "statistical-analysis-v1",
+        "results/paired_effect_intervals.csv": "statistical-analysis-v1",
+        "analysis/statistical_analysis_config.json": "statistical-analysis-v1",
+        "analysis/sample_size_plan.json": "statistical-analysis-v1",
     }
     if relative_path in exact:
         return exact[relative_path]
