@@ -8,7 +8,10 @@ those can mutate checked-in benchmark evidence.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -22,6 +25,7 @@ import yaml
 
 from tool_agent_shift_benchmark import __version__
 from tool_agent_shift_benchmark.core.serialization import write_json
+from tool_agent_shift_benchmark.core.verification import COMPLETE_VALID, verify_run
 
 DEFAULT_TIMEOUT_SECONDS = 180
 
@@ -209,23 +213,133 @@ def _junk_files() -> tuple[bool, str]:
     )
 
 
-def _artifact_consistency() -> tuple[bool, str]:
-    required = [
-        Path("results/episode_log.csv"),
-        Path("results/summary.csv"),
-        Path("results/config.json"),
-        Path("figures/unsafe_action_rate.png"),
+_CLAIM_LEDGER = Path("docs/metrics/claims-to-evidence-ledger.md")
+_EVIDENCE_REFERENCES = Path("docs/metrics/verified-evidence.json")
+_VERIFIED_CLAIM = re.compile(r"^\|\s*(C\d+)\s*\|.*\|\s*verified\s*\|\s*$")
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _verified_claim_ids(ledger: Path) -> set[str]:
+    return {
+        match.group(1)
+        for line in ledger.read_text(encoding="utf-8").splitlines()
+        if (match := _VERIFIED_CLAIM.match(line)) is not None
+    }
+
+
+def _historical_root_warning() -> str | None:
+    """Describe incomplete root evidence without treating it as current evidence."""
+    root_candidates = [Path("results"), Path("figures"), Path("docs/analysis_report.md")]
+    if not any(path.exists() for path in root_candidates):
+        return None
+    missing = [
+        str(path)
+        for path in (
+            Path("results/episode_log.csv"),
+            Path("results/summary.csv"),
+            Path("results/config.json"),
+            Path("results/episodes.jsonl"),
+            Path("figures/unsafe_action_rate.png"),
+        )
+        if not path.is_file() or path.stat().st_size == 0
     ]
-    missing = [str(path) for path in required if not path.is_file() or path.stat().st_size == 0]
-    structured = Path("results/episodes.jsonl")
-    if not structured.exists():
-        missing.append("results/episodes.jsonl (new structured output is absent from the checked-in evidence)")
-    return (
-        not missing,
-        "checked-in artifact set is consistent"
-        if not missing
-        else "artifact consistency issues:\n" + "\n".join(missing),
-    )
+    if not missing:
+        return "historical root evidence is present but is not used for v0.4.0 claims"
+    return "historical root evidence is partial and not used for v0.4.0 claims: " + ", ".join(missing)
+
+
+def _artifact_consistency() -> tuple[bool, str]:
+    """Check claim-bound evidence without promoting historical root artifacts.
+
+    Run bundles are intentionally ignored local/release evidence, so a source
+    checkout may not contain each referenced bundle. A missing local bundle is
+    reported for operator follow-up, while malformed references or an available
+    bundle that is not complete-valid fail the audit.
+    """
+    problems: list[str] = []
+    warnings: list[str] = []
+    if not _CLAIM_LEDGER.is_file():
+        return False, f"missing claims ledger: {_CLAIM_LEDGER}"
+    if not _EVIDENCE_REFERENCES.is_file():
+        return False, f"missing verified evidence references: {_EVIDENCE_REFERENCES}"
+    try:
+        references = json.loads(_EVIDENCE_REFERENCES.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return False, f"invalid verified evidence references: {exc}"
+    if not isinstance(references, dict):
+        return False, "verified evidence references must be a JSON object"
+    if references.get("schema_version") != "claim-evidence-references-v1":
+        problems.append("unsupported verified evidence reference schema")
+    entries = references.get("claims")
+    if not isinstance(entries, list):
+        problems.append("verified evidence references must contain a claims list")
+        entries = []
+    expected_claims = _verified_claim_ids(_CLAIM_LEDGER)
+    by_claim: dict[str, dict[str, object]] = {}
+    for entry in entries:
+        if not isinstance(entry, dict) or not isinstance(entry.get("claim_id"), str):
+            problems.append("verified evidence reference has no string claim_id")
+            continue
+        claim_id = entry["claim_id"]
+        if claim_id in by_claim:
+            problems.append(f"duplicate verified evidence reference for {claim_id}")
+        by_claim[claim_id] = entry
+    if set(by_claim) != expected_claims:
+        problems.append(
+            "verified claim references do not match ledger: "
+            f"expected {sorted(expected_claims)}, found {sorted(by_claim)}"
+        )
+    for claim_id in sorted(expected_claims):
+        entry = by_claim.get(claim_id, {})
+        bundles = entry.get("bundles") if isinstance(entry, dict) else None
+        if not isinstance(bundles, list) or not bundles:
+            problems.append(f"{claim_id} has no referenced run bundle")
+            continue
+        for bundle in bundles:
+            if not isinstance(bundle, dict):
+                problems.append(f"{claim_id} has a malformed run-bundle reference")
+                continue
+            path_value = bundle.get("path")
+            expected_run_id = bundle.get("run_id")
+            expected_manifest = bundle.get("run_manifest_sha256")
+            expected_finalization = bundle.get("finalization_sha256")
+            reference_values = (path_value, expected_run_id, expected_manifest, expected_finalization)
+            if not all(isinstance(value, str) and value for value in reference_values):
+                problems.append(f"{claim_id} has an incomplete run-bundle reference")
+                continue
+            if not all(re.fullmatch(r"[0-9a-f]{64}", value) for value in (expected_manifest, expected_finalization)):
+                problems.append(f"{claim_id} has an invalid run-bundle checksum reference")
+                continue
+            root = Path(path_value)
+            if not root.exists():
+                warnings.append(f"{claim_id} referenced bundle is not locally available: {root}")
+                continue
+            result = verify_run(root)
+            if result.get("status") != COMPLETE_VALID:
+                problems.append(f"{claim_id} referenced bundle is not complete-valid: {root}")
+                continue
+            manifest = root / "run_manifest.json"
+            finalization = root / "finalization.json"
+            if result.get("run_id") != expected_run_id:
+                problems.append(f"{claim_id} run ID does not match referenced bundle: {root}")
+            if _sha256(manifest) != expected_manifest:
+                problems.append(f"{claim_id} run-manifest checksum does not match: {root}")
+            if _sha256(finalization) != expected_finalization:
+                problems.append(f"{claim_id} finalization checksum does not match: {root}")
+    root_warning = _historical_root_warning()
+    if root_warning is not None:
+        warnings.append(root_warning)
+    detail = [
+        "verified claims reference complete-valid run bundles" if not problems else "claim-bound evidence issues:"
+    ]
+    detail.extend(problems)
+    if warnings:
+        detail.append("warnings:")
+        detail.extend(warnings)
+    return not problems, "\n".join(detail)
 
 
 def _release_metadata() -> tuple[bool, str]:
@@ -354,8 +468,8 @@ def run_audit(
         env=common_env,
     )
     runner.run_callable(
-        "generated_artifact_consistency",
-        "read-only artifact consistency check",
+        "claim_bound_evidence_consistency",
+        "read-only claim-bound evidence consistency check",
         _artifact_consistency,
     )
     # Retain previous audit evidence and build into a fresh directory. Reusing a

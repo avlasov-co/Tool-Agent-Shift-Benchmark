@@ -1,0 +1,94 @@
+{
+  "schema_version": "claim-evidence-references-v1",
+  "claims": [
+    {
+      "claim_id": "C001",
+      "bundles": [
+        {
+          "path": "runs/phase50-standard-golden",
+          "run_id": "run_983adda8465a5778",
+          "run_manifest_sha256": "31c0eb88d4425cdeb89db1f00102a7e648e0dc12c0a435a993e9c2ad2172a441",
+          "finalization_sha256": "0566eff28a21478848352c16d77422b7054c32e06ff89fd4de1783c7dbbf1801"
+        }
+      ]
+    },
+    {
+      "claim_id": "C002",
+      "bundles": [
+        {
+          "path": "runs/phase50-standard-golden",
+          "run_id": "run_983adda8465a5778",
+          "run_manifest_sha256": "31c0eb88d4425cdeb89db1f00102a7e648e0dc12c0a435a993e9c2ad2172a441",
+          "finalization_sha256": "0566eff28a21478848352c16d77422b7054c32e06ff89fd4de1783c7dbbf1801"
+        }
+      ]
+    },
+    {
+      "claim_id": "C003",
+      "bundles": [
+        {
+          "path": "runs/phase50-standard-golden",
+          "run_id": "run_983adda8465a5778",
+          "run_manifest_sha256": "31c0eb88d4425cdeb89db1f00102a7e648e0dc12c0a435a993e9c2ad2172a441",
+          "finalization_sha256": "0566eff28a21478848352c16d77422b7054c32e06ff89fd4de1783c7dbbf1801"
+        }
+      ]
+    },
+    {
+      "claim_id": "C004",
+      "bundles": [
+        {
+          "path": "runs/phase50-standard-golden",
+          "run_id": "run_983adda8465a5778",
+          "run_manifest_sha256": "31c0eb88d4425cdeb89db1f00102a7e648e0dc12c0a435a993e9c2ad2172a441",
+          "finalization_sha256": "0566eff28a21478848352c16d77422b7054c32e06ff89fd4de1783c7dbbf1801"
+        }
+      ]
+    },
+    {
+      "claim_id": "C005",
+      "bundles": [
+        {
+          "path": "/Users/aleksander/Documents/TASB-v0.4.0-release-rehearsal-2/installed-workspace/runs/standard-a",
+          "run_id": "run_983adda8465a5778",
+          "run_manifest_sha256": "f4edb1fdfc8d41ca2b7d2ba5c30551c3c76d5c031b895949b71150bcbf2d889d",
+          "finalization_sha256": "6c98ac485c958601b776776477c66f0275942603c327c5df73b80658bc481019"
+        },
+        {
+          "path": "/Users/aleksander/Documents/TASB-v0.4.0-release-rehearsal-2/installed-workspace/runs/standard-b",
+          "run_id": "run_983adda8465a5778",
+          "run_manifest_sha256": "b6d65cbf9050453de23cef096c9afafc415e70b57b52f3b259899b909359ef21",
+          "finalization_sha256": "f00b76ae3555dae32b3f662b6810e6c60005940ede5db24c1bae79f95f690d9e"
+        }
+      ]
+    },
+    {
+      "claim_id": "C006",
+      "bundles": [
+        {
+          "path": "/Users/aleksander/Documents/TASB-v0.4.0-release-rehearsal-2/installed-workspace/runs/smoke",
+          "run_id": "run_9b919ff0c2abc28f",
+          "run_manifest_sha256": "39bd3fef65db2949d7eef78a7b308a953579fcbd27a1baef6687e5711d5a5764",
+          "finalization_sha256": "3f2de463f52cdaa83f01f6d4f642335f31e97d42c2a6c969fb46486c5be25d34"
+        },
+        {
+          "path": "/Users/aleksander/Documents/TASB-v0.4.0-release-rehearsal-2/installed-workspace/runs/standard-a",
+          "run_id": "run_983adda8465a5778",
+          "run_manifest_sha256": "f4edb1fdfc8d41ca2b7d2ba5c30551c3c76d5c031b895949b71150bcbf2d889d",
+          "finalization_sha256": "6c98ac485c958601b776776477c66f0275942603c327c5df73b80658bc481019"
+        }
+      ]
+    },
+    {
+      "claim_id": "C007",
+      "bundles": [
+        {
+          "path": "runs/phase50-standard-golden",
+          "run_id": "run_983adda8465a5778",
+          "run_manifest_sha256": "31c0eb88d4425cdeb89db1f00102a7e648e0dc12c0a435a993e9c2ad2172a441",
+          "finalization_sha256": "0566eff28a21478848352c16d77422b7054c32e06ff89fd4de1783c7dbbf1801"
+        }
+      ]
+    }
+  ]
+}
