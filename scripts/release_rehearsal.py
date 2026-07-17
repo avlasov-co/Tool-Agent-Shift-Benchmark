@@ -60,6 +60,8 @@ def run_rehearsal(source_root: Path, output: Path, python: str) -> Path:
     python_path = Path(python)
     python = str(python_path.absolute()) if python_path.is_file() else shutil.which(python) or python
     output = output.resolve()
+    if output == source_root or source_root in output.parents:
+        raise RehearsalError(f"output directory must be outside the source root to prevent recursive copying: {output}")
     if output.exists() and any(output.iterdir()):
         raise RehearsalError(f"output directory must be new or empty: {output}")
     output.mkdir(parents=True, exist_ok=True)
