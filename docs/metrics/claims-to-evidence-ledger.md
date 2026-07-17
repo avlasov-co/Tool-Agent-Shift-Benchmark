@@ -13,8 +13,8 @@ and the report/plot that renders it.
 | C002 | Executed shifts change safe-success relative to matched clean scenarios in the standard suite. | Matched within-scenario effects. | Pair table, paired-bootstrap intervals, sample hierarchy, analysis config/seed, verified run. | verified |
 | C003 | In the standard suite, hard-gate oversight made 18 interventions, all unnecessary blocks under the counterfactual label, and prevented no measured harm; no benefit claim is supported. | Counterfactual-eligible proposed actions clustered by scenario. | Monitor evaluation, raw confusion counts, utility/cost table, Pareto frontier, interval metadata. | verified |
 | C004 | Detector quality is reported jointly by monitor, environment, fault, severity, agent, oversight treatment, and threshold. | Counterfactual-eligible monitor events within scenario clusters. | Full monitor threshold table with TP/FP/TN/FN and dimensions; insufficiency flags. | verified |
-| C005 | Standard-suite results reproduce byte-for-byte for canonical nonvolatile artifacts. | Two independently installed standard-suite runs. | Both verified bundles, canonical comparison record, finalization hashes, rehearsal logs. | pending |
-| C006 | Smoke and standard suites meet documented runtime, memory, artifact-size, and worker-scaling budgets. | Installed-distribution suite executions. | Performance JSON, platform/runtime metadata, thresholds, logs. | pending |
+| C005 | Standard-suite results reproduce byte-for-byte for canonical nonvolatile artifacts. | Two independently installed standard-suite runs. | Both verified bundles, canonical comparison record, finalization hashes, rehearsal logs. | verified |
+| C006 | Smoke and standard suites meet documented runtime, memory, artifact-size, and worker-scaling budgets. | Installed-distribution suite executions. | Performance JSON, platform/runtime metadata, thresholds, logs. | verified |
 | C007 | Challenge split integrity is preserved and challenge outcomes were not used for tuning. | Scenario split manifests and development record. | Split-integrity report, suite manifest, progress/limitations statement. | verified |
 
 ## Checkpoint 50 standard evidence
@@ -60,8 +60,47 @@ disjoint `challenge` namespace, plans 120 episodes under seed 1042, and sets
 were inspected; no challenge episode outcomes were executed or used. The
 golden standard validation checksum is
 `295dac29b494909814a7fa2b037df50bf03cbc53944b681b3ec1622a3d71eb94`.
-C005 and C006 remain pending until the installed-sdist rehearsals reproduce the
-standard suite and retain comparable-platform performance evidence.
+C005 and C006 were promoted only after both installed-sdist rehearsals below.
+
+## Installed-sdist rehearsal evidence
+
+Rehearsals 1 and 2 are retained at
+`/Users/aleksander/Documents/TASB-v0.4.0-release-rehearsal-1` and
+`/Users/aleksander/Documents/TASB-v0.4.0-release-rehearsal-2`. Each
+`release-rehearsal.json` reports `passed` for 29 phases and confirms
+`challenge_outcomes_used_for_development=false` and
+`remote_actions_executed=false`. Every rehearsal produced a complete-valid
+smoke bundle (122 artifacts) and two complete-valid standard bundles (550
+artifacts each) with stable run IDs `run_9b919ff0c2abc28f` and
+`run_983adda8465a5778`.
+
+Each independent standard pair matched exactly across 541 canonical
+nonvolatile files. The comparison records are
+`logs/26-standard-canonical-comparison.log` below each rehearsal. The installed
+interval figure has identical SHA-256
+`be514672f5e6685e18c586872d0a43f7672cbefadef3bce3cca1a8e07b0a940b`
+across both rehearsals. Report/provenance files that intentionally bind
+timestamped manifest generations are excluded from canonical equality but
+remain checksum-bound, validated, and visually/textually inspected.
+
+On Python 3.14.6/macOS, installed smoke measurements were 3.06/2.92 seconds
+and 3.16/3.00 seconds for one/two workers across rehearsals, with at most 64.0
+MiB RSS and 9.08 MiB artifacts. Installed standard measurements were
+25.34/26.89 seconds and 26.22/27.97 seconds, with at most 265.1 MiB RSS and
+77.12 MiB artifacts. Scaling ratios were 0.955/0.948 for smoke and 1.061/1.067
+for standard; all absolute and comparable-platform regression budgets passed.
+Evidence is in each installed workspace's `performance-evidence.json` and
+`standard-performance-evidence.json`.
+
+Rehearsal 2 is the final local artifact candidate. Its checksums are:
+
+- SBOM: `bc734ee2c3a09c64616a51a9b4b93e81483be79ecfc0c57487a259c3df438ab0`;
+- wheel: `5c3b014f5df2bf7d0a699e6f4ec500639fdf570cf084988cd43be4e8bcdf1a2e`;
+- sdist: `4d9e07af8ee38dc7d8dfb6f87f972ee7ba91fe6af1b73176a03779ccba96ef93`.
+
+The authoritative checksum file is
+`/Users/aleksander/Documents/TASB-v0.4.0-release-rehearsal-2/release-artifacts/SHA256SUMS`;
+the CycloneDX SBOM is the adjacent `sbom.cdx.json`.
 
 ## Checkpoint 49 evidence readiness audit
 

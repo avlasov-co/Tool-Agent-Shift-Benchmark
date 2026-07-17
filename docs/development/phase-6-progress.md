@@ -17,22 +17,23 @@
 
 ## Current checkpoint
 
-Checkpoint 50 is complete and ready for its numbered commit. Release rehearsals
-remain pending and are deliberately separate from the checkpoint commit.
+Checkpoints 46–50, both clean-sdist release rehearsals, and the final sequential
+review are complete. The repository is ready for a local v0.4.0 tag; no tag,
+push, upload, GitHub release, or other publication action has been executed.
 
 ## Baseline defects to resolve
 
 1. Recovery can be credited without a prior hazard or correction.
-2. Aggregate seed rows are treated as independent confidence observations.
-3. Monitor labels use realized episode outcomes rather than proposed-action
+1. Aggregate seed rows are treated as independent confidence observations.
+1. Monitor labels use realized episode outcomes rather than proposed-action
    counterfactual risk.
-4. Aggregate rows are averaged without denominators in reports and plots.
-5. Failure-cluster identifiers depend on frequency ordering.
-6. Static/dynamic labels actually compare clean and shifted conditions.
-7. Confidence plots omit interval bars; calibration and heatmap labels are
+1. Aggregate rows are averaged without denominators in reports and plots.
+1. Failure-cluster identifiers depend on frequency ordering.
+1. Static/dynamic labels actually compare clean and shifted conditions.
+1. Confidence plots omit interval bars; calibration and heatmap labels are
    inaccurate.
-8. Reports can consume unverified, incomplete, or stale global files.
-9. No v0.4.0 versioned suite/performance/rehearsal contract exists.
+1. Reports can consume unverified, incomplete, or stale global files.
+1. No v0.4.0 versioned suite/performance/rehearsal contract exists.
 
 ## Checkpoint evidence
 
@@ -272,8 +273,56 @@ paths, and commit identifiers will be appended before each numbered commit.
 
 ## Release rehearsals
 
-Pending. Two clean standard-suite reproductions and a second complete rehearsal
-are terminal requirements.
+- The first attempted output path was accidentally placed below the source
+  root, exposing recursive-copy behavior before any build or benchmark phase.
+  The command was interrupted, its generated directory was moved to Trash, and
+  commit `737253c` added a tested hard refusal for output at or below the source
+  root. Both actual rehearsals use external retained directories.
+- Rehearsal 1 at
+  `/Users/aleksander/Documents/TASB-v0.4.0-release-rehearsal-1` passed all 29
+  phases (225.099 summed phase-seconds). Rehearsal 2 at
+  `/Users/aleksander/Documents/TASB-v0.4.0-release-rehearsal-2` passed all 29
+  phases (228.383 summed phase-seconds).
+- Each rehearsal built the sdist, installed locked dependencies and that sdist
+  into a fresh environment, planned the challenge suite without executing its
+  outcomes, and ran the complete smoke/standard lifecycle. Smoke verified at
+  122 artifacts; both standard reproductions verified at 550 artifacts with
+  stable run IDs `run_9b919ff0c2abc28f` and `run_983adda8465a5778`.
+- Both canonical comparisons matched 541 deterministic files exactly. The
+  installed standard interval plot SHA-256 is identical across rehearsals:
+  `be514672f5e6685e18c586872d0a43f7672cbefadef3bce3cca1a8e07b0a940b`.
+  Visual inspection confirmed the horizontal point/whisker and
+  counterfactual precision/recall figures are readable; report inspection
+  confirmed 240/240 completion, clean competence, both executed oversight
+  modes, uncertainty, provenance, and limitations. Both HTML reports are
+  nonempty at 11,002 bytes.
+- Installed performance budgets passed twice. Rehearsal smoke one/two-worker
+  runtimes were 3.06/2.92 and 3.16/3.00 seconds; standard runtimes were
+  25.34/26.89 and 26.22/27.97 seconds. Maximum RSS was 64.0 MiB for smoke and
+  265.1 MiB for standard; artifact sizes were 9.08 and 77.12 MiB; all worker
+  scaling ratios were below 1.07.
+- Rehearsal 2 final-candidate SHA-256 values are
+  `bc734ee2c3a09c64616a51a9b4b93e81483be79ecfc0c57487a259c3df438ab0`
+  (CycloneDX SBOM),
+  `5c3b014f5df2bf7d0a699e6f4ec500639fdf570cf084988cd43be4e8bcdf1a2e`
+  (wheel), and
+  `4d9e07af8ee38dc7d8dfb6f87f972ee7ba91fe6af1b73176a03779ccba96ef93`
+  (sdist). `SHA256SUMS`, the artifacts, SBOM, all phase logs, performance JSON,
+  verified bundles, and unexecuted local release commands are retained below
+  the rehearsal directory.
+- Neither rehearsal executed a tag, push, package upload, GitHub release, or
+  challenge outcome. Archive checksums differ between rehearsals because the
+  standard build backend embeds build-time archive metadata; canonical
+  scientific outputs and the reproducible SBOM match. Rehearsal 2 is the
+  designated final local artifact candidate.
+- The final non-destructive release verifier passed all 34 phases in retained
+  workspace
+  `/var/folders/1b/427nbdg92l14r0j71032l_5r0000gn/T/tasb-release-verification-s9m3cffo`.
+  It passed 590 tests, 78.52% branch coverage, config/suite validation,
+  deterministic planning, a 70-file analyzed/plotted/reported canonical
+  comparison, performance, locked browser rendering, and 29-check independent
+  sdist/wheel smoke. The machine-readable record is
+  `release-verification.json` at that path.
 
 ## Known limitations
 
@@ -283,3 +332,28 @@ are terminal requirements.
   checks may run before release.
 - Independent scenario counts may be too small for justified interval claims;
   those cells will remain visibly insufficient.
+
+## Final sequential review
+
+- Denominator audit recomputed all 3,000 standard metric-evidence rows from
+  their numerators and denominators and confirmed every formula/inclusion/
+  missing-data field is populated. All 240 planned episodes are completed;
+  failed, pending, invalid, and skipped counts are zero and remain explicit.
+- Independence audit confirmed every successful confidence interval uses at
+  least two unique scenario manifests. Repeated steps are not samples. All 360
+  core matched-effect cells have zero missing pairs. Recovery eligibility
+  produces 152 visible unmatched eligibility units; those conditional cells
+  refuse inference rather than silently repairing or dropping the mismatch.
+- All 572 monitor events preserve proposed-action counterfactual scoring. The
+  2,541 detector-threshold rows declare
+  `counterfactual_proposed_action_unsafe`; 121 realized-gating rows use a
+  separate analysis type. Built-in ordinal scores produce zero calibration
+  bins and no reliability figure.
+- Report validation is `valid` with no errors, golden validation passed every
+  invariant, both executed oversight treatments are disclosed, and the claims
+  ledger records the observed zero prevented harms rather than an unsupported
+  hard-gate benefit.
+- Root historical outputs remain excluded from v0.4.0 evidence. All current
+  plots/reports are bundle-local, canonical scientific outputs reproduce, and
+  timestamp-bound report provenance is explicitly validated instead of
+  misclassified as deterministic scientific content.
