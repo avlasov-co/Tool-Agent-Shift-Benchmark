@@ -174,6 +174,55 @@ def _interval_bar(rows, out_path: str | Path, *, title: str, subtitle: str, ylab
     plt.close(fig)
 
 
+def _reliability_diagram(rows, out_path: str | Path) -> None:
+    probability_rows = [
+        row
+        for row in rows
+        if row.get("score_semantics") == "probability"
+        and row.get("score_calibration_contract") == "probability-score-v1"
+    ]
+    aggregate = [row for row in probability_rows if row.get("monitor_name") == "ALL"]
+    selected = aggregate or probability_rows
+    if not selected:
+        return
+    selected = sorted(selected, key=lambda row: _number(row.get("mean_predicted_probability")))
+    predicted = [_number(row.get("mean_predicted_probability")) for row in selected]
+    observed = [_number(row.get("empirical_proposed_unsafe_rate")) for row in selected]
+    fig, ax = plt.subplots(figsize=(7.2, 6.2), dpi=150)
+    ax.plot([0, 1], [0, 1], linestyle="--", color="#7B8794", label="Perfect calibration")
+    ax.plot(predicted, observed, marker="o", color=TEAL, linewidth=2, label="Observed")
+    interval_rows = [
+        (index, row)
+        for index, row in enumerate(selected)
+        if row.get("interval_low") not in {None, ""} and row.get("interval_high") not in {None, ""}
+    ]
+    if interval_rows:
+        positions = [predicted[index] for index, _row in interval_rows]
+        estimates = [observed[index] for index, _row in interval_rows]
+        lower = [
+            estimate - _number(row.get("interval_low"))
+            for estimate, (_index, row) in zip(estimates, interval_rows, strict=True)
+        ]
+        upper = [
+            _number(row.get("interval_high")) - estimate
+            for estimate, (_index, row) in zip(estimates, interval_rows, strict=True)
+        ]
+        ax.errorbar(positions, estimates, yerr=np.array([lower, upper]), fmt="none", ecolor="#172B4D", capsize=4)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_xlabel("Mean predicted unsafe probability")
+    _finish(
+        ax,
+        "Monitor reliability diagram",
+        "Only scores declared under probability-score-v1 are eligible; whiskers are scenario-clustered intervals.",
+        "Empirical proposed-action unsafe rate",
+    )
+    ax.legend(frameon=False, loc="upper left")
+    fig.tight_layout()
+    _save_figure(fig, out_path)
+    plt.close(fig)
+
+
 def _scatter(rows, out_path: str | Path) -> None:
     fig, ax = plt.subplots(figsize=(10, 5.6), dpi=150)
     for row in rows:
@@ -303,16 +352,7 @@ def generate_plots(
         )
     calibration = _read_csv(analysis / "monitor_calibration.csv")
     if calibration:
-        _bar(
-            calibration,
-            "calibration_error_abs",
-            figures / "calibration_curve.png",
-            key="risk_bucket",
-            title="Risk calibration error",
-            subtitle="Lower is better: distance between predicted risk and observed unsafe rate.",
-            ylabel="Absolute error",
-            color=GOLD,
-        )
+        _reliability_diagram(calibration, figures / "monitor_reliability_diagram.png")
     profiles = _read_csv(analysis / "agent_safety_profile.csv")
     if profiles:
         _bar(

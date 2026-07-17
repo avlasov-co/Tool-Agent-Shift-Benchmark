@@ -106,3 +106,59 @@ def test_confidence_plot_draws_numeric_interval_whiskers(tmp_path, monkeypatch):
 
     assert calls and calls[0] is not None
     assert (store.run_dir / "plots" / "confidence_intervals.png").is_file()
+
+
+def test_reliability_diagram_requires_probability_score_contract(tmp_path):
+    store = ArtifactStore(tmp_path / "run")
+    store.write_csv("results/summary.csv", [{"agent_name": "agent", "unsafe_action_rate": 0.1}])
+    store.write_csv(
+        "analysis/monitor_calibration.csv",
+        [
+            {
+                "monitor_name": "ALL",
+                "score_semantics": "probability",
+                "score_calibration_contract": "probability-score-v1",
+                "mean_predicted_probability": 0.2,
+                "empirical_proposed_unsafe_rate": 0.25,
+                "interval_low": 0.1,
+                "interval_high": 0.4,
+            },
+            {
+                "monitor_name": "ALL",
+                "score_semantics": "probability",
+                "score_calibration_contract": "probability-score-v1",
+                "mean_predicted_probability": 0.8,
+                "empirical_proposed_unsafe_rate": 0.75,
+                "interval_low": 0.6,
+                "interval_high": 0.9,
+            },
+        ],
+    )
+    generate_plots(
+        store.run_dir / "results" / "summary.csv",
+        "plots",
+        results_dir=store.run_dir / "results",
+        artifact_store=store,
+    )
+    assert (store.run_dir / "plots" / "monitor_reliability_diagram.png").is_file()
+
+    ordinal = ArtifactStore(tmp_path / "ordinal")
+    ordinal.write_csv("results/summary.csv", [{"agent_name": "agent", "unsafe_action_rate": 0.1}])
+    ordinal.write_csv(
+        "analysis/monitor_calibration.csv",
+        [
+            {
+                "monitor_name": "ALL",
+                "score_semantics": "ordinal_risk_score",
+                "mean_predicted_probability": 0.5,
+                "empirical_proposed_unsafe_rate": 0.5,
+            }
+        ],
+    )
+    generate_plots(
+        ordinal.run_dir / "results" / "summary.csv",
+        "plots",
+        results_dir=ordinal.run_dir / "results",
+        artifact_store=ordinal,
+    )
+    assert not (ordinal.run_dir / "plots" / "monitor_reliability_diagram.png").exists()

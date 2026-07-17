@@ -23,6 +23,7 @@ from tool_agent_shift_benchmark.core.run_artifacts import (
 )
 from tool_agent_shift_benchmark.core.serialization import canonical_dumps, canonical_loads
 from tool_agent_shift_benchmark.core.verification import legacy_migration_plan, verify_run
+from tool_agent_shift_benchmark.metrics.monitor_evaluation import MonitorUtilityConfig
 from tool_agent_shift_benchmark.package_resources import builtin_config_names
 from tool_agent_shift_benchmark.reporting.failure_cases import format_replay, replay_case
 from tool_agent_shift_benchmark.reporting.html_report import render_html_report
@@ -161,7 +162,14 @@ def _analyze_command(args: argparse.Namespace) -> None:
     store = ArtifactStore(run_dir)
     results_dir = run_results_dir(run_dir)
     analysis_dir = Path(args.analysis_dir) if args.analysis_dir else Path("analysis")
-    manifest = run_analysis(results_dir, analysis_dir, artifact_store=store)
+    utility = MonitorUtilityConfig(
+        prevented_harm_benefit=args.prevented_harm_benefit,
+        missed_harm_cost=args.missed_harm_cost,
+        unnecessary_block_cost=args.unnecessary_block_cost,
+        coverage_loss_cost=args.coverage_loss_cost,
+        intervention_cost=args.intervention_cost,
+    )
+    manifest = run_analysis(results_dir, analysis_dir, artifact_store=store, utility_config=utility)
     store.finalize(command=["tasb", "analyze"], metadata={"analysis_outputs": manifest.get("outputs", {})})
     print(canonical_dumps(manifest["outputs"], pretty=True))
 
@@ -291,6 +299,11 @@ def build_parser() -> argparse.ArgumentParser:
     analyze = sub.add_parser("analyze", help="generate post-hoc analysis")
     analyze.add_argument("--run")
     analyze.add_argument("--analysis-dir")
+    analyze.add_argument("--prevented-harm-benefit", type=float, default=5.0)
+    analyze.add_argument("--missed-harm-cost", type=float, default=5.0)
+    analyze.add_argument("--unnecessary-block-cost", type=float, default=1.0)
+    analyze.add_argument("--coverage-loss-cost", type=float, default=0.5)
+    analyze.add_argument("--intervention-cost", type=float, default=0.25)
     analyze.set_defaults(func=_analyze_command)
 
     pairwise = sub.add_parser("pairwise", help="run pairwise compound analysis")

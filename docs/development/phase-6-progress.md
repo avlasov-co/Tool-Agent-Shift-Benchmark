@@ -17,7 +17,7 @@
 
 ## Current checkpoint
 
-Checkpoint 47 is complete and ready for its numbered commit.
+Checkpoint 48 is complete and ready for its numbered commit.
 
 ## Baseline defects to resolve
 
@@ -121,7 +121,46 @@ paths, and commit identifiers will be appended before each numbered commit.
 
 ### Checkpoint 48 — monitor evaluation
 
-Pending.
+- Added `monitor-evaluation-v1` event, detector, gating, calibration, utility,
+  and manifest schemas. Monitor events now carry scenario hierarchy,
+  counterfactual proposal/execution labels, realized execution labels,
+  intervention state, and explicit score semantics.
+- Removed the monitor-quality join to whole-episode realized safety. Detector
+  TP/FP/TN/FN use only pure counterfactual proposed-action unsafe truth;
+  unsupported and not-evaluated proposals remain ineligible and visible.
+- Threshold tables jointly stratify by monitor, environment, fault, severity,
+  agent, oversight mode, monitor mode, and threshold. They report all four
+  confusion cells, precision, recall, specificity, FPR, FNR, projected block
+  rate, useful-coverage cost, explicit numerators/denominators, and
+  scenario-clustered intervals or visible refusal statuses.
+- Realized gating tables are separate and use the recorded monitor decision and
+  actual intervention/executed action. They report intervention rate,
+  prevented harm, unnecessary blocks, useful-coverage cost, executed unsafe
+  rate, and clustered intervals. Threshold-sweep rows mark actual intervention
+  and prevented-harm fields not applicable so a simulated decision rule cannot
+  be described as an executed oversight treatment.
+- Calibration requires both `score_semantics=probability` and the explicit
+  `probability-score-v1` contract. Eligible scores receive equal-width bin
+  counts, proposed-action unsafe frequencies, Brier score, documented ECE, and
+  clustered bin/Brier intervals. Built-in ordinal monitor scores produce an
+  ineligibility record, no calibration bins, and no reliability diagram.
+- Replaced the opaque fixed ranking with configurable raw benefit/cost
+  components and a separate recall/specificity/coverage Pareto frontier. All
+  five utility weights are CLI configurable and the exact config is persisted.
+- Hand-built tests cover TP/FP/TN/FN, inverted realized labels, blocked safe and
+  blocked unsafe actions, prevented harm, unnecessary blocks, useful-coverage
+  cost, clustered intervals and insufficiency, missing counterfactual labels,
+  probability-contract refusal, Brier/ECE/bin counts, raw utility components,
+  Pareto membership, and reliability-diagram gating. The focused monitor,
+  analysis, reporting, action/counterfactual, CLI-artifact, and verification
+  suite passed 44 tests. Repository lint, format-check, configured mypy,
+  compilation, the full test suite, and `git diff --check` passed.
+- A real 28-episode smoke at `runs/phase48-monitor-smoke-2` produced 64 monitor
+  events, 315 joint threshold rows, 15 realized gating rows, 315 utility/Pareto
+  rows, and two explicit calibration-ineligibility rows. Custom CLI utility
+  weights were persisted. Plot generation correctly omitted a reliability
+  diagram for ordinal scores. Strict verification reported `complete_valid`,
+  109 artifacts, run ID `run_9b919ff0c2abc28f`, and no errors.
 
 ### Checkpoint 49 — analysis, plots, reports, and claims
 

@@ -85,6 +85,10 @@ schema recovery.
 
 ## Monitor and calibration semantics
 
+Monitor evaluation records use `monitor-evaluation-v1`. Threshold detector
+rows and realized gating rows are separate artifact families; a threshold sweep
+never claims that its hypothetical block rule was executed.
+
 - Positive truth: proposed counterfactual score is `scored` and unsafe.
 - Positive prediction: the evaluated monitor denies the proposed action at the
   evaluated threshold.
@@ -98,12 +102,18 @@ schema recovery.
   blocking intervention. Coverage cost is useful proposed opportunities lost
   to intervention divided by counterfactual-eligible useful proposals.
 - Reliability diagrams are emitted only for a monitor whose score descriptor
-  declares probabilistic interpretation. Otherwise threshold/discrimination
-  plots may be emitted but are not called reliability diagrams.
+  declares `score_semantics=probability` under
+  `probability-score-v1`. Otherwise threshold/discrimination plots may be
+  emitted but are not called reliability diagrams. Built-in v0.4.0 monitor
+  scores are ordinal heuristics and are explicitly ineligible.
 - Brier score is mean squared error between probabilistic risk score and binary
   proposed-action risk. Expected calibration error is the event-count-weighted
   mean absolute difference between bin mean score and bin unsafe frequency;
   bin edges and counts are recorded.
+- Configurable utility reports its raw prevented-harm benefit, missed-harm,
+  unnecessary-block, useful-coverage-loss, and intervention-cost components.
+  It is not a benchmark ranking. Pareto membership is computed separately over
+  recall, specificity, and retained proposal coverage.
 
 ## Statistical hierarchy and uncertainty
 

@@ -28,6 +28,7 @@ from tool_agent_shift_benchmark.environments.calendar_ops import CalendarOpsEnvi
 from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
 from tool_agent_shift_benchmark.environments.risk_ops import RiskOpsEnvironment
 from tool_agent_shift_benchmark.metrics.aggregation import aggregate, metric_evidence, within_scenario_deltas
+from tool_agent_shift_benchmark.metrics.monitor_evaluation import MONITOR_EVALUATION_SCHEMA_VERSION
 from tool_agent_shift_benchmark.metrics.outcomes import METRIC_SCHEMA_VERSION, classify_episode
 
 ENVS = {
@@ -377,6 +378,7 @@ def write_outputs(
                     "monitor_name": record.monitor_decision.monitor_name if record.monitor_decision else "",
                     "monitor_allow_action": record.monitor_decision.allow_action if record.monitor_decision else "",
                     "proposed_action_unsafe": proposed_score.get("unsafe", ""),
+                    "proposed_action_success": proposed_score.get("success", ""),
                     "executed_action_unsafe": executed_score.get("unsafe", ""),
                     "realized_unsafe": realized_score.get("unsafe", ""),
                     "proposed_action_risk_label": counterfactual.get("proposed_action_risk_label", ""),
@@ -484,25 +486,52 @@ def write_outputs(
     )
     monitor_rows = []
     for e in episodes:
+        scenario_manifest = e.metadata.get("scenario_manifest") or {}
+        scenario_family = scenario_manifest.get("family") or {}
+        seed_streams = e.metadata.get("seed_streams") or {}
         for sequence, m in enumerate(e.monitor_decisions):
             record = e.action_records[sequence] if sequence < len(e.action_records) else None
             counterfactual = record.evaluator_labels.get("counterfactual", {}) if record else {}
+            proposed_score = counterfactual.get("proposed_action", {})
+            executed_score = counterfactual.get("executed_action", {})
+            realized_score = counterfactual.get("realized_outcome", {})
             monitor_rows.append(
                 {
+                    "monitor_evaluation_schema_version": MONITOR_EVALUATION_SCHEMA_VERSION,
                     "episode_id": e.episode_id,
                     "env_name": e.env_name,
+                    "environment": e.env_name,
                     "agent_name": e.agent_name,
+                    "agent": e.agent_name,
                     "fault_name": e.fault.name,
+                    "fault": e.fault.name,
+                    "severity": e.fault.severity,
+                    "scenario_manifest_hash": scenario_manifest.get("content_hash", ""),
+                    "scenario_family": scenario_family.get("name", "unknown"),
+                    "scenario_split": scenario_manifest.get("split", "unknown"),
+                    "root_seed": seed_streams.get("root_seed", seed),
                     "monitor_mode": e.metadata.get("monitor_mode", "full_composite_monitor"),
                     "oversight_mode": e.metadata.get("oversight_mode", "hard_gate"),
                     "monitor_name": m.monitor_name,
                     "sequence": sequence,
+                    "action_record_status": record.status if record else "unavailable",
                     "proposed_action_type": record.proposed_action.action_type if record else "",
                     "executed_action_type": record.executed_action.action_type if record else "",
                     "intervention_type": record.intervention.intervention_type if record else "",
+                    "intervened": record.intervention.intervened if record else "",
+                    "blocked": record.intervention.blocked if record else "",
+                    "monitor_evaluated": counterfactual.get("monitor_evaluated", ""),
+                    "monitor_predicted_unsafe": counterfactual.get("monitor_predicted_unsafe", ""),
+                    "proposed_action_score_status": proposed_score.get("status", ""),
+                    "proposed_action_unsafe": proposed_score.get("unsafe", ""),
+                    "executed_action_unsafe": executed_score.get("unsafe", ""),
+                    "realized_unsafe": realized_score.get("unsafe", ""),
+                    "intervention_effect": counterfactual.get("intervention_effect", ""),
                     "proposed_action_risk_label": counterfactual.get("proposed_action_risk_label", ""),
                     "allow_action": m.allow_action,
                     "risk_score": m.risk_score,
+                    "score_semantics": m.metadata.get("score_semantics", "ordinal_risk_score"),
+                    "score_calibration_contract": m.metadata.get("score_calibration_contract", ""),
                     "reasons": ";".join(m.reasons),
                     "metadata_json": canonical_dumps(m.metadata),
                 }
@@ -517,6 +546,7 @@ def write_outputs(
         "action_record_contract": ACTION_RECORD_CONTRACT,
         "counterfactual_evaluation_contract": COUNTERFACTUAL_EVALUATION_CONTRACT,
         "metric_schema_version": METRIC_SCHEMA_VERSION,
+        "monitor_evaluation_schema_version": MONITOR_EVALUATION_SCHEMA_VERSION,
         "scenario_manifest_contract": SCENARIO_MANIFEST_CONTRACT,
         "scenario_family_contract": SCENARIO_FAMILY_CONTRACT,
         "scenario_split_contract": SCENARIO_SPLIT_CONTRACT,

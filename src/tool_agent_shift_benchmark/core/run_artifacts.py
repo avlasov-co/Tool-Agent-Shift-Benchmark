@@ -57,10 +57,17 @@ def artifact_schema_version(relative_path: str) -> str:
         "results/episode_outcomes.jsonl": "metric-schema-v2",
         "results/step_outcomes.csv": "metric-schema-v2",
         "results/step_outcomes.jsonl": "metric-schema-v2",
+        "results/monitor_events.csv": "monitor-evaluation-v1",
         "results/confidence_intervals.csv": "statistical-analysis-v1",
         "results/paired_effect_intervals.csv": "statistical-analysis-v1",
         "analysis/statistical_analysis_config.json": "statistical-analysis-v1",
         "analysis/sample_size_plan.json": "statistical-analysis-v1",
+        "analysis/monitor_threshold_sweep.csv": "monitor-evaluation-v1",
+        "analysis/monitor_gating_outcomes.csv": "monitor-evaluation-v1",
+        "analysis/monitor_calibration.csv": "monitor-evaluation-v1",
+        "analysis/monitor_calibration_summary.csv": "monitor-evaluation-v1",
+        "analysis/monitor_utility_frontier.csv": "monitor-evaluation-v1",
+        "analysis/monitor_utility_config.json": "monitor-evaluation-v1",
     }
     if relative_path in exact:
         return exact[relative_path]
@@ -183,6 +190,7 @@ def snapshot_outputs(
         "action_record_contract": effective_config.get("action_record_contract", "unknown"),
         "counterfactual_evaluation_contract": effective_config.get("counterfactual_evaluation_contract", "unknown"),
         "metric_schema_version": effective_config.get("metric_schema_version", "unknown"),
+        "monitor_evaluation_schema_version": effective_config.get("monitor_evaluation_schema_version", "unknown"),
         "scenario_manifest_contract": effective_config.get("scenario_manifest_contract", "unknown"),
         "scenario_family_contract": effective_config.get("scenario_family_contract", "unknown"),
         "scenario_split_contract": effective_config.get("scenario_split_contract", "unknown"),
