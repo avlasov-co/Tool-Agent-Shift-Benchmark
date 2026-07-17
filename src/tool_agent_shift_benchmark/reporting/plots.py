@@ -97,10 +97,10 @@ def _number(value: object) -> float:
 
 
 def _finish(ax, title: str, subtitle: str, ylabel: str, percent: bool = True) -> None:
-    ax.set_title(title, loc="left", fontsize=14, fontweight="bold", pad=18)
+    ax.set_title(title, loc="left", fontsize=14, fontweight="bold", pad=32)
     ax.text(
         0,
-        1.02,
+        1.01,
         subtitle,
         transform=ax.transAxes,
         fontsize=9,
@@ -172,7 +172,7 @@ def _interval_bar(rows, out_path: str | Path, *, title: str, subtitle: str, ylab
             str(row.get("agent", "")),
             str(row.get("fault", "")),
         ),
-    )[:30]
+    )[:20]
     labels = [
         " / ".join(
             value
@@ -180,6 +180,7 @@ def _interval_bar(rows, out_path: str | Path, *, title: str, subtitle: str, ylab
                 row.get("environment", ""),
                 row.get("agent", ""),
                 row.get("fault", ""),
+                row.get("oversight_mode", ""),
             )
             if value
         )
@@ -190,29 +191,36 @@ def _interval_bar(rows, out_path: str | Path, *, title: str, subtitle: str, ylab
     lower = [value - _number(row.get("interval_low")) for value, row in zip(values, eligible, strict=True)]
     upper = [_number(row.get("interval_high")) - value for value, row in zip(values, eligible, strict=True)]
     positions = np.arange(len(eligible))
-    fig, ax = plt.subplots(figsize=(max(10, len(eligible) * 0.55), 5.8), dpi=150)
-    bars = ax.bar(positions, values, color=BLUE, width=0.68)
+    fig, ax = plt.subplots(figsize=(11, max(6.0, len(eligible) * 0.38 + 1.8)), dpi=150)
     ax.errorbar(
-        positions,
         values,
-        yerr=np.array([lower, upper]),
-        fmt="none",
+        positions,
+        xerr=np.array([lower, upper]),
+        fmt="o",
+        color=BLUE,
         ecolor="#172B4D",
         elinewidth=1.3,
         capsize=4,
         capthick=1.3,
     )
-    ax.set_xticks(positions, labels)
-    _finish(ax, title, f"{subtitle} At most 30 widest cells are shown.", ylabel, percent=True)
-    for bar, value in zip(bars, values, strict=True):
-        ax.annotate(
-            f"{value:.1%}",
-            (bar.get_x() + bar.get_width() / 2, value),
-            xytext=(0, 7),
-            textcoords="offset points",
-            ha="center",
-            fontsize=8,
-        )
+    ax.set_yticks(positions, labels)
+    ax.set_xlim(0, 1)
+    ax.set_xticks(np.linspace(0, 1, 6))
+    ax.set_xticklabels([f"{value:.0%}" for value in np.linspace(0, 1, 6)])
+    ax.set_xlabel(ylabel)
+    ax.set_title(title, loc="left", fontsize=14, fontweight="bold", pad=32)
+    ax.text(
+        0,
+        1.01,
+        f"{subtitle} At most 20 widest cells are shown.",
+        transform=ax.transAxes,
+        fontsize=9,
+        color="#52606D",
+        va="bottom",
+    )
+    ax.grid(axis="x", color=GRID, linewidth=0.8)
+    ax.set_axisbelow(True)
+    ax.spines[["top", "right"]].set_visible(False)
     fig.tight_layout()
     _save_figure(fig, out_path)
     plt.close(fig)
@@ -476,7 +484,7 @@ def generate_plots(
             [r for r in ci if r.get("metric") == "safe_success_rate"] or ci,
             figures / "confidence_intervals.png",
             title="Scenario-clustered safe-success estimates",
-            subtitle="Bars show point estimates; whiskers are deterministic scenario-clustered confidence intervals.",
+            subtitle="Points show estimates; whiskers are deterministic scenario-clustered confidence intervals.",
             ylabel="Safe-success rate",
         )
     else:

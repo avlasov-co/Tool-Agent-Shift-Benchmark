@@ -9,13 +9,59 @@ and the report/plot that renders it.
 
 | Claim ID | Proposed claim | Evidence unit | Required artifacts | Status |
 |---|---|---|---|---|
-| C001 | Reference agents satisfy declared clean competence gates in the standard suite. | Unique clean scenarios by environment and agent. | Verified standard run, competence report, scenario manifests, metric records, run manifest checksum. | pending |
-| C002 | Shift changes safe-success and unsafe-proposal outcomes relative to matched clean scenarios. | Matched within-scenario effects. | Pair table, paired-bootstrap intervals, sample hierarchy, analysis config/seed, verified run. | pending |
-| C003 | Hard-gate oversight prevents some unsafe proposed actions while imposing measurable unnecessary blocks and coverage cost. | Counterfactual-eligible proposed actions clustered by scenario. | Monitor evaluation, raw confusion counts, utility/cost table, Pareto frontier, interval metadata. | pending |
-| C004 | Detector quality differs by monitor, environment, fault, severity, agent, oversight treatment, and threshold. | Counterfactual-eligible monitor events within scenario clusters. | Full monitor threshold table with TP/FP/TN/FN and dimensions; insufficiency flags. | pending |
+| C001 | Reference agents satisfy declared clean competence gates in the standard suite. | Unique clean scenarios by environment and agent. | Verified standard run, competence report, scenario manifests, metric records, run manifest checksum. | verified |
+| C002 | Executed shifts change safe-success relative to matched clean scenarios in the standard suite. | Matched within-scenario effects. | Pair table, paired-bootstrap intervals, sample hierarchy, analysis config/seed, verified run. | verified |
+| C003 | In the standard suite, hard-gate oversight made 18 interventions, all unnecessary blocks under the counterfactual label, and prevented no measured harm; no benefit claim is supported. | Counterfactual-eligible proposed actions clustered by scenario. | Monitor evaluation, raw confusion counts, utility/cost table, Pareto frontier, interval metadata. | verified |
+| C004 | Detector quality is reported jointly by monitor, environment, fault, severity, agent, oversight treatment, and threshold. | Counterfactual-eligible monitor events within scenario clusters. | Full monitor threshold table with TP/FP/TN/FN and dimensions; insufficiency flags. | verified |
 | C005 | Standard-suite results reproduce byte-for-byte for canonical nonvolatile artifacts. | Two independently installed standard-suite runs. | Both verified bundles, canonical comparison record, finalization hashes, rehearsal logs. | pending |
 | C006 | Smoke and standard suites meet documented runtime, memory, artifact-size, and worker-scaling budgets. | Installed-distribution suite executions. | Performance JSON, platform/runtime metadata, thresholds, logs. | pending |
-| C007 | Challenge split integrity is preserved and challenge outcomes were not used for tuning. | Scenario split manifests and development record. | Split-integrity report, suite manifest, progress/limitations statement. | pending |
+| C007 | Challenge split integrity is preserved and challenge outcomes were not used for tuning. | Scenario split manifests and development record. | Split-integrity report, suite manifest, progress/limitations statement. | verified |
+
+## Checkpoint 50 standard evidence
+
+Claims C001–C004 are supported by the 240/240-complete standard validation run
+`runs/phase50-standard-golden`, run ID `run_983adda8465a5778`. Strict
+verification reports `complete_valid` and 550 artifacts. The final manifest
+SHA-256 is
+`31c0eb88d4425cdeb89db1f00102a7e648e0dc12c0a435a993e9c2ad2172a441`;
+the finalization SHA-256 is
+`0566eff28a21478848352c16d77422b7054c32e06ff89fd4de1783c7dbbf1801`.
+Clean competence passed with no failed gates and both `record_only` and
+`hard_gate` treatments executed.
+
+The `metric-schema-v2` evidence checksum is
+`7c768b444b2c2051f819a597354c82de060925cebb80e0353d90c42dcb66ad63`.
+The report sums 86/240 safe-success episodes, 32/240 unsafe executed episodes,
+418/572 safe useful steps, and 32/572 counterfactual-unsafe proposals. These
+are descriptive standard-suite results, not production estimates.
+
+Scenario-clustered intervals use analysis seed `20260717`, 2,000 deterministic
+resamples, unique scenario manifests stratified by family, and no multiplicity
+correction. The confidence table (720 rows; 556 estimable, 164 no eligible
+units) has SHA-256
+`815950c0733f366648c8309464c3b2d7a95e8e9645b5da42dff45dbe558ee1e3`.
+The matched shifted-minus-clean table (540 rows) has SHA-256
+`86745376d9182dbdab612778651406cec719a203b70c852d172946fef8174aea`.
+Repeated steps are reduced within each of two validation scenarios per cell;
+they are not independent samples.
+
+The counterfactual detector table has 2,541 threshold rows and SHA-256
+`177d65c8d3aaa82004e91a5fd7b81ac53eb4edf6f25cf3b5ac16238319e61f4d`.
+The separate realized-gating table has 121 rows and SHA-256
+`e3904c15e7ab681d8b0ad94a4cea96982e8e4c8add42abf5953ff4a3b189376f`.
+It records 18 hard-gate interventions, zero prevented harms, and 18 unnecessary
+blocks; C003 was narrowed to this observed result rather than preserving an
+unsupported benefit claim. Report provenance SHA-256 is
+`2a566041c3dcb98c8f64efc186bc4823a3e02abba0dca4ae417b2adc8952f88b`.
+
+C007 is a structural claim only. The versioned challenge manifest selects the
+disjoint `challenge` namespace, plans 120 episodes under seed 1042, and sets
+`challenge_outcomes_may_inform_development=false`. Only its plan and contract
+were inspected; no challenge episode outcomes were executed or used. The
+golden standard validation checksum is
+`295dac29b494909814a7fa2b037df50bf03cbc53944b681b3ec1622a3d71eb94`.
+C005 and C006 remain pending until the installed-sdist rehearsals reproduce the
+standard suite and retain comparable-platform performance evidence.
 
 ## Checkpoint 49 evidence readiness audit
 

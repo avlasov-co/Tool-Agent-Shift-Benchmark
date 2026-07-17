@@ -33,8 +33,8 @@ def test_single_version_source_is_reflected_in_release_metadata() -> None:
     assert "https://github.com/avlasov-co/tool-agent-shift-benchmark" in pyproject
     assert citation["version"] == __version__
     assert citation["repository-code"] == "https://github.com/avlasov-co/tool-agent-shift-benchmark"
-    assert f"## v{__version__} — 2026-07-16" in changelog
-    assert f"v{__version__} stabilization" in notes
+    assert f"## v{__version__} — 2026-07-17" in changelog
+    assert f"v{__version__} evidence release" in notes
 
 
 def test_release_checksums_cover_final_artifacts_and_detect_changes(tmp_path) -> None:

@@ -21,11 +21,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
 
-
 PACKAGE_NAME = "tool_agent_shift_benchmark"
 REQUIRED_RESOURCES = {
     f"src/{PACKAGE_NAME}/resources/configs/small.yaml",
+    f"src/{PACKAGE_NAME}/resources/configs/suite_standard_v0_4.yaml",
     f"src/{PACKAGE_NAME}/resources/policies/offline_llm_policy.json",
+    f"src/{PACKAGE_NAME}/resources/suites/standard.json",
     f"src/{PACKAGE_NAME}/resources/templates/report.html",
 }
 FORBIDDEN_COMPONENTS = {
@@ -96,10 +97,7 @@ def archive_content_errors(path: Path) -> list[str]:
         if not egg_info_parts:
             continue
         expected_source_metadata = (
-            path.suffix != ".whl"
-            and len(parts) >= 2
-            and parts[0] == "src"
-            and parts[1] == f"{PACKAGE_NAME}.egg-info"
+            path.suffix != ".whl" and len(parts) >= 2 and parts[0] == "src" and parts[1] == f"{PACKAGE_NAME}.egg-info"
         )
         if not expected_source_metadata:
             errors.append(f"stale egg-info in archive: {name}")
@@ -122,9 +120,7 @@ def archive_content_errors(path: Path) -> list[str]:
         source_packages = {
             Path(name).parts[1]
             for name in relative_names
-            if len(Path(name).parts) > 2
-            and Path(name).parts[0] == "src"
-            and name.endswith((".py", ".pyi"))
+            if len(Path(name).parts) > 2 and Path(name).parts[0] == "src" and name.endswith((".py", ".pyi"))
         }
         undeclared = sorted(package for package in source_packages if package != PACKAGE_NAME)
     errors.extend(f"undeclared Python package in archive: {package}" for package in undeclared)
@@ -141,9 +137,7 @@ def _source_ignore(_: str, names: list[str]) -> set[str]:
     return {
         name
         for name in names
-        if name in COPY_IGNORES
-        or name.endswith((".egg-info", ".pyc", ".pyo"))
-        or name == ".DS_Store"
+        if name in COPY_IGNORES or name.endswith((".egg-info", ".pyc", ".pyo")) or name == ".DS_Store"
     }
 
 
@@ -337,7 +331,8 @@ def run_distribution_smoke(
         )
         artifacts = sorted(dist_dir.glob("*.tar.gz")) + sorted(dist_dir.glob("*.whl"))
         if len(artifacts) != 2:
-            raise DistributionSmokeError(f"expected one sdist and one wheel, found: {[path.name for path in artifacts]}")
+            names = [path.name for path in artifacts]
+            raise DistributionSmokeError(f"expected one sdist and one wheel, found: {names}")
         for artifact in artifacts:
             validate_archive(artifact)
             records.extend(_exercise_installed_artifact(runner, artifact, development_lock))
@@ -355,9 +350,17 @@ def run_distribution_smoke(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build and independently smoke-test sdist and wheel artifacts")
     parser.add_argument("--source-root", type=Path, default=Path(__file__).resolve().parents[1])
-    parser.add_argument("--python", default=sys.executable, help="interpreter used to build and create test environments")
+    parser.add_argument(
+        "--python",
+        default=sys.executable,
+        help="interpreter used to build and create test environments",
+    )
     parser.add_argument("--timeout", type=int, default=300, help="per-command timeout in seconds")
-    parser.add_argument("--keep-work-dir", action="store_true", help="retain temporary artifacts and command logs on success")
+    parser.add_argument(
+        "--keep-work-dir",
+        action="store_true",
+        help="retain temporary artifacts and command logs on success",
+    )
     args = parser.parse_args(argv)
     try:
         records = run_distribution_smoke(

@@ -59,6 +59,14 @@ DETERMINISTIC_OUTPUT_DIRECTORIES = (
 DETERMINISTIC_ROOT_FILES = ("checkpoint.json", "status.json")
 VOLATILE_OUTPUT_EXCLUSIONS = {
     "run_manifest.json": "contains created/started/ended timestamps and the run-specific path",
+    "analysis/plot_source_evidence_snapshot.json": "binds a pre-plot manifest with run-lifecycle timestamps",
+    "reports/analysis_source_evidence_snapshot.json": "binds a pre-analysis manifest with run-lifecycle timestamps",
+    "reports/source_evidence_snapshot.json": "binds a pre-report manifest with run-lifecycle timestamps",
+    "reports/report_provenance.json": "contains source manifest and finalization checksums that bind timestamps",
+    "reports/report_validation.json": "validates the run-specific provenance record",
+    "reports/experimental_report.md": "renders run-specific provenance checksums",
+    "reports/analysis_report.md": "renders run-specific source metadata",
+    "reports/analysis_report.html": "renders run-specific provenance checksums",
 }
 
 
@@ -174,7 +182,7 @@ def canonical_output_tree(run_dir: Path) -> dict[str, str]:
             raise ReleaseVerificationError(f"missing deterministic output directory: {directory}")
         for path in sorted(item for item in directory.rglob("*") if item.is_file()):
             relative = path.relative_to(run_dir).as_posix()
-            if path.name in VOLATILE_OUTPUT_EXCLUSIONS:
+            if relative in VOLATILE_OUTPUT_EXCLUSIONS:
                 continue
             digests[relative] = _canonical_file_digest(path)
     for name in DETERMINISTIC_ROOT_FILES:
@@ -395,6 +403,19 @@ def run_release_verification(
             env=coverage_env,
         )
         runner.command("configuration-validation", [str(tasb), "validate-config", "small"], cwd=temporary_checkout)
+        for config_name in (
+            "suite_standard_v0_4",
+            "suite_research_v0_4",
+            "suite_challenge_v0_4",
+        ):
+            runner.command(
+                f"configuration-validation-{config_name}",
+                [str(tasb), "validate-config", config_name],
+                cwd=temporary_checkout,
+            )
+        runner.command("suite-contract-list", [str(tasb), "suite", "list"], cwd=temporary_checkout)
+        runner.command("standard-suite-plan", [str(tasb), "suite", "plan", "standard"], cwd=temporary_checkout)
+        runner.command("challenge-suite-plan", [str(tasb), "suite", "plan", "challenge"], cwd=temporary_checkout)
 
         def deterministic_plan() -> tuple[bool, str]:
             first = subprocess.run(
@@ -456,6 +477,11 @@ def run_release_verification(
                 temporary_checkout / "runs" / "determinism-a",
                 temporary_checkout / "runs" / "determinism-b",
             ),
+        )
+        runner.command(
+            "performance-budget",
+            [str(tasb), "performance", "--suite", "smoke", "--output", str(work_dir / "performance.json")],
+            cwd=temporary_checkout,
         )
         runner.command(
             "install-locked-node-tooling",

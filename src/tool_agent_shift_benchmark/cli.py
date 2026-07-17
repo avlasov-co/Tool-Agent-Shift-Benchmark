@@ -24,13 +24,15 @@ from tool_agent_shift_benchmark.core.run_artifacts import (
 from tool_agent_shift_benchmark.core.serialization import canonical_dumps, canonical_loads
 from tool_agent_shift_benchmark.core.verification import legacy_migration_plan, verify_run
 from tool_agent_shift_benchmark.metrics.monitor_evaluation import MonitorUtilityConfig
-from tool_agent_shift_benchmark.package_resources import builtin_config_names
+from tool_agent_shift_benchmark.package_resources import builtin_config_names, builtin_suite_names
+from tool_agent_shift_benchmark.performance import measure_suite_performance
 from tool_agent_shift_benchmark.reporting.failure_cases import format_replay, replay_case
 from tool_agent_shift_benchmark.reporting.html_report import render_html_report
 from tool_agent_shift_benchmark.reporting.plots import generate_plots
 from tool_agent_shift_benchmark.reporting.provenance import capture_verified_source
 from tool_agent_shift_benchmark.reporting.report import generate_markdown_report
 from tool_agent_shift_benchmark.run_eval import run_eval
+from tool_agent_shift_benchmark.suites import SuiteContract, validate_suite_bundle
 
 
 def _run_command(args: argparse.Namespace) -> None:
@@ -264,6 +266,78 @@ def _list_builtin_configs_command(args: argparse.Namespace) -> None:
         print(name)
 
 
+def _suite_command(args: argparse.Namespace) -> None:
+    if args.suite_command == "list":
+        for name in builtin_suite_names():
+            contract = SuiteContract.load(name)
+            print(
+                f"{name}\tversion={contract.suite_version}\tconfig={contract.config}"
+                f"\tepisodes={contract.expected_plan_count}\tsplit={contract.scenario_split}"
+            )
+        return
+    contract = SuiteContract.load(args.name)
+    if args.suite_command == "plan":
+        plan = contract.plan()
+        print(
+            canonical_dumps(
+                {
+                    "suite": contract.to_dict(),
+                    "run_id": plan.planner.run_id,
+                    "config_digest": plan.planner.config_digest,
+                    "episodes": len(plan.episodes),
+                    "identity": plan.planner.identity.to_dict(),
+                },
+                pretty=True,
+            )
+        )
+        return
+    if args.suite_command == "run":
+        run_args = argparse.Namespace(
+            config=contract.config,
+            seed=contract.seed,
+            env=None,
+            agent=None,
+            all_envs=False,
+            all_agents=False,
+            run_name=args.run_name,
+            overwrite=False,
+            workers=args.workers,
+            resume=False,
+            scenario_index=None,
+            episode_id=None,
+            offset=None,
+            limit=None,
+            partition_index=None,
+            partition_count=None,
+            replay_episode_id=None,
+            monitor_mode=None,
+            oversight_mode=None,
+        )
+        _run_command(run_args)
+        return
+    report = validate_suite_bundle(contract, args.run)
+    store = ArtifactStore(args.run)
+    store.write_json("validation/golden_suite_validation.json", report)
+    store.finalize(
+        command=["tasb", "suite", "validate", contract.name],
+        metadata={"suite": contract.name, "suite_version": contract.suite_version, "golden_status": report["status"]},
+    )
+    final_verification = verify_run(args.run)
+    if final_verification["status"] != "complete_valid":
+        raise RuntimeError(f"suite validation invalidated the bundle: {final_verification['errors']}")
+    print(canonical_dumps(report, pretty=True))
+    if report["status"] != "passed":
+        raise RuntimeError(f"golden suite validation failed for {contract.name}")
+
+
+def _performance_command(args: argparse.Namespace) -> None:
+    contract = SuiteContract.load(args.suite)
+    report = measure_suite_performance(contract, output=args.output)
+    print(canonical_dumps(report, pretty=True))
+    if report["status"] != "passed":
+        raise RuntimeError(f"performance budget failed for suite {contract.name}")
+
+
 def _verify_release_command(args: argparse.Namespace) -> None:
     subprocess.run([sys.executable, "-m", "tool_agent_shift_benchmark.release_verification"], check=True)
 
@@ -363,6 +437,28 @@ def build_parser() -> argparse.ArgumentParser:
     config_migrate.set_defaults(func=_migrate_config_command)
     config_list = config_sub.add_parser("list", help="list packaged built-in configurations")
     config_list.set_defaults(func=_list_builtin_configs_command)
+
+    suite = sub.add_parser("suite", help="plan, run, and validate versioned golden suites")
+    suite_sub = suite.add_subparsers(dest="suite_command", required=True)
+    suite_list = suite_sub.add_parser("list", help="list packaged suite contracts")
+    suite_list.set_defaults(func=_suite_command)
+    suite_plan = suite_sub.add_parser("plan", help="resolve a suite contract without executing it")
+    suite_plan.add_argument("name", choices=builtin_suite_names())
+    suite_plan.set_defaults(func=_suite_command)
+    suite_run = suite_sub.add_parser("run", help="execute a suite into a new run bundle")
+    suite_run.add_argument("name", choices=builtin_suite_names())
+    suite_run.add_argument("--run-name", required=True)
+    suite_run.add_argument("--workers", type=int)
+    suite_run.set_defaults(func=_suite_command)
+    suite_validate = suite_sub.add_parser("validate", help="apply durable golden checks to a completed bundle")
+    suite_validate.add_argument("name", choices=builtin_suite_names())
+    suite_validate.add_argument("--run", required=True)
+    suite_validate.set_defaults(func=_suite_command)
+
+    performance = sub.add_parser("performance", help="measure a suite against versioned performance budgets")
+    performance.add_argument("--suite", choices=builtin_suite_names(), default="smoke")
+    performance.add_argument("--output", required=True)
+    performance.set_defaults(func=_performance_command)
 
     verify = sub.add_parser("verify-release", help="run release verifier")
     verify.set_defaults(func=_verify_release_command)

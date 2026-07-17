@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from importlib.resources import files
 from pathlib import Path
 
@@ -31,6 +32,26 @@ def read_builtin_resource(category: str, name: str) -> bytes:
 def builtin_config_names() -> tuple[str, ...]:
     configs = _RESOURCE_ROOT.joinpath("configs")
     return tuple(sorted(item.name.removesuffix(".yaml") for item in configs.iterdir() if item.name.endswith(".yaml")))
+
+
+def builtin_suite_names() -> tuple[str, ...]:
+    """Return the stable names of packaged, versioned suite manifests."""
+
+    suites = _RESOURCE_ROOT.joinpath("suites")
+    return tuple(sorted(item.name.removesuffix(".json") for item in suites.iterdir() if item.name.endswith(".json")))
+
+
+def read_builtin_suite(name: str) -> dict[str, object]:
+    """Load a packaged suite manifest by its exact public name."""
+
+    candidate = name.removeprefix("builtin:").removesuffix(".json")
+    if candidate not in builtin_suite_names():
+        choices = ", ".join(builtin_suite_names())
+        raise BuiltinResourceError(f"unknown built-in suite {name!r}; choose one of: {choices}")
+    value = json.loads(read_builtin_resource("suites", f"{candidate}.json"))
+    if not isinstance(value, dict):
+        raise BuiltinResourceError(f"packaged suite manifest must be an object: {candidate}")
+    return value
 
 
 def _normalise_config_name(value: str) -> str | None:

@@ -114,7 +114,7 @@ def test_confidence_plot_draws_numeric_interval_whiskers(tmp_path, monkeypatch):
     original = matplotlib.axes.Axes.errorbar
 
     def recording_errorbar(self, *args, **kwargs):
-        calls.append(kwargs.get("yerr"))
+        calls.append(kwargs.get("xerr") if kwargs.get("xerr") is not None else kwargs.get("yerr"))
         return original(self, *args, **kwargs)
 
     monkeypatch.setattr(matplotlib.axes.Axes, "errorbar", recording_errorbar)

@@ -21,6 +21,7 @@ from tool_agent_shift_benchmark.core.serialization import (
 from tool_agent_shift_benchmark.core.serialization import (
     write_jsonl as canonical_write_jsonl,
 )
+from tool_agent_shift_benchmark.metrics.confidence import confidence_intervals, paired_effect_intervals
 from tool_agent_shift_benchmark.metrics.monitor_evaluation import (
     MonitorUtilityConfig,
     apply_monitor_utility,
@@ -30,6 +31,7 @@ from tool_agent_shift_benchmark.metrics.monitor_evaluation import (
 from tool_agent_shift_benchmark.metrics.monitor_evaluation import (
     build_monitor_calibration as evaluate_monitor_calibration,
 )
+from tool_agent_shift_benchmark.metrics.statistics import AnalysisConfig, plan_paired_sample_size
 from tool_agent_shift_benchmark.reporting.provenance import capture_verified_source
 
 RESULTS_DIR = Path("results")
@@ -488,6 +490,10 @@ def run_analysis(
     utility_rows = apply_monitor_utility(threshold_sweep, utility=utility_config)
     profiles = build_agent_profiles(results)
     compound_rows = build_compound_shift_matrix(results)
+    outcome_rows = read_csv_rows(results / "episode_outcomes.csv")
+    analysis_config = AnalysisConfig()
+    interval_rows = confidence_intervals(outcome_rows, config=analysis_config)
+    paired_rows = paired_effect_intervals(outcome_rows, config=analysis_config)
     config_metadata: dict[str, Any] = {}
     config_path = results / "config.json"
     if config_path.exists():
@@ -505,6 +511,17 @@ def run_analysis(
         write_json(analysis / "monitor_utility_config.json", utility_config.to_dict())
         write_csv_rows(analysis / "agent_safety_profile.csv", profiles)
         write_csv_rows(analysis / "compound_shift_matrix.csv", compound_rows)
+        write_csv_rows(results / "confidence_intervals.csv", interval_rows)
+        write_csv_rows(results / "paired_effect_intervals.csv", paired_rows)
+        write_json(analysis / "statistical_analysis_config.json", analysis_config.to_dict())
+        write_json(
+            analysis / "sample_size_plan.json",
+            {
+                "analysis_schema_version": analysis_config.schema_version,
+                "assumption": "paired scenario-level effects with standard deviation 0.5",
+                "plans": [plan_paired_sample_size(effect, 0.5).to_dict() for effect in (0.05, 0.1, 0.2)],
+            },
+        )
     else:
         artifact_store.write_csv(analysis / "failure_clusters.csv", clusters)
         artifact_store.write_jsonl(analysis / "failure_cluster_examples.jsonl", examples)
@@ -516,6 +533,17 @@ def run_analysis(
         artifact_store.write_json(analysis / "monitor_utility_config.json", utility_config.to_dict())
         artifact_store.write_csv(analysis / "agent_safety_profile.csv", profiles)
         artifact_store.write_csv(analysis / "compound_shift_matrix.csv", compound_rows)
+        artifact_store.write_csv("results/confidence_intervals.csv", interval_rows)
+        artifact_store.write_csv("results/paired_effect_intervals.csv", paired_rows)
+        artifact_store.write_json(analysis / "statistical_analysis_config.json", analysis_config.to_dict())
+        artifact_store.write_json(
+            analysis / "sample_size_plan.json",
+            {
+                "analysis_schema_version": analysis_config.schema_version,
+                "assumption": "paired scenario-level effects with standard deviation 0.5",
+                "plans": [plan_paired_sample_size(effect, 0.5).to_dict() for effect in (0.05, 0.1, 0.2)],
+            },
+        )
     write_analysis_report(
         profiles,
         clusters,
@@ -540,6 +568,10 @@ def run_analysis(
         str(analysis / "monitor_utility_config.json"),
         str(analysis / "agent_safety_profile.csv"),
         str(analysis / "compound_shift_matrix.csv"),
+        str(analysis / "statistical_analysis_config.json"),
+        str(analysis / "sample_size_plan.json"),
+        "results/confidence_intervals.csv",
+        "results/paired_effect_intervals.csv",
         str(analysis / "analysis_manifest.json"),
         "reports/analysis_report.md" if artifact_store is not None else "docs/analysis_report.md",
     ]
@@ -568,6 +600,8 @@ def run_analysis(
             "monitor_utility_frontier_rows": len(utility_rows),
             "agent_safety_profile_rows": len(profiles),
             "compound_shift_matrix_rows": len(compound_rows),
+            "confidence_interval_rows": len(interval_rows),
+            "paired_effect_interval_rows": len(paired_rows),
         },
         "competence_gate": config_metadata.get(
             "competence_gate",

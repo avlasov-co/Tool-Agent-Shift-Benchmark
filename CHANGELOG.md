@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## v0.4.0 — 2026-07-17
+
+- Defined `metric-schema-v2` outcomes with explicit numerators, denominators,
+  missing-data rules, temporal recovery, and schema recovery.
+- Added deterministic scenario-clustered and matched-pair bootstrap inference,
+  insufficiency refusal, multiplicity options, power planning, and interval
+  whiskers.
+- Rebuilt monitor evaluation around proposed-action counterfactual risk and
+  separated detector, realized gating, calibration, utility, and Pareto views.
+- Made reports consume complete verified bundles and carry metric formulas,
+  sample counts, uncertainty methods, clean competence, treatments, and
+  checksum-bound source provenance.
+- Added versioned smoke, standard, research, and held-out challenge suites,
+  durable golden checks, performance budgets, and a sealed challenge-use
+  policy.
+- Added the v0.4.0 migration guide, benchmark card, clean distribution
+  rehearsal workflow, and release-evidence records.
+
 ## v0.3.1 — 2026-07-16
 
 - Adopted the `tool_agent_shift_benchmark` source layout, packaged runtime

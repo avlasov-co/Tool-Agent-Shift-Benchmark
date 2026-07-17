@@ -1,7 +1,7 @@
 PYTHON ?= python3
 RELEASE_OUTPUT ?= release-artifacts
 
-.PHONY: setup lint format format-check typecheck test coverage audit distribution-smoke verify-release release-artifacts small full plots report repro clean seeds sweep architecture
+.PHONY: setup lint format format-check typecheck test coverage audit distribution-smoke verify-release release-artifacts release-rehearsal small full plots report repro clean seeds sweep architecture
 
 setup:
 	$(PYTHON) -m pip install --require-hashes -r requirements/development.txt
@@ -59,6 +59,9 @@ verify-release:
 
 release-artifacts:
 	$(PYTHON) scripts/build_release_artifacts.py --output-dir $(RELEASE_OUTPUT) --python $(PYTHON)
+
+release-rehearsal:
+	$(PYTHON) scripts/release_rehearsal.py --output $(RELEASE_OUTPUT) --python $(PYTHON)
 
 repro:
 	bash scripts/run_repro.sh

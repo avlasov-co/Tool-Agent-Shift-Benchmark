@@ -94,5 +94,6 @@ version = {attr = "tool_agent_shift_benchmark._version.__version__"}
 tool_agent_shift_benchmark = [
   "resources/configs/*.yaml",
   "resources/policies/*.json",
+  "resources/suites/*.json",
   "resources/templates/*.html",
 ]

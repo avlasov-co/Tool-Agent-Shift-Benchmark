@@ -31,7 +31,7 @@ def test_canonical_output_tree_normalizes_json_encodings(tmp_path) -> None:
     _write_run_bundle(second, {"a": 1, "b": 2})
 
     assert canonical_output_tree(first) == canonical_output_tree(second)
-    assert compare_deterministic_outputs(first, second) == (True, "6 deterministic files matched exactly")
+    assert compare_deterministic_outputs(first, second) == (True, "5 deterministic files matched exactly")
 
 
 def test_canonical_output_comparison_reports_content_changes(tmp_path) -> None:

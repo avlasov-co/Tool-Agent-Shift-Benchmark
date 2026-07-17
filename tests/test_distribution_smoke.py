@@ -22,7 +22,9 @@ def test_archive_inspection_accepts_required_wheel_contents(tmp_path) -> None:
     with zipfile.ZipFile(wheel, "w") as archive:
         archive.writestr("tool_agent_shift_benchmark/__init__.py", "")
         archive.writestr("tool_agent_shift_benchmark/resources/configs/small.yaml", "schema_version: 2\n")
+        archive.writestr("tool_agent_shift_benchmark/resources/configs/suite_standard_v0_4.yaml", "schema_version: 2\n")
         archive.writestr("tool_agent_shift_benchmark/resources/policies/offline_llm_policy.json", "{}")
+        archive.writestr("tool_agent_shift_benchmark/resources/suites/standard.json", "{}")
         archive.writestr("tool_agent_shift_benchmark/resources/templates/report.html", "<html></html>")
         archive.writestr("tool_agent_shift_benchmark-0.3.1.dist-info/METADATA", "Metadata-Version: 2.3\n")
 
@@ -41,4 +43,4 @@ def test_archive_inspection_rejects_junk_and_undeclared_packages(tmp_path) -> No
     assert any("forbidden path component" in error for error in errors)
     assert "undeclared Python package in archive: other_package" in errors
     assert "stale egg-info in archive: other_package.egg-info/PKG-INFO" in errors
-    assert sum("missing required package resource" in error for error in errors) == 3
+    assert sum("missing required package resource" in error for error in errors) == 5

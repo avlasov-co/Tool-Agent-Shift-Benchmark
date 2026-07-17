@@ -1,0 +1,28 @@
+{
+  "challenge_outcomes_may_inform_development": true,
+  "config": "small",
+  "expected_plan_count": 28,
+  "golden_checks": [
+    "plan_count",
+    "identity_stability",
+    "scenario_split_integrity",
+    "clean_competence",
+    "fault_activation",
+    "trace_length_distribution",
+    "plugin_boundary_isolation",
+    "artifact_verification",
+    "broad_metric_ranges"
+  ],
+  "name": "smoke",
+  "performance_budget": {
+    "artifact_size_mib_max": 25.0,
+    "peak_memory_mib_max": 512.0,
+    "runtime_regression_fraction_max": 0.2,
+    "runtime_seconds_max": 30.0,
+    "worker_scaling_ratio_max": 2.0
+  },
+  "scenario_split": "development",
+  "schema_version": "suite-contract-v1",
+  "seed": 42,
+  "suite_version": "0.4.0"
+}

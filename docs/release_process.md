@@ -17,9 +17,12 @@ phase has a timeout, dedicated log, status, and duration; the final JSON report
 and its temporary workspace are retained for review.
 
 It never cleans, regenerates, or overwrites root `results/`, `figures/`, or
-reports. The deterministic comparison covers the canonical contents of each
-run's `results/`, `figures/`, and `docs/` directories. It excludes only the
-run manifest, whose timestamps and run-specific path are explicitly volatile.
+reports. The deterministic comparison covers canonical scientific bundle
+contents. It excludes the run manifest and report/provenance artifacts that
+intentionally bind timestamp-bearing manifest generations; every exclusion is
+named with a reason in the machine-readable verifier report. Those excluded
+reports are validated, checksum-bound, and visually inspected instead of being
+treated as byte-identical scientific records.
 If checked-in experiment evidence is missing or inconsistent, investigate it
 separately rather than regenerating output merely to turn a check green.
 

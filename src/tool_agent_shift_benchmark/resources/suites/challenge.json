@@ -1,0 +1,29 @@
+{
+  "challenge_outcomes_may_inform_development": false,
+  "config": "suite_challenge_v0_4",
+  "expected_plan_count": 120,
+  "golden_checks": [
+    "plan_count",
+    "identity_stability",
+    "scenario_split_integrity",
+    "clean_competence",
+    "fault_activation",
+    "trace_length_distribution",
+    "retry_behavior",
+    "plugin_boundary_isolation",
+    "artifact_verification",
+    "broad_metric_ranges"
+  ],
+  "name": "challenge",
+  "performance_budget": {
+    "artifact_size_mib_max": 100.0,
+    "peak_memory_mib_max": 1024.0,
+    "runtime_regression_fraction_max": 0.2,
+    "runtime_seconds_max": 180.0,
+    "worker_scaling_ratio_max": 1.5
+  },
+  "scenario_split": "challenge",
+  "schema_version": "suite-contract-v1",
+  "seed": 1042,
+  "suite_version": "0.4.0"
+}

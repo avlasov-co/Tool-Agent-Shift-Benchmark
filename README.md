@@ -20,6 +20,11 @@ This branch prepares v0.4.0 evidence contracts. Checked-in root `results/`,
 evidence. Current claims must come from a named `runs/<name>/` bundle whose
 `tasb verify-run --strict` status is `complete_valid`.
 
+The versioned [golden suites](docs/golden-suites.md), [benchmark
+card](docs/benchmark-card.md), and [v0.4.0 migration
+guide](docs/migrations/v0.4.0.md) define the release matrix, evidence scope,
+and compatibility boundary.
+
 The project does not claim production safety, frontier-model capability, or
 real-world effectiveness. Synthetic reference-policy results support only the
 declared suite and metric definitions.

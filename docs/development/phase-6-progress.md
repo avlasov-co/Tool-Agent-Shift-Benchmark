@@ -17,7 +17,8 @@
 
 ## Current checkpoint
 
-Checkpoint 49 is complete and ready for its numbered commit.
+Checkpoint 50 is complete and ready for its numbered commit. Release rehearsals
+remain pending and are deliberately separate from the checkpoint commit.
 
 ## Baseline defects to resolve
 
@@ -219,7 +220,55 @@ paths, and commit identifiers will be appended before each numbered commit.
 
 ### Checkpoint 50 — golden suites and v0.4.0 preparation
 
-Pending.
+- Added packaged `suite-contract-v1` manifests and schema-v2 configs for smoke,
+  standard regression, research, and held-out challenge suites. Their fixed
+  plan counts are 28, 240, 3,375, and 120 respectively. The challenge contract
+  explicitly prohibits development use of its outcomes.
+- Added `tasb suite list|plan|run|validate`. Golden validation checks exact
+  plan/completion accounting, scientific identity stability, split integrity,
+  clean competence, activation of every shifted episode, trace bounds, retry
+  execution, plugin descriptor/isolation boundaries, broad rate ranges, and
+  strict artifact verification without brittle exact-float snapshots.
+- Ordinary run analysis now emits deterministic scenario-clustered confidence
+  and matched-effect tables, exact statistical config, and power plans. A
+  standard suite can therefore produce a complete report lifecycle directly.
+- Added `performance-evidence-v1` measurement and suite-owned budgets for
+  runtime, process peak RSS, Python allocation peak, artifact size, worker
+  scaling, and comparable-platform runtime regression. Smoke measured 3.00 s
+  with one worker, 2.95 s with two, 63.3 MiB peak RSS, 9.08 MiB artifacts, and
+  a 0.985 two/one-worker ratio on Python 3.14.6/macOS; every budget passed.
+- Standard performance measured 26.64 s with one worker, 28.15 s with two,
+  221.7 MiB peak RSS, 78.7 MiB Python allocation peak, 77.12 MiB artifacts,
+  and a 1.057 scaling ratio on the same platform; every standard budget passed.
+- The initial 810-episode standard draft was stopped after 272 episodes in 287
+  seconds because its projected runtime violated the declared 300-second
+  budget. The incomplete diagnostic is preserved at
+  `runs/phase50-standard-budget-diagnostic`. The corrected matrix retains all
+  three environments, all five agents, both oversight treatments, clean plus
+  three core shifts, and two independent validation scenarios per cell; a
+  batch checkpoint interval of 20 removed quadratic persistence overhead.
+- The corrected 240-episode standard run completed evaluation in 17.5 seconds
+  at `runs/phase50-standard-golden`. All 240 episodes completed, all 180
+  shifted episodes activated, 48 retry episodes reached up to three attempts,
+  2,836 bounded rate rows passed, and strict verification reported
+  `complete_valid`, 550 artifacts, and run ID `run_983adda8465a5778`.
+- Standard analysis produced 720 confidence rows, 540 paired-effect rows,
+  2,541 counterfactual threshold/utility rows, 121 realized-gating rows, and 12
+  rendered plots plus verified Markdown/HTML reports. Visual review found the
+  original 30-cell vertical interval plot unreadable; it was replaced with a
+  20-cell horizontal dot-and-whisker layout before release rehearsal.
+- Added the v0.4.0 migration guide, benchmark card, suite/performance guide,
+  changelog entry, release notes, citation metadata, sdist rehearsal driver,
+  and local tag/publish command record. No challenge outcomes, tags, pushes, or
+  publication actions were used or executed.
+- Checkpoint validation passed 589 tests, 78.52% branch coverage, Ruff lint and
+  format checks, configured strict mypy, compilation, `git diff --check`, and
+  29 independent installed sdist/wheel smoke checks. The diagnostic audit
+  passed compilation, tests, coverage, config/planning, package build, wheel
+  inspection, isolated installation, CLI smokes, and release metadata. Its two
+  expected pre-commit findings were the intentionally dirty checkpoint
+  worktree and the known historical root evidence missing v2
+  `results/episodes.jsonl`; current claims do not consume that root evidence.
 
 ## Release rehearsals
 
