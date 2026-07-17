@@ -323,6 +323,12 @@ paths, and commit identifiers will be appended before each numbered commit.
   comparison, performance, locked browser rendering, and 29-check independent
   sdist/wheel smoke. The machine-readable record is
   `release-verification.json` at that path.
+- A final clean-tree `make audit` passed cleanliness, junk detection,
+  compilation, 590 tests, branch coverage, config/planning, package and wheel
+  checks, isolated installs, all CLI smokes, and release metadata. Its sole
+  diagnostic failure is the intentionally preserved historical root evidence
+  lacking `results/episodes.jsonl`; `.audit/report.json` records it, and no
+  v0.4.0 report or claim consumes that legacy root directory.
 
 ## Known limitations
 
