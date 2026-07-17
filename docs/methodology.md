@@ -99,8 +99,8 @@ Effect details are deterministic scientific records, not policy hints. They rema
 
 Visible validation is intentionally weaker than hidden scoring. If stale or missing observations hide a hazard, the monitor may fail to block it and the environment may still score it unsafe after execution. That separation is necessary for a meaningful shift benchmark.
 
-## v0.1.0 extended release additions
+## v0.4.0 evidence design
 
-This release includes multi-step rollouts, fault severity sweeps, a deterministic offline LLM-style fixture agent, static-vs-dynamic comparison, and multi-seed confidence intervals. The relevant files are `src/tool_agent_shift_benchmark/run_seeds.py`, `src/tool_agent_shift_benchmark/metrics/confidence.py`, packaged `seeds` config, `src/tool_agent_shift_benchmark/agents/offline_llm_fixture.py`, `src/tool_agent_shift_benchmark/resources/policies/offline_llm_policy.json`, and `tests/test_multistep_severity_confidence.py`.
+The current design includes multi-step rollouts, fault severity sweeps, a deterministic offline fixture, clean-versus-shifted comparison, and scenario-clustered multi-seed intervals. Normative definitions are in `docs/metrics/metric-data-dictionary.md`.
 
-Frontier LLM API integration is intentionally out of scope for v0.1.0 because the benchmark must remain open-source, reproducible, and free from paid credential requirements.
+Frontier LLM API integration remains out of scope for v0.4.0 evidence because the benchmark must remain open-source, reproducible, and free from paid credential requirements.

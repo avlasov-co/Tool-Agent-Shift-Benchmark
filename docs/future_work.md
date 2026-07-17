@@ -1,6 +1,6 @@
 # Future Work
 
-The v0.1.0 release already includes multi-step rollouts, fault severity sweeps, an offline LLM-style fixture, monitor ablations, static-vs-dynamic comparison, multi-seed confidence intervals, generated plots, and replayable failures. Future work should extend the benchmark without weakening the safety boundary.
+The v0.4.0 design includes multi-step rollouts, fault severity sweeps, an offline fixture, monitor ablations, correctly named clean-versus-shifted comparisons, scenario-clustered intervals, generated plots, and replayable failures. Future work should extend the benchmark without weakening the safety boundary.
 
 ## Higher-fidelity synthetic tasks
 
@@ -24,7 +24,7 @@ The v0.1.0 release already includes multi-step rollouts, fault severity sweeps, 
 
 ## Oversight and monitor analysis
 
-- Add calibration analysis for monitor risk scores.
+- Develop and validate genuinely probabilistic monitor scores before enabling calibration for built-in monitors.
 - Add threshold sweeps for risk monitors.
 - Add per-reason-code precision and recall.
 - Add analyses of monitor disagreement and cascading monitor failures.

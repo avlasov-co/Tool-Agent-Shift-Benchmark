@@ -47,6 +47,41 @@ def _read_csv(path: str | Path) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
+def _weighted_metric_rows(
+    evidence: list[dict[str, str]], metric: str, *, group_key: str = "agent"
+) -> list[dict[str, object]]:
+    grouped: dict[str, list[float]] = {}
+    for row in evidence:
+        if row.get("metric_name") != metric:
+            continue
+        key = row.get(group_key, "ALL") or "ALL"
+        counts = grouped.setdefault(key, [0.0, 0.0])
+        counts[0] += _number(row.get("numerator"))
+        counts[1] += _number(row.get("denominator"))
+    return [
+        {
+            group_key: key,
+            "value": numerator / denominator if denominator else 0.0,
+            "numerator": numerator,
+            "denominator": denominator,
+        }
+        for key, (numerator, denominator) in sorted(grouped.items())
+    ]
+
+
+def _weighted_safety_coverage_rows(evidence: list[dict[str, str]]) -> list[dict[str, object]]:
+    unsafe = {row["agent"]: row for row in _weighted_metric_rows(evidence, "unsafe_or_failed_rate")}
+    useful = {row["agent"]: row for row in _weighted_metric_rows(evidence, "useful_action_rate")}
+    return [
+        {
+            "agent_name": agent,
+            "unsafe_or_failed_rate": unsafe.get(agent, {}).get("value", 0.0),
+            "coverage": useful.get(agent, {}).get("value", 0.0),
+        }
+        for agent in sorted(set(unsafe) | set(useful))
+    ]
+
+
 BLUE = "#2563A6"
 TEAL = "#0F766E"
 RED = "#C2413B"
@@ -129,6 +164,15 @@ def _interval_bar(rows, out_path: str | Path, *, title: str, subtitle: str, ylab
     ]
     if not eligible:
         return
+    eligible = sorted(
+        eligible,
+        key=lambda row: (
+            -(_number(row.get("interval_high")) - _number(row.get("interval_low"))),
+            str(row.get("environment", "")),
+            str(row.get("agent", "")),
+            str(row.get("fault", "")),
+        ),
+    )[:30]
     labels = [
         " / ".join(
             value
@@ -159,7 +203,7 @@ def _interval_bar(rows, out_path: str | Path, *, title: str, subtitle: str, ylab
         capthick=1.3,
     )
     ax.set_xticks(positions, labels)
-    _finish(ax, title, subtitle, ylabel, percent=True)
+    _finish(ax, title, f"{subtitle} At most 30 widest cells are shown.", ylabel, percent=True)
     for bar, value in zip(bars, values, strict=True):
         ax.annotate(
             f"{value:.1%}",
@@ -223,6 +267,33 @@ def _reliability_diagram(rows, out_path: str | Path) -> None:
     plt.close(fig)
 
 
+def _precision_recall_plot(rows, out_path: str | Path) -> None:
+    selected = [row for row in rows if row.get("monitor_name") == "ALL"] or rows
+    selected = [
+        row for row in selected if row.get("precision") not in {None, ""} and row.get("recall") not in {None, ""}
+    ]
+    if not selected:
+        return
+    fig, ax = plt.subplots(figsize=(7.2, 6.2), dpi=150)
+    x = [_number(row.get("recall")) for row in selected]
+    y = [_number(row.get("precision")) for row in selected]
+    colors = [_number(row.get("threshold")) for row in selected]
+    points = ax.scatter(x, y, c=colors, cmap="viridis", s=52, edgecolor="white", linewidth=0.6)
+    fig.colorbar(points, ax=ax, label="Detector threshold")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_xlabel("Recall on unsafe proposed actions")
+    _finish(
+        ax,
+        "Monitor precision–recall trade-off",
+        "Both axes use counterfactual proposed-action risk; points are detector thresholds, not gating outcomes.",
+        "Precision",
+    )
+    fig.tight_layout()
+    _save_figure(fig, out_path)
+    plt.close(fig)
+
+
 def _scatter(rows, out_path: str | Path) -> None:
     fig, ax = plt.subplots(figsize=(10, 5.6), dpi=150)
     for row in rows:
@@ -241,8 +312,8 @@ def _scatter(rows, out_path: str | Path) -> None:
     _finish(
         ax,
         "Coverage vs. safety",
-        "Each point is one benchmark configuration; higher and farther right is better.",
-        "Safe action rate",
+        "Each point pools one agent by raw counts; higher and farther right is better.",
+        "One minus unsafe-or-failed episode rate",
     )
     ax.set_xlabel("Coverage: fraction of useful actions completed")
     ax.set_xlim(0, 1)
@@ -266,74 +337,76 @@ def generate_plots(
     _ARTIFACT_STORE = artifact_store
     results = Path(results_dir) if results_dir is not None else Path(summary_path).parent
     rows = _read_csv(summary_path)
+    evidence = _read_csv(results / "metric_evidence.csv")
     figures = Path(figures_dir)
     if artifact_store is None:
         figures.mkdir(parents=True, exist_ok=True)
+    unsafe_rows = _weighted_metric_rows(evidence, "unsafe_episode_rate")
     _bar(
-        rows,
-        "unsafe_action_rate",
+        unsafe_rows or rows,
+        "value" if unsafe_rows else "unsafe_action_rate",
         figures / "unsafe_action_rate.png",
+        key="agent" if unsafe_rows else "agent_name",
         title="Unsafe action rate",
         subtitle="Lower is safer: actions that violated the hidden task constraints.",
         ylabel="Unsafe actions",
         color=RED,
     )
-    if any("unsafe_or_failed_rate" in row for row in rows):
+    unresolved_rows = _weighted_metric_rows(evidence, "unsafe_or_failed_rate")
+    if unresolved_rows or any("unsafe_or_failed_rate" in row for row in rows):
         _bar(
-            rows,
-            "unsafe_or_failed_rate",
+            unresolved_rows or rows,
+            "value" if unresolved_rows else "unsafe_or_failed_rate",
             figures / "unsafe_or_failed_rate.png",
+            key="agent" if unresolved_rows else "agent_name",
             title="Unsafe or infrastructure-failed rate",
             subtitle="Lower is better: unresolved failures remain in the planned denominator.",
             ylabel="Unsafe or failed episodes",
             color=RED,
         )
-    _scatter(rows, figures / "coverage_vs_safety.png")
+    _scatter(_weighted_safety_coverage_rows(evidence) or rows, figures / "coverage_vs_safety.png")
+    recovery_rows = _weighted_metric_rows(evidence, "temporal_recovery_rate")
     _bar(
-        rows,
-        "monitor_recall",
-        figures / "monitor_recall_precision.png",
-        title="Monitor recall",
-        subtitle="Higher means the monitor catches more genuinely unsafe episodes.",
-        ylabel="Recall",
-        color=TEAL,
-    )
-    _bar(
-        rows,
-        "recovery_rate",
+        recovery_rows or rows,
+        "value" if recovery_rows else "recovery_rate",
         figures / "recovery_rate.png",
+        key="agent" if recovery_rows else "agent_name",
         title="Recovery rate",
         subtitle="Higher means the agent returns to a safe, useful trajectory after a shift.",
         ylabel="Recovered episodes",
         color=TEAL,
     )
+    constraint_rows = _weighted_metric_rows(evidence, "constraint_violation_rate")
     _bar(
-        rows,
-        "constraint_violation_rate",
+        constraint_rows or rows,
+        "value" if constraint_rows else "constraint_violation_rate",
         figures / "failure_breakdown.png",
+        key="agent" if constraint_rows else "agent_name",
         title="Constraint violation rate",
         subtitle="The share of episodes containing at least one constraint breach.",
         ylabel="Violating episodes",
         color=RED,
     )
+    unsafe_step_rows = _weighted_metric_rows(evidence, "unsafe_executed_action_rate")
     _bar(
-        rows,
-        "unsafe_step_rate",
+        unsafe_step_rows or rows,
+        "value" if unsafe_step_rows else "unsafe_step_rate",
         figures / "unsafe_step_rate.png",
+        key="agent" if unsafe_step_rows else "agent_name",
         title="Unsafe step rate",
         subtitle="The fraction of all rollout steps that were unsafe.",
         ylabel="Unsafe steps",
         color=RED,
     )
-    svd = _read_csv(results / "static_vs_dynamic.csv")
-    if svd:
+    clean_shifted = _read_csv(results / "clean_vs_shifted.csv")
+    if clean_shifted:
         _bar(
-            svd,
-            "gap",
-            figures / "static_vs_dynamic_gap.png",
-            title="Static vs. dynamic performance gap",
-            subtitle="Positive gap means performance changes when the agent must act in a rollout.",
-            ylabel="Gap",
+            clean_shifted,
+            "safe_success_gap",
+            figures / "clean_vs_shifted_gap.png",
+            title="Clean vs. shifted safe-success gap",
+            subtitle="Positive values mean safe success is lower under executed shift treatments.",
+            ylabel="Clean minus shifted safe-success rate",
             color=GOLD,
             percent=False,
         )
@@ -350,6 +423,7 @@ def generate_plots(
             ylabel="Recall",
             color=TEAL,
         )
+        _precision_recall_plot(thresholds, figures / "monitor_precision_recall.png")
     calibration = _read_csv(analysis / "monitor_calibration.csv")
     if calibration:
         _reliability_diagram(calibration, figures / "monitor_reliability_diagram.png")
@@ -357,12 +431,12 @@ def generate_plots(
     if profiles:
         _bar(
             profiles,
-            "safety_coverage_score",
-            figures / "agent_safety_profile.png",
+            "safe_useful_action_rate",
+            figures / "agent_safe_useful_rate.png",
             key="agent",
-            title="Agent safety–coverage profile",
-            subtitle="A combined view of safe behavior and useful task completion.",
-            ylabel="Score",
+            title="Agent safe-useful action rate",
+            subtitle="A raw rate from planned episode evidence; this is not a weighted ranking.",
+            ylabel="Safe-useful rate",
             color=BLUE,
         )
     pairwise = _read_csv(analysis / "pairwise_compound_matrix.csv") or _read_csv(analysis / "compound_shift_matrix.csv")
@@ -375,7 +449,7 @@ def generate_plots(
         _bar(
             pairwise,
             metric,
-            figures / "pairwise_compound_heatmap.png",
+            figures / "pairwise_compound_effect.png",
             key="fault_pair",
             title="Compound-shift effect",
             subtitle="Positive values mean paired faults are worse than the worst single fault.",

@@ -13,8 +13,8 @@ the resolver to select a second graph.
 
 The runner writes seed and config metadata to `results/config.json`. Episode IDs are stable hashes of run configuration, environment, scenario, agent, fault, and seed.
 
-## v0.1.0 extended release additions
+## v0.4.0 evidence workflow
 
-This release includes multi-step rollouts, fault severity sweeps, a deterministic offline LLM-style fixture agent, static-vs-dynamic comparison, and multi-seed confidence intervals. The relevant files are `src/tool_agent_shift_benchmark/run_seeds.py`, `src/tool_agent_shift_benchmark/metrics/confidence.py`, packaged `seeds` config, `src/tool_agent_shift_benchmark/agents/offline_llm_fixture.py`, `src/tool_agent_shift_benchmark/resources/policies/offline_llm_policy.json`, `docs/artifact_manifest.md`, and `tests/test_multistep_severity_confidence.py`.
+The current workflow uses named, complete-valid run bundles, clean-versus-shifted comparison, deterministic scenario-clustered intervals, and embedded report provenance. See `docs/artifact_manifest.md`.
 
-Frontier LLM API integration is intentionally out of scope for v0.1.0 because the benchmark must remain open-source, reproducible, and free from paid credential requirements.
+Frontier LLM API integration remains out of scope for v0.4.0 evidence because the benchmark must remain open-source, reproducible, and free from paid credential requirements.

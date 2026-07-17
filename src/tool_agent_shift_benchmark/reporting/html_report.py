@@ -3,11 +3,18 @@ from __future__ import annotations
 import argparse
 import csv
 import html
+from collections.abc import Mapping
 from pathlib import Path
 from string import Template
+from typing import Any
 
 from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
 from tool_agent_shift_benchmark.package_resources import read_builtin_resource
+from tool_agent_shift_benchmark.reporting.provenance import (
+    build_report_provenance,
+    capture_verified_source,
+    validate_report_provenance,
+)
 
 
 def _read_rows(path: str | Path) -> list[dict[str, str]]:
@@ -28,15 +35,16 @@ def _table(rows: list[dict[str, str]], columns: list[str], limit: int = 20) -> s
     return f"<table><thead><tr>{header}</tr></thead><tbody>{''.join(body)}</tbody></table>"
 
 
-def _metric_cards(summary_rows: list[dict[str, str]], failure_rows: list[dict[str, str]]) -> str:
-    episodes = sum(float(r.get("episodes", 0) or 0) for r in summary_rows)
-    risk_values = [float(r.get("unsafe_or_failed_rate", r.get("unsafe_action_rate", 0)) or 0) for r in summary_rows]
-    avg_risk = sum(risk_values) / len(risk_values) if risk_values else 0.0
+def _metric_cards(provenance: Mapping[str, Any], failure_rows: list[dict[str, str]]) -> str:
+    metrics = {row["metric_name"]: row for row in provenance["headline_metrics"]}
+    counts = provenance["source_snapshot"]["sample_counts"]
     cards = [
-        ("Summary rows", len(summary_rows)),
-        ("Approx episodes", int(episodes)),
+        ("Planned episodes", counts["planned_episodes"]),
+        ("Completed episodes", counts["completed_episodes"]),
         ("Failure cases", len(failure_rows)),
-        ("Mean unsafe-or-failed rate", f"{avg_risk:.3f}"),
+        ("Safe-success rate", f"{float(metrics['safe_success_rate']['value'] or 0):.3f}"),
+        ("Unsafe-episode rate", f"{float(metrics['unsafe_episode_rate']['value'] or 0):.3f}"),
+        ("Useful-action rate", f"{float(metrics['useful_action_rate']['value'] or 0):.3f}"),
     ]
     return (
         "<div class='cards'>"
@@ -54,6 +62,7 @@ def render_html_report(
     title: str = "Tool-Agent Shift Benchmark Report",
     *,
     artifact_store: ArtifactStore | None = None,
+    source_provenance: Mapping[str, Any] | None = None,
 ) -> Path:
     results = Path(results_dir)
     analysis = (
@@ -61,22 +70,32 @@ def render_html_report(
         if artifact_store is not None and results.name == "results"
         else results / "analysis"
     )
-    summary = _read_rows(results / "summary.csv")
     failures = _read_rows(results / "failure_cases.csv")
     profiles = _read_rows(analysis / "agent_safety_profile.csv")
     clusters = _read_rows(analysis / "failure_clusters.csv")
     thresholds = _read_rows(analysis / "monitor_threshold_sweep.csv")
     calibration = _read_rows(analysis / "monitor_calibration.csv")
+    calibration_summary = _read_rows(analysis / "monitor_calibration_summary.csv")
+    gating = _read_rows(analysis / "monitor_gating_outcomes.csv")
     pairwise = _read_rows(analysis / "pairwise_compound_matrix.csv") or _read_rows(
         analysis / "compound_shift_matrix.csv"
     )
+    run_dir = artifact_store.run_dir if artifact_store is not None else results.parent
+    source = dict(source_provenance or capture_verified_source(run_dir))
+    provenance = build_report_provenance(run_dir, source)
+    validation = validate_report_provenance(provenance)
+    if validation["status"] != "valid":
+        raise ValueError(f"report provenance validation failed: {validation['errors']}")
+    snapshot = provenance["source_snapshot"]
 
     sections = [
         f"<h1>{html.escape(title)}</h1>",
-        "<p class='muted'>Generated from local benchmark CSV artifacts. No external services, no API calls, "
-        "no synthetic magic pretending to be production safety.</p>",
-        _metric_cards(summary, failures),
-        "<h2>Agent safety profile</h2>",
+        f"<p class='muted'>Complete-valid run <code>{html.escape(str(snapshot['source_run_id']))}</code>; "
+        f"metric schema <code>{html.escape(str(snapshot['metric_schema_version']))}</code>; source manifest "
+        f"SHA-256 <code>{html.escape(str(snapshot['source_manifest_sha256']))}</code>. Synthetic evidence is not "
+        "production certification.</p>",
+        _metric_cards(provenance, failures),
+        "<h2>Agent raw outcome profile</h2>",
         _table(
             profiles,
             [
@@ -88,7 +107,7 @@ def render_html_report(
                 "unsafe_or_failed_rate",
                 "coverage",
                 "safe_useful_action_rate",
-                "safety_coverage_score",
+                "clean_shifted_safe_success_gap",
             ],
             20,
         ),
@@ -113,25 +132,54 @@ def render_html_report(
                 "precision",
                 "recall",
                 "false_positive_rate",
-                "coverage_after_gate",
-                "unsafe_rate_after_gate",
+                "specificity",
+                "predicted_block_rate",
+                "coverage_cost",
             ],
             21,
         ),
-        "<h2>Monitor calibration</h2>",
+        "<h2>Realized gating outcomes</h2>",
+        _table(
+            [row for row in gating if row.get("monitor_name") == "ALL"] or gating,
+            [
+                "precision",
+                "recall",
+                "intervention_rate",
+                "prevented_harm",
+                "unnecessary_blocks",
+                "coverage_cost",
+                "executed_unsafe_rate",
+            ],
+            20,
+        ),
+        "<h2>Monitor reliability bins</h2>",
         _table(
             calibration,
             [
                 "monitor_name",
-                "risk_bucket",
+                "bin_lower",
+                "bin_upper",
                 "events",
-                "mean_risk_score",
-                "empirical_unsafe_rate",
-                "calibration_error_abs",
+                "mean_predicted_probability",
+                "empirical_proposed_unsafe_rate",
+                "absolute_calibration_error",
             ],
             30,
         ),
-        "<h2>Compound fault matrix</h2>",
+        "<h3>Calibration eligibility and scores</h3>",
+        _table(
+            calibration_summary,
+            [
+                "monitor_name",
+                "status",
+                "score_semantics",
+                "eligible_events",
+                "brier_score",
+                "expected_calibration_error",
+            ],
+            20,
+        ),
+        "<h2>Compound fault effects</h2>",
         _table(
             pairwise,
             [

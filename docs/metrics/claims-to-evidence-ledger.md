@@ -17,6 +17,31 @@ and the report/plot that renders it.
 | C006 | Smoke and standard suites meet documented runtime, memory, artifact-size, and worker-scaling budgets. | Installed-distribution suite executions. | Performance JSON, platform/runtime metadata, thresholds, logs. | pending |
 | C007 | Challenge split integrity is preserved and challenge outcomes were not used for tuning. | Scenario split manifests and development record. | Split-integrity report, suite manifest, progress/limitations statement. | pending |
 
+## Checkpoint 49 evidence readiness audit
+
+The complete-valid diagnostic run `runs/phase49-report-smoke-2` (run ID
+`run_9b919ff0c2abc28f`) verifies the reporting machinery, not the pending
+standard-suite claims. Its final run-manifest SHA-256 is
+`d658625dc31a0fd7ad608f3c691955ac51b6da289e723f619fefe16da3d83994` and
+finalization SHA-256 is
+`34280ee2ed59b5c4b0505dc93a54e646ea6b25de94876b495dcabc60ba5a12c3`.
+
+| Claim | Available checkpoint evidence | Remaining reason status is not `verified` |
+|---|---|---|
+| C001 | Clean competence is disclosed as passed for 28/28 completed smoke episodes. | This is not the versioned standard suite. |
+| C002 | Metric-schema-v2 outcomes and matched-effect implementation exist. | The smoke has no paired-bootstrap artifact. |
+| C003 | Realized gating tables expose prevented harm, unnecessary blocks, and coverage cost. | Only `record_only` ran; no hard-gate effect may be claimed. |
+| C004 | The counterfactual threshold artifact has TP/FP/TN/FN, all required dimensions, denominators, and clustered interval status; artifact SHA-256 `867209efa80b04010c57f8402f90ab415a5d46feef3251fed64077191590286d`. | Standard-suite monitor treatments and final sample hierarchy are pending. |
+| C005 | Canonical comparison design exists. | Two clean installed standard reproductions are pending. |
+| C006 | No checkpoint evidence. | Versioned performance budgets and measurements are pending. |
+| C007 | Scenario split metadata is present. | Held-out suite manifest and integrity report are pending. |
+
+The report provenance artifact SHA-256 is
+`34741a6ac10a6414288694d21d7a250dc43ca48a53cd2a7b7331fb2223bcc591`.
+It records formulas, raw counts, metric schema, clean competence, executed
+treatments, uncertainty status, and the embedded source manifest. It cannot
+promote a pending claim by itself.
+
 ## Historical checked-in material
 
 The tracked root `results/`, `figures/`, `docs/experimental_report.md`, and

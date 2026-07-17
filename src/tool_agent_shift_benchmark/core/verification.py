@@ -42,6 +42,7 @@ _KNOWN_ARTIFACT_SCHEMAS = {
     "metric-schema-v2",
     "statistical-analysis-v1",
     "monitor-evaluation-v1",
+    "report-provenance-v1",
     "opaque-artifact-v1",
 }
 

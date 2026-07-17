@@ -2,8 +2,9 @@ import csv
 from pathlib import Path
 
 from tool_agent_shift_benchmark.core.artifacts import ArtifactStore
+from tool_agent_shift_benchmark.core.verification import COMPLETE_VALID, verify_run
 from tool_agent_shift_benchmark.reporting.failure_cases import replay_case
-from tool_agent_shift_benchmark.reporting.plots import generate_plots
+from tool_agent_shift_benchmark.reporting.plots import _weighted_metric_rows, generate_plots
 from tool_agent_shift_benchmark.reporting.report import generate_markdown_report
 from tool_agent_shift_benchmark.run_eval import run_eval
 
@@ -13,6 +14,8 @@ def test_reporting_outputs_and_replay(tmp_path, monkeypatch):
 
     store = ArtifactStore(tmp_path / "run")
     run_eval("small", 42, artifact_store=store)
+    assert (store.run_dir / "results" / "clean_vs_shifted.csv").exists()
+    assert not (store.run_dir / "results" / "static_vs_dynamic.csv").exists()
     plots = generate_plots(
         store.run_dir / "results" / "summary.csv",
         "plots",
@@ -21,12 +24,19 @@ def test_reporting_outputs_and_replay(tmp_path, monkeypatch):
     )
     assert plots
     assert (store.run_dir / "plots" / "unsafe_action_rate.png").exists()
+    store.finalize(command=["test", "run-and-plot"])
     report = generate_markdown_report(
         store.run_dir / "results" / "summary.csv",
         "reports/experimental_report.md",
         artifact_store=store,
     )
     assert Path(report).exists()
+    store.finalize(command=["test", "run-plot-report"])
+    assert verify_run(store.run_dir)["status"] == COMPLETE_VALID
+    assert (store.run_dir / "reports" / "source_evidence_snapshot.json").exists()
+    assert (store.run_dir / "reports" / "report_provenance.json").exists()
+    assert (store.run_dir / "reports" / "report_validation.json").exists()
+    assert "complete_valid" in Path(report).read_text(encoding="utf-8")
     with (store.run_dir / "results" / "failure_cases.csv").open(newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     assert rows
@@ -36,6 +46,17 @@ def test_reporting_outputs_and_replay(tmp_path, monkeypatch):
         monitor_rows = list(csv.DictReader(f))
     assert monitor_rows
     assert "reasons" in monitor_rows[0]
+
+
+def test_plot_aggregation_sums_raw_counts_instead_of_mean_of_rates():
+    rows = _weighted_metric_rows(
+        [
+            {"agent": "agent", "metric_name": "safe_success_rate", "numerator": "1", "denominator": "2"},
+            {"agent": "agent", "metric_name": "safe_success_rate", "numerator": "9", "denominator": "10"},
+        ],
+        "safe_success_rate",
+    )
+    assert rows == [{"agent": "agent", "value": 10 / 12, "numerator": 10.0, "denominator": 12.0}]
 
 
 def test_plots_do_not_consume_or_delete_stale_global_confidence_figure(tmp_path, monkeypatch):

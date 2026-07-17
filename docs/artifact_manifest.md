@@ -1,125 +1,39 @@
-# Artifact Manifest
+# Artifact manifest
 
-This file records the expected artifact contract for the smoke reproducibility path. It is intentionally boring. Boring reproducibility beats decorative research cosplay.
+The authoritative artifact inventory is generated per run in
+`runs/<name>/run_manifest.json`. This document describes artifact families; it
+does not assert fixed row counts or endorse historical root outputs.
 
-## Smoke command
-
-```bash
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m compileall -q src tests
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q
-python -m tool_agent_shift_benchmark.run_eval --all-envs --all-agents --config small --seed 42
-python -m tool_agent_shift_benchmark.plot_results
-python -m tool_agent_shift_benchmark.generate_report
-python -m tool_agent_shift_benchmark.analysis.run_analysis
-```
-
-CI runs this same smoke contract via `scripts/run_repro.sh`.
-
-## Expected smoke outputs
-
-For `small` with `--all-envs --all-agents`:
-
-- environments: 3
-- agents: 5
-- fault groups: `normal` at severity `1.0`, plus 3 shifted faults at severities `0.5` and `1.0`
-- groups: `3 * 5 * 7 = 105`
-- episodes per group: 2
-- expected episodes: 210
-
-Expected files after the smoke run:
-
-- `results/episode_log.csv`: 210 data rows
-- `results/action_records.csv`: one row per rollout step
-- `results/action_records.jsonl`: one lossless versioned record per rollout step
-- `results/summary.csv`: 105 data rows
-- `results/failure_cases.csv`: zero or more unsafe-case rows
-- `results/monitor_events.csv`: one or more monitor rows per episode
-- `results/static_vs_dynamic.csv`: one row per evaluated agent
-- `results/config.json`: includes both raw config and effective env/agent/fault selections
-- `results/scenario_coverage.json`: 6 unique generated scenarios (2 per environment) and a stable coverage hash
-- `results/scenario_coverage.csv`: long-form counts for every declared scenario-family dimension
-- `results/multistep_traces.jsonl`: one line per episode
-- `figures/unsafe_action_rate.png`
-- `figures/coverage_vs_safety.png`
-- `figures/monitor_recall_precision.png`
-- `figures/recovery_rate.png`
-- `figures/failure_breakdown.png`
-- `figures/unsafe_step_rate.png`
-- `figures/static_vs_dynamic_gap.png`
-- `docs/experimental_report.md`
-
-`results/seed_summary.csv`, `results/confidence_intervals.csv`, and `figures/confidence_intervals.png` are generated only by the multi-seed path. They should not silently survive as stale artifacts after a single-seed run.
-
-## Multi-seed command
+## Required run lifecycle
 
 ```bash
-python -m tool_agent_shift_benchmark.run_seeds --config seeds --all-envs --all-agents
-python -m tool_agent_shift_benchmark.plot_results
-python -m tool_agent_shift_benchmark.generate_report
-python -m tool_agent_shift_benchmark.analysis.run_analysis
+tasb run --config small --run-name smoke
+tasb analyze --run runs/smoke
+tasb plot --run runs/smoke
+tasb report --run runs/smoke --html
+tasb verify-run --strict runs/smoke
 ```
 
-The multi-seed output is the only valid source for confidence intervals.
+`run_manifest.json` records every file, schema family, and SHA-256 checksum.
+`finalization.json` binds the manifest. Reports and plots capture the verified
+source manifest before adding their own files, then the bundle is finalized
+again.
 
-## Included artifact state after final validation
+## Scientific artifacts
 
-The checked-in generated artifacts are from the extended multi-seed validation path:
+- `results/metric_evidence.csv` and JSONL — metric-schema-v2 evidence;
+- typed episode/step outcomes and versioned action records;
+- `results/monitor_events.csv` — monitor-evaluation-v1 inputs;
+- `results/clean_vs_shifted.csv` — clean/shift treatment comparison;
+- scenario manifests, execution plan, identities, traces, status, and errors;
+- statistical config, confidence intervals, paired effects, and power plans;
+- monitor detector, gating, calibration, utility, and Pareto tables;
+- verified report/plot source snapshots and report validation;
+- plots and reports whose names match the rendered statistic.
 
-```bash
-python -m tool_agent_shift_benchmark.run_seeds --config seeds --all-envs --all-agents
-python -m tool_agent_shift_benchmark.plot_results
-python -m tool_agent_shift_benchmark.generate_report
-python -m tool_agent_shift_benchmark.analysis.run_analysis
-```
+Multi-seed parent bundles retain finalized child runs and a first-class stable
+analysis identity. Confidence artifacts are absent when uncertainty was not
+estimated; reports disclose that absence rather than implying zero width.
 
-Expected current generated outputs for that path:
-
-- `results/episode_log.csv`: 324 data rows from the latest seed run
-- `results/summary.csv`: 162 data rows from the latest seed run
-- `results/failure_cases.csv`: zero or more unsafe-case rows from the latest seed run
-- `results/monitor_events.csv`: one or more monitor rows per episode from the latest seed run
-- `results/static_vs_dynamic.csv`: 6 data rows, one per evaluated agent
-- `results/multistep_traces.jsonl`: 324 lines from the latest seed run
-- `results/seed_summary.csv`: 486 data rows across 3 seeds
-- `results/confidence_intervals.csv`: 270 data rows
-- `figures/confidence_intervals.png`: present only because the multi-seed path was run
-
-The smoke command remains the fastest reviewer path. The multi-seed artifacts are checked in as example evidence, not as production-safety proof.
-
-
-## Pairwise compound matrix
-
-Run explicit fault-pair analysis with:
-
-```bash
-python -m tool_agent_shift_benchmark.analysis.run_pairwise_compounds --config compound_matrix
-```
-
-Expected outputs:
-
-- `results/analysis/pairwise_compound_matrix.csv`
-- `results/analysis/pairwise_compound_manifest.json`
-
-## Release verification
-
-Before packaging a release archive, run:
-
-```bash
-bash scripts/verify_release.sh
-```
-
-This checks compile, tests, smoke benchmark outputs, generated reports, post-hoc analysis outputs, and pairwise compound outputs.
-
-
-## v0.3.0 expected additional artifacts
-
-- `docs/analysis_report.html`
-- `figures/monitor_threshold_curve.png`
-- `figures/calibration_curve.png`
-- `figures/agent_safety_profile.png`
-- `figures/pairwise_compound_heatmap.png`
-- `figures/failure_cluster_topn.png`
-- optional `runs/<run-name>/run_manifest.json` when using the CLI run directory workflow.
-# Run bundle format
-
-Completed runs are self-contained under `runs/<name>/`: `run_manifest.json`, a copied `config.json`, legacy CSV exports, structured `results/episodes.jsonl`, versioned `results/action_records.jsonl`, action-record CSV, policy/evaluator traces, figures, reports, and replay data. The manifest records identity, episode-record, and action-record versions, config digest, plugin catalog, episode count, checkpoint information, and SHA-256 checksums for every generated file. Plugin catalog entries bind trust and isolation mode; completed episode metadata records `plugin-isolation-manifest-v1` runtime enforcement details without process IDs. `results/orchestration_errors.jsonl` retains failed planned episode identity, structured failure details, and its infrastructure action record. Summary/config counts distinguish planned, completed, and failed episodes so failures remain in denominators.
+Historical checked-in `results/`, `figures/`, and generated reports are not
+source inputs for v0.4.0 claims.

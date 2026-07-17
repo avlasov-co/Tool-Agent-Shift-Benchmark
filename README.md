@@ -1,303 +1,123 @@
 # Tool-Agent Shift Benchmark
 
-## Platform architecture
-
-The runtime boundaries and policy/evaluator data flow are maintained in [docs/architecture.mmd](docs/architecture.mmd), with checked-in [SVG](docs/architecture.svg) and [PNG](docs/architecture.png) renders. Use `tasb plan --config small` to inspect a resolved matrix and `tasb plugins list` to inspect installed plugins.
-
-![CI](https://github.com/avlasov-co/tool-agent-shift-benchmark/actions/workflows/ci.yml/badge.svg)
+[![CI](https://github.com/avlasov-co/tool-agent-shift-benchmark/actions/workflows/ci.yml/badge.svg)](https://github.com/avlasov-co/tool-agent-shift-benchmark/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Release](https://img.shields.io/github/v/release/avlasov-co/tool-agent-shift-benchmark)
 
-A deterministic benchmark for evaluating tool-using agent safety under schema drift, stale observations, conflicting tool outputs, corrupted memory, latency spikes, and constraint shift.
+A deterministic synthetic benchmark for tool-using agent behavior under schema
+drift, stale observations, conflicting outputs, memory faults, latency, and
+constraint shift.
 
-## 30-second version
+The benchmark separates visible policy context from evaluator-only state. It
+records proposed actions, monitor decisions, interventions, executed actions,
+counterfactual proposed-action risk, and realized outcomes without exposing
+hidden labels to agents or monitors.
 
-Tool-using agents rely on external state: APIs, schemas, tool outputs, memory, timestamps, and task constraints. This benchmark evaluates what happens when that state becomes unreliable. It focuses on deployment-style failure modes such as schema drift, stale observations, missing fields, conflicting tool outputs, corrupted memory, latency spikes, and constraint shifts.
+## Evidence status
 
-The project provides a deterministic synthetic evaluation suite with FileOps, CalendarOps, and RiskOps environments; fault severity sweeps; multiple agent policies; oversight monitors; multi-step rollouts; static-vs-dynamic comparisons; confidence intervals; replayable failure cases; generated plots; tests; reproducibility scripts; and paper-style documentation.
+This branch prepares v0.4.0 evidence contracts. Checked-in root `results/`,
+`figures/`, and generated reports are historical examples, not current headline
+evidence. Current claims must come from a named `runs/<name>/` bundle whose
+`tasb verify-run --strict` status is `complete_valid`.
 
-## Why this matters
-
-Many agent evaluations focus on whether a model can solve a task in a clean setting. Real tool-using systems operate under less stable conditions: APIs change, observations become stale, tool outputs conflict, and constraints shift over time.
-
-This benchmark studies those deployment-style failures directly. It separates model policy, tool interface, environment state, fault injection, oversight monitors, and safety metrics so each failure mode can be tested and inspected under controlled conditions.
-
-## Headline results
-
-The benchmark generates:
-
-- unsafe action rates by environment, agent, fault, severity, and monitor mode;
-- coverage-vs-safety tradeoff plots;
-- monitor recall and false-positive comparisons;
-- static-vs-dynamic safety gaps;
-- multi-seed confidence intervals;
-- replayable unsafe failure cases.
-
-Expected high-level pattern:
-
-- naive agents maintain high coverage but fail more often under shift;
-- conservative and validation-heavy agents reduce unsafe behavior but abstain more often;
-- hard-gate oversight can trade some coverage for improved safety without
-  changing the underlying agent policy;
-- compound shifts expose failures that single-fault evaluations may miss.
-
-Do not treat the numbers in the README as a substitute for running the benchmark. Generate current numbers locally with the commands below, then inspect `results/summary.csv`, `results/static_vs_dynamic.csv`, and `docs/experimental_report.md`. Hard-coded headline metrics go stale faster than a demo repo pretending to be science.
-
-## Example outputs
-
-![Unsafe action rate — lower is safer](figures/unsafe_action_rate.png)
-
-![Coverage vs safety — seek the upper-right](figures/coverage_vs_safety.png)
-
-![Static vs dynamic gap — positive means dynamic behavior changed](figures/static_vs_dynamic_gap.png)
-
-The charts are annotated with titles, units, category names, and values. The generated report includes a **How to read the charts** section explaining what each metric means and whether higher or lower is better.
-
-Confidence-interval plots are generated only after the multi-seed command.
+The project does not claim production safety, frontier-model capability, or
+real-world effectiveness. Synthetic reference-policy results support only the
+declared suite and metric definitions.
 
 ## Quick start
 
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 make setup
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m compileall -q src tests
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q
-python -m tool_agent_shift_benchmark.run_eval --all-envs --all-agents --config small --seed 42
-python -m tool_agent_shift_benchmark.plot_results
-python -m tool_agent_shift_benchmark.generate_report
-python -m tool_agent_shift_benchmark.analysis.run_analysis
-```
 
-
-## CLI workflow
-
-After installation, use the `tasb` command for a cleaner benchmark workflow:
-
-```bash
 tasb validate-config small
-tasb run --config small --all-envs --all-agents --seed 42 --run-name smoke --overwrite
+tasb run --config small --seed 42 --run-name smoke
 tasb analyze --run runs/smoke
-tasb pairwise --config compound_matrix --run runs/smoke
 tasb plot --run runs/smoke
 tasb report --run runs/smoke --html
+tasb verify-run --strict runs/smoke
+```
+
+`tasb analyze`, `tasb plot`, and `tasb report` consume an explicit run bundle.
+Evidence-bearing plots and reports embed a snapshot of the complete-valid source
+manifest. Existing run names are never overwritten.
+
+## Metrics and uncertainty
+
+Normative definitions are in
+[`docs/metrics/metric-data-dictionary.md`](docs/metrics/metric-data-dictionary.md).
+Every v2 rate record includes its numerator, denominator, unit, formula,
+inclusion rule, and missing-data rule.
+
+Key distinctions include:
+
+- safe success versus safe non-success;
+- unsafe proposed action versus unsafe executed action;
+- constraint violation versus generic unsafe outcome;
+- agent abstention versus oversight intervention;
+- temporal recovery versus schema recovery;
+- monitor detector quality versus realized gating safety.
+
+Statistical intervals use unique scenario manifests as independent clusters.
+Clean/shift effects are matched within scenarios before deterministic bootstrap
+resampling. Insufficient cells have no numeric interval. Built-in monitor scores
+are ordinal and do not produce reliability diagrams; calibration requires the
+explicit `probability-score-v1` contract.
+
+## Run-bundle outputs
+
+Important bundle-local artifacts include:
+
+- `results/metric_evidence.csv` — long-form metric-schema-v2 evidence;
+- `results/episode_outcomes.csv` and `results/step_outcomes.csv` — typed outcomes;
+- `results/action_records.jsonl` — lossless proposal-through-execution records;
+- `results/monitor_events.csv` — counterfactual monitor evaluation inputs;
+- `results/clean_vs_shifted.csv` — correctly named treatment comparison;
+- `analysis/monitor_threshold_sweep.csv` — detector confusion/interval rows;
+- `analysis/monitor_gating_outcomes.csv` — actual intervention/execution rows;
+- `analysis/monitor_calibration_summary.csv` — calibration eligibility, Brier, and ECE;
+- `results/confidence_intervals.csv` and `results/paired_effect_intervals.csv` — scenario-clustered inference;
+- `reports/source_evidence_snapshot.json` and `reports/report_provenance.json` — report evidence links;
+- `run_manifest.json` and `finalization.json` — schema inventory and checksums.
+
+## Failure inspection
+
+```bash
 tasb replay CASE_ID --run runs/smoke --format markdown
-tasb verify-release
 ```
 
-`python -m tool_agent_shift_benchmark` and `tasb` are the supported command
-interfaces. The former `python -m src...` source-layout imports were removed in
-v0.3.1; no generic `src` compatibility shim is retained because it would mask
-source-tree import leakage.
+Failure replay shows the visible observation, proposed action, monitor decision,
+intervention, executed action, evaluator-only check, and reason codes.
 
-## Reproduce
+## Architecture and boundaries
 
-Run the main local reproducibility path:
+The maintained architecture is in
+[`docs/architecture.mmd`](docs/architecture.mmd), with checked-in
+[`SVG`](docs/architecture.svg) and [`PNG`](docs/architecture.png) renders.
+Agents and monitors receive only `ObservationContext` and policy-visible tool
+responses. They cannot access hidden ground truth, clean unfaulted responses,
+post-hoc metrics, or shift provenance.
+
+The benchmark is non-operational: it uses no real filesystem, calendar, market,
+or user data and requires no network credentials.
+
+## Development checks
 
 ```bash
-bash scripts/run_repro.sh
+make lint
+make format-check
+make typecheck
+make test
+make coverage
+make audit
 ```
 
-For the extended confidence-interval run:
-
-```bash
-python -m tool_agent_shift_benchmark.run_seeds --config seeds --all-envs --all-agents
-```
-
-For monitor ablations:
-
-```bash
-python -m tool_agent_shift_benchmark.run_sweep --config ablations --seed 42
-```
-
-The ablation sweep executes all five named monitor compositions as separate
-plan cells and groups outputs by both monitor composition and oversight mode.
-
-
-For the explicit pairwise compound-fault matrix:
-
-```bash
-python -m tool_agent_shift_benchmark.analysis.run_pairwise_compounds --config compound_matrix
-```
-
-For release validation:
-
-```bash
-make verify-release
-make release-artifacts RELEASE_OUTPUT=release-artifacts
-(cd release-artifacts && sha256sum -c SHA256SUMS)
-```
-
-## Inspecting failure cases
-
-Unsafe episodes are exported to `results/failure_cases.csv` and can be replayed:
-
-```bash
-python -m tool_agent_shift_benchmark.reporting.failure_cases --case-id CASE_ID
-```
-
-A replay shows the environment, fault condition, immutable proposed action,
-monitor decision, intervention, separately executed action, hidden ground-truth
-check, and unsafe reason codes. This makes failures auditable instead of only
-statistical.
-
-## What gets generated
-
-- `results/summary.csv` — grouped metrics by environment, agent, fault, and severity.
-- `results/episode_log.csv` — per-episode trace summary.
-- `results/action_records.csv` — one proposed-through-evaluated record per rollout step.
-- `results/action_records.jsonl` — lossless versioned action records.
-- `results/failure_cases.csv` — replayable unsafe cases.
-- `results/monitor_events.csv` — monitor decisions and reason codes.
-- `results/config.json` — exact run metadata.
-- `results/static_vs_dynamic.csv` — static clean score vs dynamic shifted score.
-- `results/seed_summary.csv` — per-seed metrics generated only by `tool_agent_shift_benchmark.run_seeds`.
-- `results/confidence_intervals.csv` — multi-seed confidence intervals generated only by `tool_agent_shift_benchmark.run_seeds`.
-- `results/multistep_traces.jsonl` — multi-step episode traces.
-- `results/evaluator_traces.jsonl` — evaluator-only action records and hidden labels.
-- `results/scenario_coverage.json` — deterministic scenario-family and split coverage summary.
-- `results/scenario_coverage.csv` — long-form coverage counts for task, hazard, protected-object, constraint, temporal, and fault dimensions.
-- `figures/*.png` — benchmark plots.
-- `docs/experimental_report.md` — generated report from current results.
-- `results/analysis/*.csv` — post-hoc failure clustering, monitor calibration, agent profiles, and compound-shift analysis.
-- `docs/analysis_report.md` — generated analysis report from current results.
-
-
-## Evaluator boundary
-
-Agents and monitors receive an `ObservationContext`, not the full synthetic environment object. The context contains only visible tool outputs, visible constraints, schema requirements, current timestamp, and visible-only action helpers. Hidden ground truth, clean unfaulted tool responses, execution methods, execution results, and post-hoc unsafe labels remain evaluator-only and are used only after the decision for scoring, evaluator logging, and failure replay. Policy traces retain proposal and intervention history but omit evaluator labels.
-
-This matters because a benchmark that lets policies inspect hidden state is just a magic trick with CSV files. The regression tests in `tests/test_context.py` and `tests/test_agents.py` check this boundary directly.
-
-## Main metrics
-
-- `unsafe_action_rate`: fraction of episodes with unsafe actions.
-- `unsafe_step_rate`: fraction of rollout steps containing unsafe actions.
-- `coverage`: fraction of episodes where an agent took a non-abstain action.
-- `abstention_rate`: fraction of episodes where the agent abstained.
-- `task_success_rate`: safe task completion rate.
-- `safe_useful_action_rate`: useful successful action rate without unsafe behavior.
-- `monitor_recall`: how often monitor gating caught unsafe actions.
-- `monitor_false_positive_rate`: how often monitor gating blocked safe actions.
-- `proposed_action_risk_label`: evaluator-only TP/FP/FN/TN classification from a pure pre-execution score.
-- `latency_overhead_ms`: synthetic latency introduced by faults or oversight.
-
-## Benchmark coverage
-
-| Area | Included |
-|---|---|
-| Environments | FileOps, CalendarOps, RiskOps |
-| Faults | 9 deterministic fault modes |
-| Agents | 5 independent base policies |
-| Monitors | 6 monitor types + ablations |
-| Rollouts | Single-step and multi-step |
-| Analysis | Severity sweeps, static-vs-dynamic, confidence intervals, monitor calibration, failure clustering, pairwise compound matrix |
-| Inspectability | Replayable failure cases |
-| Reproducibility | CI, tests, scripts, release archives |
-
-## Repository map
-
-```text
-tool-agent-shift-benchmark
-├── README.md
-├── PROJECT_SPEC.md
-├── docs/
-│   ├── index.md
-│   ├── paper.md
-│   ├── eval_card.md
-│   ├── experimental_report.md
-│   └── ...
-├── figures/
-├── results/
-├── scripts/
-├── src/tool_agent_shift_benchmark/
-│   ├── agents/
-│   ├── core/
-│   ├── environments/
-│   ├── faults/
-│   ├── metrics/
-│   ├── monitors/
-│   ├── reporting/
-│   ├── resources/
-│   │   ├── configs/
-│   │   ├── policies/
-│   │   └── templates/
-│   ├── run_eval.py
-│   ├── run_sweep.py
-│   └── run_seeds.py
-└── tests/
-```
-
-## Architecture flow
-
-```text
-Scenario / Synthetic Task
-        ↓
-Environment
-        ↓
-Tool Interface
-        ↓
-Fault Injection
-        ↓
-Visible ObservationContext
-        ↓
-Agent Decision
-        ↓
-Monitor Decision
-        ↓
-Action Execution
-        ↓
-Ground Truth Safety Check
-        ↓
-Metrics + Logs + Failure Cases
-        ↓
-Plots + Report + Paper-Style Analysis
-```
-
-## Safety boundary
-
-This project is non-operational by design:
-
-- no real APIs;
-- no real filesystem modification;
-- no real calendar data;
-- no real financial trading;
-- no real market data;
-- no real user data;
-- no credentials;
-- no network calls;
-- no exploit code;
-- no bypass guidance;
-- no operational abuse instructions;
-- no external side effects beyond local benchmark outputs under `results/` and `figures/`.
-
-Synthetic does not mean superficial. The benchmark isolates deployment-style failure mechanisms under controlled conditions without touching real systems.
-
-## What this benchmark measures
-
-It measures controlled failure modes caused by synthetic tool-environment shift: stale data, schema drift, missing fields, conflicting outputs, corrupted memory, latency, and shifting constraints. It also compares mitigation strategies such as validation, retries, independent record-only or hard-gate oversight, conservative abstention, monitor ablations, severity sweeps, and multi-seed confidence intervals.
-
-## What it does not measure
-
-It does not measure real-world deployment safety directly, real trading, real scheduling, real filesystem safety, or frontier-model capability. Frontier LLM API integration is intentionally out of scope for v0.1.0 because the benchmark is open-source and should not require paid credentials or unsafe key handling.
-
-## Documentation
-
-Start with:
-
-1. [`docs/index.md`](docs/index.md) — reviewer guide.
-2. [`docs/artifact_manifest.md`](docs/artifact_manifest.md) — expected generated artifacts, row counts, and command contract.
-3. [`docs/paper.md`](docs/paper.md) — mini-paper and experimental framing.
-4. [`docs/eval_card.md`](docs/eval_card.md) — intended use, non-goals, and limitations.
-5. [`docs/experimental_report.md`](docs/experimental_report.md) — generated report from included results.
-6. [`PROJECT_SPEC.md`](PROJECT_SPEC.md) — full benchmark contract and architecture.
-
-## Citation
-
-See `CITATION.cff`.
+See [`docs/index.md`](docs/index.md), [`docs/paper.md`](docs/paper.md),
+[`docs/eval_card.md`](docs/eval_card.md), and
+[`docs/development/phase-6-progress.md`](docs/development/phase-6-progress.md).
 
 ## License
 
-MIT License. See `LICENSE`.
+MIT. See [`LICENSE`](LICENSE).

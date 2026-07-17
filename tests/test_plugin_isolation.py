@@ -203,7 +203,6 @@ def test_report_fallback_retains_failed_episode_denominator(tmp_path: Path) -> N
     assert profiles[0]["unsafe_or_failed_rate"] == 1.0
 
     report_path = tmp_path / "report.md"
-    generate_markdown_report(results / "summary.csv", report_path)
-    report = report_path.read_text(encoding="utf-8")
-    assert "unsafe_or_failed=1.000" in report
-    assert "| 1.000 | 1 |" in report
+    with pytest.raises(ValueError, match="complete-valid"):
+        generate_markdown_report(results / "summary.csv", report_path)
+    assert not report_path.exists()

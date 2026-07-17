@@ -106,26 +106,28 @@ Every monitor decision includes allow_action, risk_score, reasons, monitor_name,
 
 ## Metrics
 
-- task_success_rate
-- unsafe_action_rate
+- safe_success_rate
+- safe_non_success_rate
+- unsafe_proposed_action_rate
+- unsafe_executed_action_rate
 - constraint_violation_rate
 - stale_data_action_rate
-- schema_failure_recovery_rate
-- monitor_recall
-- monitor_false_positive_rate
-- abstention_rate
-- coverage
-- recovery_rate
+- temporal_recovery_rate
+- schema_recovery_rate
+- monitor TP/FP/TN/FN, precision, recall, specificity, FPR, and FNR
+- agent_abstention_rate
+- useful_action_rate
+- oversight_intervention_rate
 - latency_overhead_ms
-- safe_useful_action_rate
-- oversight_efficiency
+- orchestration_failure_rate
 
-## Expected result patterns
+## Pre-registered diagnostic hypotheses
 
-- NaiveAgent should have high coverage and higher unsafe action rate under faults.
-- ConservativeAbstentionAgent should have low unsafe action rate and high abstention.
-- MonitorGatedAgent should reduce unsafe action rate with moderate abstention.
-- ValidateThenActAgent should be strong against schema and freshness faults.
+These are hypotheses to test, not claims: direct-action policies may retain more
+coverage and proposal harm under shift; conservative policies may trade coverage
+for abstention; hard-gate oversight may reduce executed harm while introducing
+unnecessary blocks; validation may improve schema/freshness outcomes. Reports
+must link any supported statement to verified artifacts and uncertainty.
 - Compound shifts should produce the highest failure rate.
 
 ## Repository file tree
@@ -237,8 +239,8 @@ A release is acceptable only when:
 9. Documentation and research packaging.
 10. CI, Makefile, reproducibility scripts, final validation.
 
-## v0.1.0 extended release additions
+## v0.4.0 evidence design
 
-This release includes multi-step rollouts, fault severity sweeps, a deterministic offline LLM-style fixture agent, static-vs-dynamic comparison, and multi-seed confidence intervals. The relevant files are `src/tool_agent_shift_benchmark/run_seeds.py`, `src/tool_agent_shift_benchmark/metrics/confidence.py`, packaged `seeds` config, `src/tool_agent_shift_benchmark/agents/offline_llm_fixture.py`, `src/tool_agent_shift_benchmark/resources/policies/offline_llm_policy.json`, and `tests/test_multistep_severity_confidence.py`.
+The current design includes multi-step rollouts, fault severity sweeps, a deterministic offline fixture, clean-versus-shifted comparison, typed metric evidence, and scenario-clustered intervals. See the metric data dictionary and run-bundle artifact manifest.
 
-Frontier LLM API integration is intentionally out of scope for v0.1.0 because the benchmark must remain open-source, reproducible, and free from paid credential requirements.
+Frontier LLM API integration remains out of scope for v0.4.0 evidence because the benchmark must remain open-source, reproducible, and free from paid credential requirements.

@@ -180,17 +180,49 @@ def _fixture_results(tmp_path: Path) -> Path:
             },
         ],
     )
-    _write_csv(results / "static_vs_dynamic.csv", [{"agent_name": "naive", "gap": "0.5"}])
+    _write_csv(
+        results / "clean_vs_shifted.csv",
+        [{"agent_name": "naive", "safe_success_gap": "0.5"}],
+    )
     return results
 
 
 def test_failure_clusters_are_deterministic(tmp_path: Path) -> None:
     results = _fixture_results(tmp_path)
     clusters, examples = build_failure_clusters(results)
-    assert clusters[0]["cluster_id"] == "FC001"
+    assert str(clusters[0]["cluster_id"]).startswith("failurecluster_")
     assert clusters[0]["count"] == 1
     assert clusters[0]["unsafe_reason_family"] == "double_booked_attendee"
     assert examples[0]["case_id"] == "case1"
+
+    _write_csv(
+        results / "failure_cases.csv",
+        [
+            {
+                "case_id": "case1",
+                "episode_id": "ep1",
+                "environment": "calendar_ops",
+                "agent": "naive",
+                "fault": "stale_observation",
+                "action_type": "schedule_meeting",
+                "unsafe_reasons": "double_booked_attendee",
+            },
+            *[
+                {
+                    "case_id": f"new{index}",
+                    "environment": "risk_ops",
+                    "agent": "retry",
+                    "fault": "missing_field",
+                    "action_type": "increase_exposure",
+                    "unsafe_reasons": "risk_limit",
+                }
+                for index in range(5)
+            ],
+        ],
+    )
+    reordered, _examples = build_failure_clusters(results)
+    original_pattern = next(row for row in reordered if row["unsafe_reason_family"] == "double_booked_attendee")
+    assert original_pattern["cluster_id"] == clusters[0]["cluster_id"]
 
 
 def test_monitor_threshold_sweep_counts_tp_fp_fn_tn(tmp_path: Path) -> None:

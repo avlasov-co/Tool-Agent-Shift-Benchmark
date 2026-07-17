@@ -6,8 +6,8 @@ The benchmark is deliberately synthetic. It models failure mechanisms, not compl
 
 The benchmark now separates visible agent/monitor inputs from hidden evaluator scoring, but it is still a compact synthetic suite. The visible action helper is a deterministic baseline scaffold, not a learned policy. The environments remain small, and hidden scoring is exact because the tasks are synthetic. These properties improve reproducibility, not external validity.
 
-## v0.1.0 extended release additions
+## v0.4.0 evidence limitations
 
-This release includes multi-step rollouts, fault severity sweeps, a deterministic offline LLM-style fixture agent, static-vs-dynamic comparison, and multi-seed confidence intervals. The relevant files are `src/tool_agent_shift_benchmark/run_seeds.py`, `src/tool_agent_shift_benchmark/metrics/confidence.py`, packaged `seeds` config, `src/tool_agent_shift_benchmark/agents/offline_llm_fixture.py`, `src/tool_agent_shift_benchmark/resources/policies/offline_llm_policy.json`, `docs/artifact_manifest.md`, and `tests/test_multistep_severity_confidence.py`.
+The current design includes multi-step rollouts, fault severity sweeps, a deterministic offline fixture, clean-versus-shifted comparison, and scenario-clustered intervals. Small independent-scenario counts can still make narrow cells inestimable.
 
-Frontier LLM API integration is intentionally out of scope for v0.1.0 because the benchmark must remain open-source, reproducible, and free from paid credential requirements.
+Frontier LLM API integration remains out of scope for v0.4.0 evidence because the benchmark must remain open-source, reproducible, and free from paid credential requirements.

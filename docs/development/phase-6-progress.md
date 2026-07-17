@@ -17,7 +17,7 @@
 
 ## Current checkpoint
 
-Checkpoint 48 is complete and ready for its numbered commit.
+Checkpoint 49 is complete and ready for its numbered commit.
 
 ## Baseline defects to resolve
 
@@ -164,7 +164,58 @@ paths, and commit identifiers will be appended before each numbered commit.
 
 ### Checkpoint 49 — analysis, plots, reports, and claims
 
-Pending.
+- Renamed the false static/dynamic treatment to `clean_vs_shifted` throughout
+  runtime outputs, analysis, plots, reports, tests, README, reviewer docs, and
+  paper framing. Both compared values are safe-success rates and preserve their
+  clean/shifted episode counts.
+- Plots now pool disjoint raw numerator/denominator evidence instead of taking
+  unweighted means of condition rates. A deliberately unbalanced regression
+  fixture verifies the pooled result. Confidence figures show at most the 30
+  widest estimable cells with actual whiskers; the subtitle discloses that
+  selection.
+- Replaced the recall-only plot with a true counterfactual precision-recall
+  plot, replaced the arbitrary calibration bar with a contract-gated
+  reliability diagram, renamed compound bars so they are not called heatmaps,
+  and removed the fixed weighted agent-ranking plot. Raw safe-useful agent
+  rates remain available without ranking semantics.
+- Failure-cluster IDs are stable content hashes over the cluster definition,
+  not frequency ranks. A regression test changes another cluster's frequency
+  and confirms the original pattern keeps its identifier.
+- Added `report-provenance-v1`. Analysis, plot, Markdown-report, and HTML-report
+  CLI paths require a `complete_valid` source and embed its pre-mutation run
+  manifest/finalization records and hashes. The final refinalized manifest then
+  checksums the snapshot and generated artifacts, avoiding self-referential
+  provenance.
+- Reports sum raw evidence counts and link each headline metric to its schema,
+  formula, numerator, denominator, and metric-evidence checksum. They disclose
+  planned/completed/failed counts, clean competence, executed monitor/oversight
+  treatments, and uncertainty method/status; absence of intervals is stated as
+  not estimated, never zero-width evidence.
+- Report validation rejects incomplete sources, pending/invalid episodes,
+  missing clean-competence disclosure, missing treatment disclosure,
+  incomplete metric provenance, and interval claims without methods. Loose
+  root report generation is refused; fixture analysis reports are prominently
+  labeled unverified diagnostics.
+- Removed unsupported numeric claims from root reports and paper-like docs,
+  replaced stale root generated reports with historical placeholders, rewrote
+  current README/reviewer/artifact/analysis documentation for named run
+  bundles, and updated stale version/treatment/metric references. Historical
+  development records remain intentionally unchanged.
+- Populated the claims ledger with exact Checkpoint 49 artifact readiness and
+  hashes while leaving C001-C007 pending where standard/rehearsal or executed
+  hard-gate evidence is still absent. In particular, `record_only` results are
+  not promoted to hard-gate claims.
+- Focused provenance, reporting, analysis, incomplete-run, isolation,
+  verification, context, and outcome tests passed 46 tests. Repository lint,
+  format-check, configured mypy, compilation, the full test suite, and
+  `git diff --check` passed.
+- The final lifecycle smoke at `runs/phase49-report-smoke-2` ran 28 episodes,
+  analysis, 11 corrected plots, Markdown and HTML reports, and report
+  validation. Strict verification reported `complete_valid`, 116 artifacts,
+  stable run ID `run_9b919ff0c2abc28f`, and no errors. The final manifest and
+  finalization hashes are recorded in the claims ledger. Visual inspection
+  confirmed correct titles, axes, dimensions, and absence of a reliability
+  diagram for ordinal scores.
 
 ### Checkpoint 50 — golden suites and v0.4.0 preparation
 

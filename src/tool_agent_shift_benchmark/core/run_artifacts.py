@@ -68,6 +68,11 @@ def artifact_schema_version(relative_path: str) -> str:
         "analysis/monitor_calibration_summary.csv": "monitor-evaluation-v1",
         "analysis/monitor_utility_frontier.csv": "monitor-evaluation-v1",
         "analysis/monitor_utility_config.json": "monitor-evaluation-v1",
+        "reports/source_evidence_snapshot.json": "report-provenance-v1",
+        "reports/report_provenance.json": "report-provenance-v1",
+        "reports/report_validation.json": "report-provenance-v1",
+        "reports/analysis_source_evidence_snapshot.json": "report-provenance-v1",
+        "analysis/plot_source_evidence_snapshot.json": "report-provenance-v1",
     }
     if relative_path in exact:
         return exact[relative_path]

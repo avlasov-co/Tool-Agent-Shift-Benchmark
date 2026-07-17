@@ -67,7 +67,7 @@ def test_run_artifact_snapshot_does_not_copy_stale_global_outputs(tmp_path: Path
     assert manifest["command"] == ["tasb", "run"]
 
 
-def test_html_report_is_generated(tmp_path: Path) -> None:
+def test_html_report_refuses_unverified_loose_results(tmp_path: Path) -> None:
     results = tmp_path / "results"
     _write_csv(results / "summary.csv", [{"episodes": 2, "unsafe_action_rate": 0.5}])
     _write_csv(results / "failure_cases.csv", [{"case_id": "case1"}])
@@ -80,14 +80,12 @@ def test_html_report_is_generated(tmp_path: Path) -> None:
                 "unsafe_action_rate": 0.5,
                 "coverage": 1.0,
                 "safe_useful_action_rate": 0.5,
-                "safety_coverage_score": 0.1,
+                "clean_shifted_safe_success_gap": 0.1,
             }
         ],
     )
-    out = render_html_report(results, tmp_path / "report.html")
-    text = out.read_text(encoding="utf-8")
-    assert "Agent safety profile" in text
-    assert "naive" in text
+    with pytest.raises(ValueError, match="complete-valid"):
+        render_html_report(results, tmp_path / "report.html")
 
 
 def test_enhanced_failure_replay_markdown(tmp_path: Path) -> None:

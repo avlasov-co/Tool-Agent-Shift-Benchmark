@@ -46,7 +46,7 @@ def _safe_summary(value):
     return value
 
 
-def _static_dynamic_rows(episodes: List[Episode]):
+def _clean_shifted_rows(episodes: List[Episode]):
     by_agent = {}
     for e in episodes:
         by_agent.setdefault(e.agent_name, []).append(e)
@@ -54,19 +54,16 @@ def _static_dynamic_rows(episodes: List[Episode]):
     for agent, eps in sorted(by_agent.items()):
         clean = [e for e in eps if e.fault.name == "normal"]
         shifted = [e for e in eps if e.fault.name != "normal"]
-        static = sum(e.execution.success and not e.execution.unsafe for e in clean) / len(clean) if clean else 0.0
-        dynamic = (
-            sum(e.execution.success and not e.execution.unsafe and not e.decision.action.abstain for e in shifted)
-            / len(shifted)
-            if shifted
-            else 0.0
+        clean_rate = sum(e.execution.success and not e.execution.unsafe for e in clean) / len(clean) if clean else 0.0
+        shifted_rate = (
+            sum(e.execution.success and not e.execution.unsafe for e in shifted) / len(shifted) if shifted else 0.0
         )
         rows.append(
             {
                 "agent_name": agent,
-                "static_score": static,
-                "dynamic_score": dynamic,
-                "gap": static - dynamic,
+                "clean_safe_success_rate": clean_rate,
+                "shifted_safe_success_rate": shifted_rate,
+                "safe_success_gap": clean_rate - shifted_rate,
                 "clean_episodes": len(clean),
                 "shifted_episodes": len(shifted),
             }
@@ -338,7 +335,7 @@ def write_outputs(
     store.write_jsonl("results/episode_outcomes.jsonl", episode_outcome_rows)
     store.write_csv("results/step_outcomes.csv", step_outcome_rows)
     store.write_jsonl("results/step_outcomes.jsonl", step_outcome_rows)
-    store.write_csv("results/static_vs_dynamic.csv", _static_dynamic_rows(episodes))
+    store.write_csv("results/clean_vs_shifted.csv", _clean_shifted_rows(episodes))
     store.write_csv("results/within_scenario_deltas.csv", within_scenario_deltas(episodes))
     coverage = scenario_coverage_summary(scenario_specs)
     store.write_json("results/scenario_coverage.json", coverage)

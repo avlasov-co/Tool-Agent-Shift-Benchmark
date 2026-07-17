@@ -28,6 +28,7 @@ from tool_agent_shift_benchmark.package_resources import builtin_config_names
 from tool_agent_shift_benchmark.reporting.failure_cases import format_replay, replay_case
 from tool_agent_shift_benchmark.reporting.html_report import render_html_report
 from tool_agent_shift_benchmark.reporting.plots import generate_plots
+from tool_agent_shift_benchmark.reporting.provenance import capture_verified_source
 from tool_agent_shift_benchmark.reporting.report import generate_markdown_report
 from tool_agent_shift_benchmark.run_eval import run_eval
 
@@ -194,6 +195,8 @@ def _plot_command(args: argparse.Namespace) -> None:
     if run_dir is None:
         raise ValueError("tasb plots requires an explicit --run bundle")
     store = ArtifactStore(run_dir)
+    source_provenance = capture_verified_source(run_dir)
+    store.write_json("analysis/plot_source_evidence_snapshot.json", source_provenance)
     plots = generate_plots(
         run_dir / "results" / "summary.csv",
         "plots",
@@ -209,22 +212,34 @@ def _report_command(args: argparse.Namespace) -> None:
     if run_dir is None:
         raise ValueError("tasb report requires an explicit --run bundle")
     store = ArtifactStore(run_dir)
+    source_provenance = capture_verified_source(run_dir)
     markdown = generate_markdown_report(
         run_dir / "results" / "summary.csv",
         "reports/experimental_report.md",
         artifact_store=store,
+        source_provenance=source_provenance,
     )
     html = None
     if args.html:
         output = args.output or "reports/analysis_report.html"
-        html = str(render_html_report(run_dir / "results", output, artifact_store=store))
+        html = str(
+            render_html_report(
+                run_dir / "results",
+                output,
+                artifact_store=store,
+                source_provenance=source_provenance,
+            )
+        )
     store.finalize(command=["tasb", "report"], metadata={"markdown": markdown, "html": html})
     print("report generation complete")
 
 
 def _replay_command(args: argparse.Namespace) -> None:
-    path = Path(args.path) if args.path else run_results_dir(args.run) / "failure_cases.csv"
-    analysis_dir = Path(args.analysis_dir) if args.analysis_dir else run_results_dir(args.run) / "analysis"
+    run_dir = resolve_run(args.run)
+    if run_dir is None:
+        raise ValueError("tasb replay requires an explicit --run bundle")
+    path = Path(args.path) if args.path else run_dir / "results" / "failure_cases.csv"
+    analysis_dir = Path(args.analysis_dir) if args.analysis_dir else run_dir / "analysis"
     print(format_replay(replay_case(args.case_id, str(path), analysis_dir), args.format))
 
 
