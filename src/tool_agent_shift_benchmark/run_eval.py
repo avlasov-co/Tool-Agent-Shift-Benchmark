@@ -27,7 +27,8 @@ from tool_agent_shift_benchmark.core.serialization import canonical_dumps
 from tool_agent_shift_benchmark.environments.calendar_ops import CalendarOpsEnvironment
 from tool_agent_shift_benchmark.environments.file_ops import FileOpsEnvironment
 from tool_agent_shift_benchmark.environments.risk_ops import RiskOpsEnvironment
-from tool_agent_shift_benchmark.metrics.aggregation import aggregate, within_scenario_deltas
+from tool_agent_shift_benchmark.metrics.aggregation import aggregate, metric_evidence, within_scenario_deltas
+from tool_agent_shift_benchmark.metrics.outcomes import METRIC_SCHEMA_VERSION, classify_episode
 
 ENVS = {
     "file_ops": FileOpsEnvironment,
@@ -281,6 +282,48 @@ def write_outputs(
     errors = list(orchestration_errors or [])
     store.write_csv("results/episode_log.csv", [e.to_row() for e in episodes])
     store.write_csv("results/summary.csv", aggregate(episodes, errors))
+    metric_rows = metric_evidence(episodes, errors)
+    store.write_csv("results/metric_evidence.csv", metric_rows)
+    store.write_jsonl("results/metric_evidence.jsonl", metric_rows)
+    episode_outcome_rows = []
+    step_outcome_rows = []
+    for episode in episodes:
+        outcome = classify_episode(episode)
+        outcome_row = outcome.to_dict()
+        steps = outcome_row.pop("steps")
+        episode_outcome_rows.append(
+            {
+                "metric_schema_version": METRIC_SCHEMA_VERSION,
+                "run_id": episode.run_id,
+                "episode_id": episode.episode_id,
+                "scenario_pair_id": episode.scenario_pair_id or "",
+                "scenario_manifest_hash": (episode.metadata.get("scenario_manifest") or {}).get("content_hash", ""),
+                "environment": episode.env_name,
+                "agent": episode.agent_name,
+                "fault": episode.fault.name,
+                "severity": episode.fault.severity,
+                **outcome_row,
+            }
+        )
+        for step in steps:
+            step_outcome_rows.append(
+                {
+                    "metric_schema_version": METRIC_SCHEMA_VERSION,
+                    "run_id": episode.run_id,
+                    "episode_id": episode.episode_id,
+                    "scenario_pair_id": episode.scenario_pair_id or "",
+                    "scenario_manifest_hash": (episode.metadata.get("scenario_manifest") or {}).get("content_hash", ""),
+                    "environment": episode.env_name,
+                    "agent": episode.agent_name,
+                    "fault": episode.fault.name,
+                    "severity": episode.fault.severity,
+                    **step,
+                }
+            )
+    store.write_csv("results/episode_outcomes.csv", episode_outcome_rows)
+    store.write_jsonl("results/episode_outcomes.jsonl", episode_outcome_rows)
+    store.write_csv("results/step_outcomes.csv", step_outcome_rows)
+    store.write_jsonl("results/step_outcomes.jsonl", step_outcome_rows)
     store.write_csv("results/static_vs_dynamic.csv", _static_dynamic_rows(episodes))
     store.write_csv("results/within_scenario_deltas.csv", within_scenario_deltas(episodes))
     coverage = scenario_coverage_summary(scenario_specs)
@@ -460,6 +503,7 @@ def write_outputs(
         "episode_record_version": EPISODE_RECORD_VERSION,
         "action_record_contract": ACTION_RECORD_CONTRACT,
         "counterfactual_evaluation_contract": COUNTERFACTUAL_EVALUATION_CONTRACT,
+        "metric_schema_version": METRIC_SCHEMA_VERSION,
         "scenario_manifest_contract": SCENARIO_MANIFEST_CONTRACT,
         "scenario_family_contract": SCENARIO_FAMILY_CONTRACT,
         "scenario_split_contract": SCENARIO_SPLIT_CONTRACT,

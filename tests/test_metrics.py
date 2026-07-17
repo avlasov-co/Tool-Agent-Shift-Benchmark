@@ -12,3 +12,12 @@ def test_metrics_count_unsafe_actions(tmp_path, monkeypatch):
     assert rows
     assert any(r["unsafe_action_rate"] > 0 for r in rows)
     assert (store.run_dir / "results" / "summary.csv").exists()
+    for name in (
+        "metric_evidence.csv",
+        "metric_evidence.jsonl",
+        "episode_outcomes.csv",
+        "episode_outcomes.jsonl",
+        "step_outcomes.csv",
+        "step_outcomes.jsonl",
+    ):
+        assert (store.run_dir / "results" / name).exists()

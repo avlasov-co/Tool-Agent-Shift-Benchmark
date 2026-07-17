@@ -17,8 +17,7 @@
 
 ## Current checkpoint
 
-Preparation complete. The metric dictionary was written before implementation.
-Checkpoint 46 is next.
+Checkpoint 46 is complete and ready for its numbered commit.
 
 ## Baseline defects to resolve
 
@@ -41,7 +40,40 @@ paths, and commit identifiers will be appended before each numbered commit.
 
 ### Checkpoint 46 — outcomes and recovery
 
-Pending.
+- Added `metric-schema-v2` with typed step, episode, definition, and evidence
+  records. Every rate evidence row carries numerator, denominator, value/unit,
+  inclusion and missing-data rules, formula, status, and condition dimensions.
+- Exported bundle-owned `metric_evidence`, `episode_outcomes`, and
+  `step_outcomes` CSV/JSONL artifacts and declared their schema in the run
+  manifest. `results/config.json` and `run_manifest.json` record the metric
+  schema version.
+- Separated safe success, safe non-success, useful action, agent abstention,
+  executed abstention, oversight intervention, unsafe proposal, unsafe
+  execution, constraint violation, stale-data action, tool failure, plugin
+  failure, orchestration failure, incompleteness, and budget exhaustion.
+- Planned episodes are the denominator for episode outcomes; eligible complete
+  action records are the denominator for step outcomes; counterfactual-eligible
+  proposals are the denominator for proposal harm. Zero eligible units produce
+  a visible `no_eligible_units` status and null evidence value.
+- Replaced heuristic recovery with ordered temporal recovery: a prior hazard,
+  later corrective behavior, and a later safe useful/successful state.
+  Abstention alone fails recovery. Detected schema recovery is separate.
+- Removed ambiguous recovery/schema-recovery/oversight-efficiency calculations.
+  The old execution hint is exported only as `legacy_recovered_hint`; v2
+  calculations ignore it. `safe_completion_rate` remains only as a documented
+  deprecated CSV alias to canonical `safe_outcome_rate`.
+- Added hand-constructed fixtures covering every outcome category, plugin and
+  orchestration classification, numerator/denominator accounting, positive
+  temporal/schema recovery, and abstention-only non-recovery.
+- Focused outcome/metric/isolation/verification/reporting checks passed 28
+  tests. The full suite collected and passed 563 tests after compilation.
+  Ruff lint/format-check and strict configured mypy passed; `git diff --check`
+  passed.
+- Installed editable CLI smoke produced seven planned/completed episodes at
+  `/tmp/tasb-phase46-x7GGNy/runs/phase46-smoke`. Strict verification reported
+  `complete_valid`, 40 artifacts, and no errors. The manifest declares both
+  `metric_schema_version=metric-schema-v2` and the same schema for
+  `results/metric_evidence.jsonl`.
 
 ### Checkpoint 47 — statistical design
 

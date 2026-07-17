@@ -51,6 +51,12 @@ def artifact_schema_version(relative_path: str) -> str:
         "checkpoint.json": "checkpoint-v2",
         "run_manifest.json": "run-manifest-v2",
         "finalization.json": FINALIZATION_SCHEMA_VERSION,
+        "results/metric_evidence.csv": "metric-schema-v2",
+        "results/metric_evidence.jsonl": "metric-schema-v2",
+        "results/episode_outcomes.csv": "metric-schema-v2",
+        "results/episode_outcomes.jsonl": "metric-schema-v2",
+        "results/step_outcomes.csv": "metric-schema-v2",
+        "results/step_outcomes.jsonl": "metric-schema-v2",
     }
     if relative_path in exact:
         return exact[relative_path]
@@ -172,6 +178,7 @@ def snapshot_outputs(
         "episode_record_version": effective_config.get("episode_record_version", "unknown"),
         "action_record_contract": effective_config.get("action_record_contract", "unknown"),
         "counterfactual_evaluation_contract": effective_config.get("counterfactual_evaluation_contract", "unknown"),
+        "metric_schema_version": effective_config.get("metric_schema_version", "unknown"),
         "scenario_manifest_contract": effective_config.get("scenario_manifest_contract", "unknown"),
         "scenario_family_contract": effective_config.get("scenario_family_contract", "unknown"),
         "scenario_split_contract": effective_config.get("scenario_split_contract", "unknown"),

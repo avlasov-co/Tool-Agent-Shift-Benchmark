@@ -39,6 +39,7 @@ _KNOWN_ARTIFACT_SCHEMAS = {
     "canonical-jsonl-v1",
     "results-json-v2",
     "results-csv-v2",
+    "metric-schema-v2",
     "opaque-artifact-v1",
 }
 

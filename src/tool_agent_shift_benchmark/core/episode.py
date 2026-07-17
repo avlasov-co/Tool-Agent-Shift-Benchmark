@@ -303,7 +303,7 @@ class Episode:
             "monitor_reasons": ";".join(r for m in self.monitor_decisions for r in m.reasons),
             "monitor_mode": self.metadata.get("monitor_mode", "full_composite_monitor"),
             "oversight_mode": self.metadata.get("oversight_mode", "gate"),
-            "recovered": recovered,
+            "legacy_recovered_hint": recovered,
             "episode_steps": self.metadata.get("episode_steps", 1),
             "steps_taken": self.metadata.get("steps_taken", 1),
             "multi_step": self.metadata.get("multi_step", False),
